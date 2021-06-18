@@ -29,18 +29,14 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 d_items = pd.read_csv(d_items_path)
 num_tokens = len(d_items)
+print(num_tokens)
 
 itemid2token = dict(zip(d_items['ITEMID'], range(len(d_items))))
 token2itemid = {v: k for k, v in itemid2token.items()}
 token2label = dict(zip(range(len(d_items)), d_items['LABEL']))
 
 
-def encode_item(itemid):
-    return itemid2token[itemid]
-
-
 # token mappings: decoders
-
 
 def decode_token(token):
     return str(token2itemid[token])
@@ -80,14 +76,14 @@ BATCH_SIZE = 4
 GRADIENT_ACCUMULATE_EVERY = 4  # 4
 LEARNING_RATE = 1e-4
 VALIDATE_EVERY = 100
-GENERATE_EVERY = 10
+GENERATE_EVERY = 20
 GENERATE_LENGTH = 100
 SEQ_LEN = 100
 
 # instantiate GPT-like decoder model
 
 model = TransformerWrapper(
-    num_tokens=num_tokens,  # 256,
+    num_tokens=num_tokens,  # 256. Note - expects each val in data to be [0, num_tokens)
     max_seq_len=SEQ_LEN,
     attn_layers=Decoder(dim=100, depth=3, heads=4)  # 512, 6, 8
 )
@@ -98,7 +94,7 @@ model.to(device)
 
 # custom sequence-excerpt sampler
 
-class SeqSamplerDataset(Dataset):
+class SeqSamplerDataset(Dataset):  # TODO: tidy getitem method
     def __init__(self, data, seq_len):
         super().__init__()  # gives access to Dataset methods.
         self.data = data
@@ -108,7 +104,7 @@ class SeqSamplerDataset(Dataset):
 
     def __getitem__(self, key):  # a.t.m. when data[key] shorter length than SEQ_LEN, padded with 0.
         full_len = self.data[self.lookup[key]].size(0)
-        rand_start = torch.randint(0, full_len - self.seq_len - 1, (1,)) if full_len > self.seq_len else 0
+        rand_start = torch.randint(0, full_len - self.seq_len, (1,)) if full_len > self.seq_len else 0
         lenfromseq = min(full_len, self.seq_len)
         sample = torch.zeros(self.seq_len)
         sample[:lenfromseq] = self.data[self.lookup[key]][rand_start: rand_start + lenfromseq]
@@ -127,14 +123,13 @@ val_loader    = cycle(DataLoader(val_dataset,   batch_size=BATCH_SIZE))
 
 optim = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
-# training
+# training  # TODO: considerations around checkpointing model!
 
 for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
-    print(i)
     model.train()
 
     for __ in range(GRADIENT_ACCUMULATE_EVERY):
-        loss = model(next(train_loader)) # Might need to encode tokens?
+        loss = model(next(train_loader))
         loss.backward()
 
     print(f'training loss: {loss.item()}')
@@ -155,14 +150,6 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
         print('primer:', primer_str, '*' * 100, sep='\n')
 
         sample = model.generate(inp, GENERATE_LENGTH)
-        print(sample)
         sample_str = decode_tokens(sample.numpy())
         print('output:', sample_str, sep='\n')
 
-
-def label(token):
-    return token2label[token]
-
-
-def labels(tokens):
-    return ' | '.join(list(map(label, tokens)))
