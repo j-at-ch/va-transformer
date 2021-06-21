@@ -17,9 +17,10 @@ from torch.utils.data import DataLoader, Dataset
 # paths
 
 d_items_path = "C:/Users/james/Data/MIMIC/mimic-iii-clinical-database-1.4/d_items.csv"
-data_path = "C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers"
-train_path = os.path.join(data_path, "train_charts.pkl")
-val_path = os.path.join(data_path, "val_charts.pkl")
+data_root = "C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers"
+train_path = os.path.join(data_root, "train_charts.pkl")
+val_path = os.path.join(data_root, "val_charts.pkl")
+ckpt_path = os.path.join(data_root, "model.pt")
 
 # misc
 
@@ -76,6 +77,7 @@ BATCH_SIZE = 4
 GRADIENT_ACCUMULATE_EVERY = 4  # 4
 LEARNING_RATE = 1e-4
 VALIDATE_EVERY = 100
+CHECKPOINT_CONDITION = None  # Function of i and val_loss.
 GENERATE_EVERY = 20
 GENERATE_LENGTH = 100
 SEQ_LEN = 100
@@ -137,11 +139,15 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
     optim.step()
     optim.zero_grad()
 
+    best_val_loss = np.inf
     if i % VALIDATE_EVERY == 0:
         model.eval()
         with torch.no_grad():
-            loss = model(next(val_loader))
-            print(f'validation loss: {loss.item()}')
+            val_loss = model(next(val_loader))
+            print(f'validation loss: {val_loss.item()}')
+
+    #if CHECKPOINT_CONDITION(i):
+    #    torch.save(model.state_dict(), f'{ckpt_path}.pt')
 
     if i % GENERATE_EVERY == 0:
         model.eval()
