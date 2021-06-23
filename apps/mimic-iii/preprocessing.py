@@ -13,6 +13,7 @@ admissions_path = "C:/Users/james/Data/MIMIC/mimic-iii-clinical-database-1.4/ADM
 d_items_path = "C:/Users/james/Data/MIMIC/mimic-iii-clinical-database-1.4/d_items.csv"
 save_root = 'C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers'
 
+
 # read in admissions
 admissions = pd.read_csv(admissions_path)
 admissions['ADMITTIME'] = pd.to_datetime(admissions['ADMITTIME'])
@@ -28,6 +29,8 @@ admitfirsttimes = pd.merge(admittimes[['SUBJECT_ID', 'ADMITTIME']].groupby(by='S
 
 assert len(admitfirsttimes) == admittimes['SUBJECT_ID'].nunique()
 assert admitfirsttimes['HADM_ID'].nunique() == admitfirsttimes['SUBJECT_ID'].nunique()
+
+# TODO: insert logic extracting target labels
 
 # since we know HADM_ID is 1-1 with SUBJECT_ID, set as index
 admitfirsttimes.set_index('HADM_ID', inplace=True)
@@ -55,16 +58,23 @@ def get_admittime(hadm_id):
 # token mappings
 
 d_items = pd.read_csv(d_items_path)
-num_tokens = len(d_items)
 
-itemid2token = dict(zip(d_items['ITEMID'], range(len(d_items))))
+token_shift = 10
+pad_token = 0
+
+itemid2token = dict(zip(d_items['ITEMID'], range(token_shift, token_shift + len(d_items))))
+
+# add special tokens to the dictionary
+itemid2token['[PAD]'] = 0
+
 token2itemid = {v: k for k, v in itemid2token.items()}
 token2label = dict(zip(range(len(d_items)), d_items['LABEL']))
 
 
-with open(os.path.join(save_root, 'itemid2token.pkl'), 'wb') as f:
-    pickle.dump(itemid2token, f)
-
+with open(os.path.join(save_root, 'mappings.pkl'), 'wb') as f:
+    pickle.dump({'itemid2token': itemid2token,
+                 'token2itemid': token2itemid},
+                f)
 
 def map2token(itemid):
     return itemid2token[np.int(itemid)]
@@ -80,11 +90,12 @@ def map2itemidstr(tokens):
 
 # loop through sets and generate output files
 
-for subset in ['train', 'val', 'test']:
+for subset in ['val', 'train', 'test']:
+    print(f'Processing {subset} set data...')
 
     # grouper
 
-    gpdf = (pd.read_csv(chartevents_path, skiprows=0, nrows=10000000,
+    gpdf = (pd.read_csv(chartevents_path, skiprows=0, nrows=1000000,
                         header=0,
                         usecols=['HADM_ID', 'CHARTTIME', 'ITEMID'],
                         dtype={'HADM_ID': np.int},
@@ -96,7 +107,7 @@ for subset in ['train', 'val', 'test']:
 
     # initialise
 
-    items = dict()
+    tokens = dict()
     times = dict()
     times_rel = dict()
 
@@ -105,7 +116,7 @@ for subset in ['train', 'val', 'test']:
     for i in gpdf.groups:
         time_origin = get_admittime(i)
         temp = gpdf.get_group(i).sort_values(by="CHARTTIME")
-        items[i] = np.array(temp['ITEMID'], dtype=int)
+        tokens[i] = np.array(temp['ITEMID'], dtype=int)
         times[i] = np.fromiter(
             map(ts_to_posix, temp['CHARTTIME']),
             dtype=np.int64
@@ -117,8 +128,10 @@ for subset in ['train', 'val', 'test']:
     save_path = os.path.join(save_root, f'{subset}_charts.pkl')
 
     with open(save_path, 'wb') as f:
-        pickle.dump({f'{subset}_items': items,
+        pickle.dump({f'{subset}_tokens': tokens,
                      f'{subset}_times': times,
                      f'{subset}_times_rel': times_rel}, f)
 
-    del items, times, times_rel, gpdf
+    del tokens, times, times_rel, gpdf
+
+    print(f'{subset} set data processed!')
