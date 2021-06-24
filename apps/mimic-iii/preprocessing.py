@@ -15,33 +15,32 @@ save_root = 'C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers'
 
 
 # read in admissions
-admissions = pd.read_csv(admissions_path)
-admissions['ADMITTIME'] = pd.to_datetime(admissions['ADMITTIME'])
 
-# filter keep those that have chartevent data
-admittimes = admissions[admissions.HAS_CHARTEVENTS_DATA == 1][['SUBJECT_ID', 'HADM_ID', 'ADMITTIME']]
+admissions = pd.read_csv(admissions_path,
+                         parse_dates=['ADMITTIME', 'DISCHTIME'])
 
-# pick the earliest admission times for each subject.
-admitfirsttimes = pd.merge(admittimes[['SUBJECT_ID', 'ADMITTIME']].groupby(by='SUBJECT_ID').min(),
-                           admittimes,
-                           how='left',
-                           on=['SUBJECT_ID', 'ADMITTIME'])
+# extract only those charted and apply labelling logic
 
-assert len(admitfirsttimes) == admittimes['SUBJECT_ID'].nunique()
-assert admitfirsttimes['HADM_ID'].nunique() == admitfirsttimes['SUBJECT_ID'].nunique()
+charted = admissions[admissions.HAS_CHARTEVENTS_DATA == 1]
+charted.drop('ROW_ID', axis=1, inplace=True)
+charted['HADM_IN_SEQ'] = charted.groupby('SUBJECT_ID')['ADMITTIME'].rank().astype(int)
+charted = charted.sort_values(by=['SUBJECT_ID', 'HADM_IN_SEQ'])
+charted['ADMITTIME_NEXT'] = charted.groupby('SUBJECT_ID')['ADMITTIME'].shift(-1)
+charted['DIS2ADM'] = charted['ADMITTIME_NEXT'] - charted['DISCHTIME']
+charted['READM<7'] = (charted['DIS2ADM'] < pd.Timedelta(days=7)).astype(int)
+charted['READM<30'] = (charted['DIS2ADM'] < pd.Timedelta(days=30)).astype(int)
+charted.set_index('HADM_ID', inplace=True)
 
-# TODO: insert logic extracting target labels
+# get hadm_ids for the first admission
 
-# since we know HADM_ID is 1-1 with SUBJECT_ID, set as index
-admitfirsttimes.set_index('HADM_ID', inplace=True)
-all_indices = admitfirsttimes.index.to_numpy()
+first_indices = charted[charted.HADM_IN_SEQ == 1].index.to_numpy()
 
 # split first-hadm_ids into train, val, test and check.
 
-train_indices, surplus = train_test_split(all_indices, train_size=0.8)
+train_indices, surplus = train_test_split(first_indices, train_size=0.8)
 val_indices, test_indices = train_test_split(surplus, test_size=0.5)
 del surplus
-assert set(all_indices) == set(train_indices) | set(val_indices) | set(test_indices)
+assert set(first_indices) == set(train_indices) | set(val_indices) | set(test_indices)
 
 # helpers
 
@@ -51,8 +50,12 @@ def ts_to_posix(time):
 
 
 def get_admittime(hadm_id):
-    time = admitfirsttimes.loc[hadm_id, 'ADMITTIME']
+    time = charted.loc[hadm_id, 'ADMITTIME']
     return ts_to_posix(time)
+
+
+def get_from_charted(hadm_id, label):
+    return charted.loc[hadm_id, label]
 
 
 # token mappings
@@ -93,7 +96,7 @@ def map2itemidstr(tokens):
 for subset in ['val', 'train', 'test']:
     print(f'Processing {subset} set data...')
 
-    # grouper
+    # grouper for charts
 
     gpdf = (pd.read_csv(chartevents_path, skiprows=0, nrows=1000000,
                         header=0,
@@ -110,6 +113,7 @@ for subset in ['val', 'train', 'test']:
     tokens = dict()
     times = dict()
     times_rel = dict()
+    labels = dict()
 
     # populate with entries
 
@@ -122,8 +126,13 @@ for subset in ['val', 'train', 'test']:
             dtype=np.int64
         )
         times_rel[i] = times[i] - time_origin
+        labels[i] = {
+            'readm_7': get_from_charted(i, 'READM<7'),
+            'readm_30': get_from_charted(i, 'READM<30')
+        }
 
-    # write out dicts to pickle
+
+    # write out charts to pickle
 
     save_path = os.path.join(save_root, f'{subset}_charts.pkl')
 
@@ -134,4 +143,14 @@ for subset in ['val', 'train', 'test']:
 
     del tokens, times, times_rel, gpdf
 
+    # write out labels to pickle
+
+    save_path = os.path.join(save_root, f'{subset}_labels.pkl')
+
+    with open(save_path, 'wb') as f:
+        pickle.dump({f'{subset}_labels': labels}, f)
+
+    del labels
+
     print(f'{subset} set data processed!')
+
