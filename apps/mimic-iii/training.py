@@ -14,30 +14,32 @@ import torch.optim as optim
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset
 
+
 # paths
 
 d_items_path = "C:/Users/james/Data/MIMIC/mimic-iii-clinical-database-1.4/d_items.csv"
 data_root = "C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers"
 train_path = os.path.join(data_root, "train_charts.pkl")
 val_path = os.path.join(data_root, "val_charts.pkl")
+mapping_path = os.path.join(data_root, "mappings.pkl")
 ckpt_path = os.path.join(data_root, "model.pt")
 
 # misc
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# token mappings: encoders
+# token mappings:  # TODO: refactor to module where possible.
 
-d_items = pd.read_csv(d_items_path)
-num_tokens = len(d_items)
-print(num_tokens)
+with open(mapping_path, 'rb') as f:
+    mappings = pickle.load(f)
+    itemid2token = mappings['itemid2token']
+    token2itemid = mappings['token2itemid']
+    del mappings
 
-itemid2token = dict(zip(d_items['ITEMID'], range(len(d_items))))
-token2itemid = {v: k for k, v in itemid2token.items()}
-token2label = dict(zip(range(len(d_items)), d_items['LABEL']))
-
+num_tokens = len(itemid2token)
 
 # token mappings: decoders
+
 
 def decode_token(token):
     return str(token2itemid[token])
@@ -55,8 +57,8 @@ def fetch_data(path, var_key):
     return data[var_key]
 
 
-trX = fetch_data(train_path, 'train_items')
-vaX = fetch_data(val_path, 'val_items')
+trX = fetch_data(train_path, 'train_tokens')
+vaX = fetch_data(val_path, 'val_tokens')
 
 data_train = {k: torch.from_numpy(v) for k, v in trX.items()}
 data_val = {k: torch.from_numpy(v) for k, v in vaX.items()}
@@ -70,17 +72,17 @@ def cycle(loader):
             yield data
 
 
-# constants
+# constants  # TODO: consider having these stored in checkpoint
 
-NUM_BATCHES = 100 #int(1e5)
+NUM_BATCHES = 1000 #int(1e5)
 BATCH_SIZE = 4
 GRADIENT_ACCUMULATE_EVERY = 4  # 4
 LEARNING_RATE = 1e-4
-VALIDATE_EVERY = 100
-CHECKPOINT_CONDITION = None  # Function of i and val_loss.
+VALIDATE_EVERY = 10
+CHECKPOINT_AFTER = 10
 GENERATE_EVERY = 20
-GENERATE_LENGTH = 100
-SEQ_LEN = 100
+GENERATE_LENGTH = 200
+SEQ_LEN = 200
 
 # instantiate GPT-like decoder model
 
@@ -96,7 +98,7 @@ model.to(device)
 
 # custom sequence-excerpt sampler
 
-class SeqSamplerDataset(Dataset):  # TODO: tidy getitem method
+class SeqSamplerDataset(Dataset):  # TODO: tidy __getitem__ method
     def __init__(self, data, seq_len):
         super().__init__()  # gives access to Dataset methods.
         self.data = data
@@ -105,9 +107,9 @@ class SeqSamplerDataset(Dataset):  # TODO: tidy getitem method
                                self.data.keys()))
 
     def __getitem__(self, key):  # a.t.m. when data[key] shorter length than SEQ_LEN, padded with 0.
-        full_len = self.data[self.lookup[key]].size(0)
-        rand_start = torch.randint(0, full_len - self.seq_len, (1,)) if full_len > self.seq_len else 0
-        lenfromseq = min(full_len, self.seq_len)
+        item_len = self.data[self.lookup[key]].size(0)
+        rand_start = torch.randint(0, item_len - self.seq_len, (1,)) if item_len > self.seq_len else 0
+        lenfromseq = min(item_len, self.seq_len)
         sample = torch.zeros(self.seq_len)
         sample[:lenfromseq] = self.data[self.lookup[key]][rand_start: rand_start + lenfromseq]
         sample = sample.long()
@@ -125,7 +127,7 @@ val_loader    = cycle(DataLoader(val_dataset,   batch_size=BATCH_SIZE))
 
 optim = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
-# training  # TODO: considerations around checkpointing model!
+# training
 
 for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
     model.train()
@@ -146,8 +148,17 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
             val_loss = model(next(val_loader))
             print(f'validation loss: {val_loss.item()}')
 
-    #if CHECKPOINT_CONDITION(i):
-    #    torch.save(model.state_dict(), f'{ckpt_path}.pt')
+        # checkpoint model
+
+        if (i > CHECKPOINT_AFTER) & (val_loss.item() < best_val_loss):
+            torch.save({
+                'train_step': i,
+                'model_state_dict': model.state_dict(),
+                'SEQ_LEN': SEQ_LEN,
+                'optim_state_dict': optim.state_dict(),
+                'val_loss': val_loss
+            }, ckpt_path)
+            print("Checkpoint saved!\n")
 
     if i % GENERATE_EVERY == 0:
         model.eval()
@@ -159,3 +170,4 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
         sample_str = decode_tokens(sample.numpy())
         print('output:', sample_str, sep='\n')
 
+# fine-tuning
