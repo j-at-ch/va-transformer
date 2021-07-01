@@ -127,7 +127,7 @@ val_loader    = cycle(DataLoader(val_dataset,   batch_size=BATCH_SIZE))
 
 optim = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
-# training
+# training loop
 
 for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
     model.train()
@@ -140,6 +140,8 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
     torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
     optim.step()
     optim.zero_grad()
+
+    # validate model
 
     best_val_loss = np.inf
     if i % VALIDATE_EVERY == 0:
@@ -160,6 +162,8 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
             }, ckpt_path)
             print("Checkpoint saved!\n")
 
+    # generate sequence
+
     if i % GENERATE_EVERY == 0:
         model.eval()
         inp = random.choice(val_dataset)[:-1]
@@ -170,4 +174,5 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
         sample_str = decode_tokens(sample.numpy())
         print('output:', sample_str, sep='\n')
 
-# fine-tuning
+# fine-tuning  # TODO: see mimiciii_working
+

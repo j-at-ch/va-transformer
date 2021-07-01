@@ -62,22 +62,25 @@ def get_from_charted(hadm_id, label):
 
 d_items = pd.read_csv(d_items_path)
 
-token_shift = 10
+token_shift = 1
 pad_token = 0
 
 itemid2token = dict(zip(d_items['ITEMID'], range(token_shift, token_shift + len(d_items))))
 
 # add special tokens to the dictionary
-itemid2token['[PAD]'] = 0
+itemid2token['[PAD]'] = pad_token
+#itemid2token['[BOS]'] = 1
+#itemid2token['[EOS]'] = 2
+#itemid2token['[SEP]'] = 3
 
 token2itemid = {v: k for k, v in itemid2token.items()}
 token2label = dict(zip(range(len(d_items)), d_items['LABEL']))
-
 
 with open(os.path.join(save_root, 'mappings.pkl'), 'wb') as f:
     pickle.dump({'itemid2token': itemid2token,
                  'token2itemid': token2itemid},
                 f)
+
 
 def map2token(itemid):
     return itemid2token[np.int(itemid)]
@@ -98,7 +101,7 @@ for subset in ['val', 'train', 'test']:
 
     # grouper for charts
 
-    gpdf = (pd.read_csv(chartevents_path, skiprows=0, nrows=1000000,
+    gpdf = (pd.read_csv(chartevents_path, skiprows=0, nrows=10000000,
                         header=0,
                         usecols=['HADM_ID', 'CHARTTIME', 'ITEMID'],
                         dtype={'HADM_ID': np.int},
@@ -130,7 +133,6 @@ for subset in ['val', 'train', 'test']:
             'readm_7': get_from_charted(i, 'READM<7'),
             'readm_30': get_from_charted(i, 'READM<30')
         }
-
 
     # write out charts to pickle
 
