@@ -1,10 +1,5 @@
-# x-transformers toy example on mimic data
-import pickle
-
-from x_transformers import TransformerWrapper, Decoder
-from x_transformers.autoregressive_wrapper import AutoregressiveWrapper
-
 import os
+import pickle
 import random
 import tqdm
 import numpy as np
@@ -13,7 +8,8 @@ import torch
 import torch.optim as optim
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset
-
+from x_transformers import TransformerWrapper, Decoder
+from x_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
 # paths
 
@@ -129,6 +125,13 @@ optim = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 # training loop
 
+
+
+
+
+
+
+
 for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
     model.train()
 
@@ -173,6 +176,3 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
         sample = model.generate(inp, GENERATE_LENGTH)
         sample_str = decode_tokens(sample.numpy())
         print('output:', sample_str, sep='\n')
-
-# fine-tuning  # TODO: see mimiciii_working
-
