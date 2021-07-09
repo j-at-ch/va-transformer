@@ -3,24 +3,30 @@ import pickle
 import random
 import tqdm
 import numpy as np
-import pandas as pd
 import torch
-import torch.optim as optim
-from torch.nn import functional as F
+
+import methods
+
 from torch.utils.data import DataLoader, Dataset
+from torch.utils.tensorboard import SummaryWriter
+
 from x_transformers import TransformerWrapper, Decoder
 from x_transformers.autoregressive_wrapper import AutoregressiveWrapper
+
 
 # paths
 
 d_items_path = "C:/Users/james/Data/MIMIC/mimic-iii-clinical-database-1.4/d_items.csv"
 data_root = "C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers"
+save_root = "C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers"
+
 train_path = os.path.join(data_root, "train_charts.pkl")
 val_path = os.path.join(data_root, "val_charts.pkl")
 mapping_path = os.path.join(data_root, "mappings.pkl")
-ckpt_path = os.path.join(data_root, "model.pt")
+ckpt_path = os.path.join(save_root, "model.pt")
+logs_path = os.path.join(save_root, "tensorboard_logs", "logs")
 
-# misc
+# device
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -70,7 +76,8 @@ def cycle(loader):
 
 # constants  # TODO: consider having these stored in checkpoint
 
-NUM_BATCHES = 1000 #int(1e5)
+NUM_EPOCHS = 2
+NUM_BATCHES = 100
 BATCH_SIZE = 4
 GRADIENT_ACCUMULATE_EVERY = 4  # 4
 LEARNING_RATE = 1e-4
@@ -94,7 +101,7 @@ model.to(device)
 
 # custom sequence-excerpt sampler
 
-class SeqSamplerDataset(Dataset):  # TODO: tidy __getitem__ method
+class SeqSamplerDataset(Dataset):
     def __init__(self, data, seq_len):
         super().__init__()  # gives access to Dataset methods.
         self.data = data
@@ -123,56 +130,13 @@ val_loader    = cycle(DataLoader(val_dataset,   batch_size=BATCH_SIZE))
 
 optim = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
+writer = SummaryWriter(log_dir=logs_path)
+training = methods.TrainingMethods(model, writer)
+
 # training loop
 
+for epoch in range(1, NUM_EPOCHS + 1):
+    training.train(train_loader, optim, epoch, num_batches=NUM_BATCHES, batch_size=BATCH_SIZE)
+    training.evaluate(val_loader, epoch, num_batches=100, batch_size=4)
 
-
-
-
-
-
-
-for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
-    model.train()
-
-    for __ in range(GRADIENT_ACCUMULATE_EVERY):
-        loss = model(next(train_loader))
-        loss.backward()
-
-    print(f'training loss: {loss.item()}')
-    torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
-    optim.step()
-    optim.zero_grad()
-
-    # validate model
-
-    best_val_loss = np.inf
-    if i % VALIDATE_EVERY == 0:
-        model.eval()
-        with torch.no_grad():
-            val_loss = model(next(val_loader))
-            print(f'validation loss: {val_loss.item()}')
-
-        # checkpoint model
-
-        if (i > CHECKPOINT_AFTER) & (val_loss.item() < best_val_loss):
-            torch.save({
-                'train_step': i,
-                'model_state_dict': model.state_dict(),
-                'SEQ_LEN': SEQ_LEN,
-                'optim_state_dict': optim.state_dict(),
-                'val_loss': val_loss
-            }, ckpt_path)
-            print("Checkpoint saved!\n")
-
-    # generate sequence
-
-    if i % GENERATE_EVERY == 0:
-        model.eval()
-        inp = random.choice(val_dataset)[:-1]
-        primer_str = decode_tokens(inp.numpy())
-        print('primer:', primer_str, '*' * 100, sep='\n')
-
-        sample = model.generate(inp, GENERATE_LENGTH)
-        sample_str = decode_tokens(sample.numpy())
-        print('output:', sample_str, sep='\n')
+writer.close()
