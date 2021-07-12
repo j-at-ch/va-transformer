@@ -6,6 +6,8 @@ import numpy as np
 import torch
 
 import methods
+import data_utils
+from arguments import Arguments
 
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
@@ -14,17 +16,22 @@ from x_transformers import TransformerWrapper, Decoder
 from x_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
 
+# parse arguments
+
+args = Arguments().parse(verbose=True)
+
 # paths
 
-d_items_path = "C:/Users/james/Data/MIMIC/mimic-iii-clinical-database-1.4/d_items.csv"
-data_root = "C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers"
-save_root = "C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers"
+#mimic_root = "C:/Users/james/Data/MIMIC/mimic-iii-clinical-database-1.4"
+#data_root = "C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers"
+#save_root = "C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers"
 
-train_path = os.path.join(data_root, "train_charts.pkl")
-val_path = os.path.join(data_root, "val_charts.pkl")
-mapping_path = os.path.join(data_root, "mappings.pkl")
-ckpt_path = os.path.join(save_root, "model.pt")
-logs_path = os.path.join(save_root, "tensorboard_logs", "logs")
+d_items_path = os.path.join(args.mimic_root, "d_items.csv")
+train_path = os.path.join(args.data_root, "train_charts.pkl")
+val_path = os.path.join(args.data_root, "val_charts.pkl")
+mapping_path = os.path.join(args.data_root, "mappings.pkl")
+ckpt_path = os.path.join(args.save_root, "model.pt")
+logs_path = os.path.join(args.save_root, "tensorboard_logs", "logs")
 
 # device
 
@@ -53,18 +60,15 @@ def decode_tokens(tokens):
 
 # get data
 
-def fetch_data(path, var_key):
+def fetch_data_as_torch(path, var_key):
     with open(path, 'rb') as f:
         data = pickle.load(f)
-    return data[var_key]
+    di = data[var_key]
+    return {k: torch.from_numpy(v) for k, v in di.items()}
 
 
-trX = fetch_data(train_path, 'train_tokens')
-vaX = fetch_data(val_path, 'val_tokens')
-
-data_train = {k: torch.from_numpy(v) for k, v in trX.items()}
-data_val = {k: torch.from_numpy(v) for k, v in vaX.items()}
-
+data_train = fetch_data_as_torch(train_path, 'train_tokens')
+data_val = fetch_data_as_torch(val_path, 'val_tokens')
 
 # yield from loader
 
