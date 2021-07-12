@@ -1,30 +1,22 @@
 import os
-import pickle
-import random
-import tqdm
+
 import numpy as np
-import torch
 
 import methods
-import data_utils
+from data_utils import *
 from arguments import Arguments
 
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from x_transformers import TransformerWrapper, Decoder
 from x_transformers.autoregressive_wrapper import AutoregressiveWrapper
-
 
 # parse arguments
 
 args = Arguments().parse(verbose=True)
 
 # paths
-
-#mimic_root = "C:/Users/james/Data/MIMIC/mimic-iii-clinical-database-1.4"
-#data_root = "C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers"
-#save_root = "C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers"
 
 d_items_path = os.path.join(args.mimic_root, "d_items.csv")
 train_path = os.path.join(args.data_root, "train_charts.pkl")
@@ -37,110 +29,59 @@ logs_path = os.path.join(args.save_root, "tensorboard_logs", "logs")
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# token mappings:  # TODO: refactor to module where possible.
+# mappings
 
-with open(mapping_path, 'rb') as f:
-    mappings = pickle.load(f)
-    itemid2token = mappings['itemid2token']
-    token2itemid = mappings['token2itemid']
-    del mappings
-
-num_tokens = len(itemid2token)
-
-# token mappings: decoders
-
-
-def decode_token(token):
-    return str(token2itemid[token])
-
-
-def decode_tokens(tokens):
-    return ' '.join(list(map(decode_token, tokens)))
-
+mappings_dict = fetch_mappings(mapping_path)
+mappings = Mappings(mappings_dict)
 
 # get data
-
-def fetch_data_as_torch(path, var_key):
-    with open(path, 'rb') as f:
-        data = pickle.load(f)
-    di = data[var_key]
-    return {k: torch.from_numpy(v) for k, v in di.items()}
-
 
 data_train = fetch_data_as_torch(train_path, 'train_tokens')
 data_val = fetch_data_as_torch(val_path, 'val_tokens')
 
-# yield from loader
-
-def cycle(loader):
-    while True:
-        for data in loader:
-            yield data
-
-
-# constants  # TODO: consider having these stored in checkpoint
-
-NUM_EPOCHS = 2
-NUM_BATCHES = 100
-BATCH_SIZE = 4
-GRADIENT_ACCUMULATE_EVERY = 4  # 4
-LEARNING_RATE = 1e-4
-VALIDATE_EVERY = 10
-CHECKPOINT_AFTER = 10
-GENERATE_EVERY = 20
-GENERATE_LENGTH = 200
-SEQ_LEN = 200
-
-# instantiate GPT-like decoder model
+# instantiate GPT-like decoder architecture
 
 model = TransformerWrapper(
-    num_tokens=num_tokens,  # 256. Note - expects each val in data to be [0, num_tokens)
-    max_seq_len=SEQ_LEN,
-    attn_layers=Decoder(dim=100, depth=3, heads=4)  # 512, 6, 8
+    num_tokens=mappings.num_tokens,
+    max_seq_len=args.seq_len,
+    attn_layers=Decoder(
+        dim=args.attn_dim,
+        depth=args.attn_depth,
+        heads=args.attn_heads)
 )
 
-model = AutoregressiveWrapper(model)
-model.to(device)
+pre_model = AutoregressiveWrapper(model)
+pre_model.to(device)
 
+train_dataset = ClsSamplerDataset(data_train, args.seq_len, device)
+val_dataset = ClsSamplerDataset(data_val, args.seq_len, device)
 
-# custom sequence-excerpt sampler
+train_loader = cycle(DataLoader(train_dataset, batch_size=args.batch_size))
+val_loader = cycle(DataLoader(val_dataset, batch_size=args.batch_size))
 
-class SeqSamplerDataset(Dataset):
-    def __init__(self, data, seq_len):
-        super().__init__()  # gives access to Dataset methods.
-        self.data = data
-        self.seq_len = seq_len
-        self.lookup = dict(zip(np.arange(len(self.data)),
-                               self.data.keys()))
-
-    def __getitem__(self, key):  # a.t.m. when data[key] shorter length than SEQ_LEN, padded with 0.
-        item_len = self.data[self.lookup[key]].size(0)
-        rand_start = torch.randint(0, item_len - self.seq_len, (1,)) if item_len > self.seq_len else 0
-        lenfromseq = min(item_len, self.seq_len)
-        sample = torch.zeros(self.seq_len)
-        sample[:lenfromseq] = self.data[self.lookup[key]][rand_start: rand_start + lenfromseq]
-        sample = sample.long()
-        return sample.to(device)
-
-    def __len__(self):
-        return len(self.data)
-
-
-train_dataset = SeqSamplerDataset(data_train, SEQ_LEN)
-val_dataset   = SeqSamplerDataset(data_val, SEQ_LEN)
-
-train_loader  = cycle(DataLoader(train_dataset, batch_size=BATCH_SIZE))
-val_loader    = cycle(DataLoader(val_dataset,   batch_size=BATCH_SIZE))
-
-optim = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+optim = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
 writer = SummaryWriter(log_dir=logs_path)
-training = methods.TrainingMethods(model, writer)
+training = methods.TrainingMethods(pre_model, writer)
 
 # training loop
+best_val_loss = np.inf
+for epoch in range(1, args.num_epochs+1):
+    training.train(train_loader, optim, epoch, num_batches=args.num_batches_tr, batch_size=args.batch_size_tr)
+    val_loss = training.evaluate(val_loader, epoch, num_batches=args.num_val_batches, batch_size=args.batch_size_val)
 
-for epoch in range(1, NUM_EPOCHS + 1):
-    training.train(train_loader, optim, epoch, num_batches=NUM_BATCHES, batch_size=BATCH_SIZE)
-    training.evaluate(val_loader, epoch, num_batches=100, batch_size=4)
+    if (val_loss < best_val_loss) & (epoch > args.checkpoint_after):
+        print("Saving checkpoint...")
+        torch.save({
+            'train_epoch': epoch,
+            'model_state_dict': pre_model.state_dict(),
+            'args': vars(args),
+            'SEQ_LEN': args.seq_len,
+            'optim_state_dict': optim.state_dict(),
+            'val_loss': val_loss
+        }, ckpt_path)
+        print("Checkpoint saved!\n")
+        best_val_loss = val_loss
+    print(f'epoch {epoch} completed', '\a')
 
 writer.close()
