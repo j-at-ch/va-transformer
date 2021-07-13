@@ -23,7 +23,7 @@ train_path = os.path.join(args.data_root, "train_charts.pkl")
 val_path = os.path.join(args.data_root, "val_charts.pkl")
 mapping_path = os.path.join(args.data_root, "mappings.pkl")
 ckpt_path = os.path.join(args.save_root, "model.pt")
-logs_path = os.path.join(args.save_root, "logs")
+logs_path = os.path.join(args.logs_root, "logs")
 
 # device
 
