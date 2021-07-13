@@ -18,6 +18,8 @@ class Arguments:
         self.parser.set_defaults(data_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers')
         self.parser.add_argument('--save_root', type=str)
         self.parser.set_defaults(save_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers')
+        self.parser.add_argument('--logs_root', type=str)
+        self.parser.set_defaults(logs_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers')
 
         # constants
 
