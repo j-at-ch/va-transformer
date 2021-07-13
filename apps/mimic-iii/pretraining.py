@@ -23,7 +23,7 @@ train_path = os.path.join(args.data_root, "train_charts.pkl")
 val_path = os.path.join(args.data_root, "val_charts.pkl")
 mapping_path = os.path.join(args.data_root, "mappings.pkl")
 ckpt_path = os.path.join(args.save_root, "model.pt")
-logs_path = os.path.join(args.save_root, "tensorboard_logs", "logs")
+logs_path = os.path.join(args.save_root, "tensorboard_logs")
 
 # device
 
@@ -68,6 +68,7 @@ training = methods.TrainingMethods(pre_model, writer)
 best_val_loss = np.inf
 for epoch in range(1, args.num_epochs+1):
     training.train(train_loader, optim, epoch, num_batches=args.num_batches_tr, batch_size=args.batch_size_tr)
+
     val_loss = training.evaluate(val_loader, epoch, num_batches=args.num_batches_val, batch_size=args.batch_size_val)
 
     if (val_loss < best_val_loss) & (epoch > args.checkpoint_after):
