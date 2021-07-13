@@ -61,7 +61,7 @@ val_loader = cycle(DataLoader(val_dataset, batch_size=args.batch_size_val))
 
 optim = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
-writer = SummaryWriter(log_dir=logs_path)
+writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
 training = methods.TrainingMethods(pre_model, writer)
 
 # training loop

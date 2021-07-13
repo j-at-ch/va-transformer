@@ -42,6 +42,10 @@ class Arguments:
         self.parser.add_argument('--attn_depth', type=int, default=3)
         self.parser.add_argument('--attn_heads', type=int, default=4)
 
+        # training specs
+
+        self.parser.add_argument('--writer_flush_secs', type=int, default=120)
+
     def parse(self, verbose=False):
         self.initialise()
         self.arguments = self.parser.parse_args()
