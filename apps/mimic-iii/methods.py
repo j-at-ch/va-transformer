@@ -12,14 +12,21 @@ class TrainingMethods:
 
     def train(self, train_loader, optim, epoch, num_batches, batch_size):
         self.model.train()
+        cum_loss = 0
         for i in tqdm.tqdm(range(num_batches), mininterval=0.1, desc=f'epoch {epoch}:'):
+            batch_loss = 0
             for __ in range(batch_size):
                 loss = self.model(next(train_loader))
                 loss.backward()
+                batch_loss += loss.item()
             optim.step()
             optim.zero_grad()
-
-            self.writer.add_scalar('train_loss', loss.item(), epoch * num_batches + i)
+            print(f'train loss: {batch_loss}')
+            self.writer.add_scalar('train_loss', batch_loss, epoch * num_batches + i)
+            cum_loss += batch_loss
+        avg_loss = cum_loss / (num_batches * batch_size)
+        print(f'epoch avg train loss: {avg_loss}')
+        return avg_loss
 
     @torch.no_grad()
     def evaluate(self, val_loader, epoch, num_batches, batch_size):
@@ -29,7 +36,7 @@ class TrainingMethods:
             for __ in range(batch_size):
                 loss = self.model(next(val_loader))
                 cum_loss += loss.item()
-            self.writer.add_scalar('train_loss', loss.item(), epoch * num_batches + i)
+            self.writer.add_scalar('val_loss', loss.item(), epoch * num_batches + i)
         avg_cum_loss = cum_loss/(num_batches*batch_size)
         return avg_cum_loss
 
