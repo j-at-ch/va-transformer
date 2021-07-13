@@ -68,7 +68,6 @@ training = methods.TrainingMethods(pre_model, writer)
 best_val_loss = np.inf
 for epoch in range(1, args.num_epochs+1):
     training.train(train_loader, optim, epoch, num_batches=args.num_batches_tr, batch_size=args.batch_size_tr)
-
     val_loss = training.evaluate(val_loader, epoch, num_batches=args.num_batches_val, batch_size=args.batch_size_val)
 
     if (val_loss < best_val_loss) & (epoch > args.checkpoint_after):
@@ -83,6 +82,8 @@ for epoch in range(1, args.num_epochs+1):
         }, ckpt_path)
         print("Checkpoint saved!\n")
         best_val_loss = val_loss
-    print(f'epoch {epoch} completed', '\a')
+    print(f'epoch {epoch} completed!')
+    print('flushing writer...')
+    writer.flush()
 
 writer.close()
