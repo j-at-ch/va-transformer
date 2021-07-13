@@ -12,7 +12,7 @@ class TrainingMethods:
 
     def train(self, train_loader, optim, epoch, num_batches, batch_size):
         self.model.train()
-        for i in tqdm.tqdm(range(num_batches), mininterval=0.1, desc=f'epoch {epoch}:', colour='green'):
+        for i in tqdm.tqdm(range(num_batches), mininterval=0.1, desc=f'epoch {epoch}:'):
             for __ in range(batch_size):
                 loss = self.model(next(train_loader))
                 loss.backward()
