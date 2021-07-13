@@ -25,7 +25,7 @@ class TrainingMethods:
     def evaluate(self, val_loader, epoch, num_batches, batch_size):
         self.model.eval()
         cum_loss = 0
-        for i in tqdm.tqdm(range(num_batches), mininterval=0.1, desc=f'epoch {epoch}:', colour='green'):
+        for i in tqdm.tqdm(range(num_batches), mininterval=0.1, desc=f'epoch {epoch}:'):
             for __ in range(batch_size):
                 loss = self.model(next(val_loader))
                 cum_loss += loss.item()
