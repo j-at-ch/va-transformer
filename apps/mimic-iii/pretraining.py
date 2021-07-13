@@ -56,8 +56,8 @@ pre_model.to(device)
 train_dataset = ClsSamplerDataset(data_train, args.seq_len, device)
 val_dataset = ClsSamplerDataset(data_val, args.seq_len, device)
 
-train_loader = cycle(DataLoader(train_dataset, batch_size=args.batch_size))
-val_loader = cycle(DataLoader(val_dataset, batch_size=args.batch_size))
+train_loader = cycle(DataLoader(train_dataset, batch_size=args.batch_size_tr))
+val_loader = cycle(DataLoader(val_dataset, batch_size=args.batch_size_val))
 
 optim = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
@@ -68,7 +68,7 @@ training = methods.TrainingMethods(pre_model, writer)
 best_val_loss = np.inf
 for epoch in range(1, args.num_epochs+1):
     training.train(train_loader, optim, epoch, num_batches=args.num_batches_tr, batch_size=args.batch_size_tr)
-    val_loss = training.evaluate(val_loader, epoch, num_batches=args.num_val_batches, batch_size=args.batch_size_val)
+    val_loss = training.evaluate(val_loader, epoch, num_batches=args.num_batches_val, batch_size=args.batch_size_val)
 
     if (val_loss < best_val_loss) & (epoch > args.checkpoint_after):
         print("Saving checkpoint...")
