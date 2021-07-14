@@ -69,7 +69,7 @@ for epoch in range(args.num_epochs):
     training.train(train_loader, optim, epoch, num_batches=args.num_batches_tr, batch_size=args.batch_size_tr)
     val_loss = training.evaluate(val_loader, epoch, num_batches=args.num_batches_val, batch_size=args.batch_size_val)
 
-    if (val_loss < best_val_loss) & (epoch > args.checkpoint_after):
+    if val_loss < best_val_loss:
         print("Saving checkpoint...")
         torch.save({
             'train_epoch': epoch,
