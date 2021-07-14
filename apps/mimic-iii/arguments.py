@@ -44,6 +44,7 @@ class Arguments:
 
         # training specs
 
+        self.parser.add_argument('--model_name', type=str, default='model_exp')
         self.parser.add_argument('--writer_flush_secs', type=int, default=120)
 
     def parse(self, verbose=False):
