@@ -65,7 +65,7 @@ training = methods.TrainingMethods(pre_model, writer)
 
 # training loop
 best_val_loss = np.inf
-for epoch in range(1, args.num_epochs+1):
+for epoch in range(args.num_epochs):
     training.train(train_loader, optim, epoch, num_batches=args.num_batches_tr, batch_size=args.batch_size_tr)
     val_loss = training.evaluate(val_loader, epoch, num_batches=args.num_batches_val, batch_size=args.batch_size_val)
 
