@@ -39,8 +39,3 @@ class TrainingMethods:
         avg_val_loss = cum_loss / (num_batches * batch_size)
         self.writer.add_scalar('avg_val_loss', avg_val_loss, epoch * num_batches + i)
         return avg_val_loss
-
-
-class TuningMethods:
-    def __init__(self, model):
-        self.model = model

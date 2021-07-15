@@ -21,7 +21,7 @@ class Arguments:
         self.parser.add_argument('--logs_root', type=str)
         self.parser.set_defaults(logs_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers')
 
-        # constants
+        # pretraining constants
 
         self.parser.add_argument('--num_epochs', type=int, default=10)
         self.parser.add_argument('--num_batches_tr', type=int, default=1000)
@@ -36,16 +36,21 @@ class Arguments:
         self.parser.add_argument('--generate_length', type=int, default=200)
         self.parser.add_argument('--seq_len', type=int, default=200)
 
-        # model specification
+        # attention specification
 
         self.parser.add_argument('--attn_dim', type=int, default=100)
         self.parser.add_argument('--attn_depth', type=int, default=3)
         self.parser.add_argument('--attn_heads', type=int, default=4)
 
-        # training specs
+        # pretraining specs
 
         self.parser.add_argument('--model_name', type=str, default='model_exp')
         self.parser.add_argument('--writer_flush_secs', type=int, default=120)
+
+        # finetuning constants
+
+        self.parser.add_argument('--ft_batch_size', type=int, default=100)
+
 
     def parse(self, verbose=False):
         self.initialise()
