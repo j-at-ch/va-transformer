@@ -94,7 +94,7 @@ fit_model.to(device)
 
 optim = torch.optim.Adam(fit_model.parameters(), lr=args.learning_rate)
 writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
-training = methods.TrainingMethods(fit_model, writer)
+training = methods.FinetuningMethods(fit_model, writer)
 
 # training loop
 
