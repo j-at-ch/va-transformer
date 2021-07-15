@@ -40,14 +40,12 @@ mappings = Mappings(mappings_dict)
 
 with open(train_lbl_path, 'rb') as f:
     X = pickle.load(f)
-    train_labels_30 = {k: v['readm_30'] for k, v in  X['train_labels'].items()}
-    train_labels_7 = {k: v['readm_7'] for k, v in  X['train_labels'].items()}
+    train_labels = {k: v[args.label_set] for k, v in X['train_labels'].items()}
     del X
 
 with open(val_lbl_path, 'rb') as f:
     X = pickle.load(f)
-    val_labels_30 = {k: v['readm_30'] for k, v in  X['val_labels'].items()}
-    val_labels_7 = {k: v['readm_7'] for k, v in  X['val_labels'].items()}
+    val_labels = {k: v[args.label_set] for k, v in X['val_labels'].items()}
     del X
 
 # generate datasets and loaders
@@ -55,8 +53,8 @@ with open(val_lbl_path, 'rb') as f:
 data_train = fetch_data_as_torch(train_path, 'train_tokens')
 data_val = fetch_data_as_torch(val_path, 'val_tokens')
 
-ft_train_dataset = ClsSamplerDataset(data_train, args.seq_len, labels=train_labels_30)
-ft_val_dataset = ClsSamplerDataset(data_val, args.seq_len, labels=val_labels_30)
+ft_train_dataset = ClsSamplerDataset(data_train, args.seq_len, labels=train_labels)
+ft_val_dataset = ClsSamplerDataset(data_val, args.seq_len, labels=val_labels)
 
 ft_train_loader = cycle(DataLoader(ft_train_dataset, batch_size=args.ft_batch_size))
 ft_val_loader = cycle(DataLoader(ft_val_dataset, batch_size=args.ft_batch_size))
@@ -69,7 +67,7 @@ def propensity(di):
     return x
 
 
-p = propensity(train_labels_30)
+p = propensity(train_labels)
 weights = torch.tensor([p, 1 - p]).to(device)
 
 # fetch model params
@@ -77,7 +75,7 @@ weights = torch.tensor([p, 1 - p]).to(device)
 params_path = os.path.join(args.data_root, 'models', 'pre_model_exp1.pt')
 X = torch.load(params_path, map_location=device)
 states = X['model_state_dict']
-base_states = { k[len('net.'):] if k[:len('net.')] == 'net.' else k : v for k, v in states.items()}
+base_states = {k[len('net.'):] if k[:len('net.')] == 'net.' else k: v for k, v in states.items()}
 
 # initialisation of model
 
