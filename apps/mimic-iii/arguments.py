@@ -51,7 +51,7 @@ class Arguments:
 
         self.parser.add_argument('--ft_batch_size', type=int, default=100)
         self.parser.add_argument('--label_set', type=str, default='readm_30', choices=['readm_30', 'readm_7'])
-        self.parser.add_argument('--pretuned_model', type=str)
+        self.parser.add_argument('--pretuned_model', type=str, default='')
 
     def parse(self, verbose=False):
         self.initialise()
