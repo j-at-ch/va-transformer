@@ -92,7 +92,7 @@ fit_model = FinetuningWrapper(model, num_classes=2,
                               weight=weights)
 fit_model.to(device)
 
-optim = torch.optim.Adam(fit_model.parameters(), lr=args.learning_rate)
+optim = torch.optim.Adam(model.parameters(), lr=args.learning_rate)  # TODO: should this be model or fit_model?
 writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
 training = methods.FinetuningMethods(fit_model, writer)
 
