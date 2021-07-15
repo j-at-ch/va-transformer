@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 
 class FinetuningWrapper(nn.Module):
-    def __init__(self, net, num_classes, state_dict=None,
+    def __init__(self, net, num_classes, seq_len, state_dict=None,
                  ignore_index=-100, pad_value=0, weight=None):
         super().__init__()
         self.pad_value = pad_value
@@ -14,6 +14,7 @@ class FinetuningWrapper(nn.Module):
         self.weight = weight.to(torch.float) if weight is not None else weight
         self.net = copy.deepcopy(net)  # deepcopy is necessary here.
         self.max_seq_len = self.net.max_seq_len
+        self.max_seq_len = seq_len
 
         # initialise net from pretrained
 
@@ -22,7 +23,7 @@ class FinetuningWrapper(nn.Module):
 
         # define classifier head layers
 
-        self.num_features = net.to_logits.in_features * 200
+        self.num_features = net.to_logits.in_features * self.seq_len
         self.net.clf1 = nn.Linear(self.num_features, num_classes, bias=True)
 
     def forward(self, X, Y, predict=False, **kwargs):

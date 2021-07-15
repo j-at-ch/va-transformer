@@ -80,7 +80,7 @@ base_states = {k[len('net.'):] if k[:len('net.')] == 'net.' else k: v for k, v i
 
 model = TransformerWrapper(
     num_tokens=mappings.num_tokens,
-    max_seq_len=args.seq_len,
+    max_seq_len=args.seq_len,  # TODO: is this now necessary or is it replaced by seq_len?
     attn_layers=Decoder(
         dim=args.attn_dim,
         depth=args.attn_depth,
@@ -88,6 +88,7 @@ model = TransformerWrapper(
 )
 
 fit_model = FinetuningWrapper(model, num_classes=2,
+                              seq_len=args.seq_len,
                               state_dict=base_states,
                               weight=weights)
 fit_model.to(device)
@@ -109,7 +110,7 @@ for epoch in range(args.num_epochs):
             'train_epoch': epoch,
             'model_state_dict': fit_model.state_dict(),
             'args': vars(args),
-            'SEQ_LEN': args.seq_len,
+            'seq_len': args.seq_len,
             'optim_state_dict': optim.state_dict(),
             'val_loss': val_loss
         }, ckpt_path)
