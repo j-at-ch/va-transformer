@@ -21,7 +21,7 @@ class TrainingMethods:
                 batch_loss += loss.item()
             optim.step()
             optim.zero_grad()
-            print(f'avg batch loss: {batch_loss/batch_size}')
+            #print(f'avg batch loss: {batch_loss/batch_size}')
             self.writer.add_scalar('train_loss', batch_loss/batch_size, epoch * num_batches + i)
             cum_loss += batch_loss
         avg_loss = cum_loss / (num_batches * batch_size)
