@@ -47,10 +47,10 @@ class Arguments:
         self.parser.add_argument('--model_name', type=str, default='model_exp')
         self.parser.add_argument('--writer_flush_secs', type=int, default=120)
 
-        # finetuning constants
+        # finetuning arguments
 
         self.parser.add_argument('--ft_batch_size', type=int, default=100)
-
+        self.parser.add_argument('--label_set', type=str, default='readm_30', choices=['readm_30', 'readm_7'])
 
     def parse(self, verbose=False):
         self.initialise()
