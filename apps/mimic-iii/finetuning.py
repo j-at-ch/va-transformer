@@ -10,7 +10,6 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from x_transformers import TransformerWrapper, Decoder
-from x_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
 
 args = Arguments().parse(verbose=True)
@@ -92,3 +91,34 @@ fit_model = FinetuningWrapper(model, num_classes=2,
                               state_dict=base_states,
                               weight=weights)
 fit_model.to(device)
+
+optim = torch.optim.Adam(fit_model.parameters(), lr=args.learning_rate)
+writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
+training = methods.TrainingMethods(fit_model, writer)
+
+# training loop
+
+best_val_loss = np.inf
+for epoch in range(args.num_epochs):
+    training.train(ft_train_loader, optim, epoch, num_batches=args.num_batches_tr, batch_size=args.batch_size_tr)
+    val_loss = training.evaluate(ft_val_loader, epoch, num_batches=args.num_batches_val, batch_size=args.batch_size_val)
+
+    if val_loss < best_val_loss:
+        print("Saving checkpoint...")
+        torch.save({
+            'train_epoch': epoch,
+            'model_state_dict': fit_model.state_dict(),
+            'args': vars(args),
+            'SEQ_LEN': args.seq_len,
+            'optim_state_dict': optim.state_dict(),
+            'val_loss': val_loss
+        }, ckpt_path)
+        print("Checkpoint saved!\n")
+        best_val_loss = val_loss
+    print(f'epoch {epoch} completed!')
+    print('flushing writer...')
+    writer.flush()
+
+writer.close()
+
+
