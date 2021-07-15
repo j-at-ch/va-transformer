@@ -14,8 +14,8 @@ class FinetuningWrapper(nn.Module):
         self.weight = weight.to(torch.float) if weight is not None else weight
         self.net = copy.deepcopy(net)  # deepcopy is necessary here.
         self.max_seq_len = self.net.max_seq_len
-        self.max_seq_len = seq_len
-
+        self.seq_len = seq_len
+        
         # initialise net from pretrained
 
         if state_dict is not None:
