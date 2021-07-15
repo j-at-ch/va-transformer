@@ -29,6 +29,7 @@ logs_path = os.path.join(args.logs_root, "logs", args.model_name)
 
 train_lbl_path = os.path.join(args.data_root, "train_labels.pkl")
 val_lbl_path = os.path.join(args.data_root, "val_labels.pkl")
+params_path = os.path.join(args.data_root, 'models', args.pretuned_model)
 
 # fetch mappings
 
@@ -52,8 +53,8 @@ with open(val_lbl_path, 'rb') as f:
 data_train = fetch_data_as_torch(train_path, 'train_tokens')
 data_val = fetch_data_as_torch(val_path, 'val_tokens')
 
-ft_train_dataset = ClsSamplerDataset(data_train, args.seq_len, labels=train_labels)
-ft_val_dataset = ClsSamplerDataset(data_val, args.seq_len, labels=val_labels)
+ft_train_dataset = ClsSamplerDataset(data_train, args.seq_len, device, labels=train_labels)
+ft_val_dataset = ClsSamplerDataset(data_val, args.seq_len, device, labels=val_labels)
 
 ft_train_loader = cycle(DataLoader(ft_train_dataset, batch_size=args.ft_batch_size))
 ft_val_loader = cycle(DataLoader(ft_val_dataset, batch_size=args.ft_batch_size))
@@ -71,7 +72,6 @@ weights = torch.tensor([p, 1 - p]).to(device)
 
 # fetch model params
 
-params_path = os.path.join(args.data_root, 'models', 'pre_model_exp1.pt')
 X = torch.load(params_path, map_location=device)
 states = X['model_state_dict']
 base_states = {k[len('net.'):] if k[:len('net.')] == 'net.' else k: v for k, v in states.items()}
