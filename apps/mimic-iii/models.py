@@ -15,7 +15,7 @@ class FinetuningWrapper(nn.Module):
         self.net = copy.deepcopy(net)  # deepcopy is necessary here.
         self.max_seq_len = self.net.max_seq_len
         self.seq_len = seq_len
-        
+
         # initialise net from pretrained
 
         if state_dict is not None:
@@ -28,7 +28,7 @@ class FinetuningWrapper(nn.Module):
 
     def forward(self, X, Y, predict=False, **kwargs):
         Z = self.net(X, return_embeddings=True, **kwargs)
-        Z = torch.flatten(Z, start_dim=1)
+        Z = torch.flatten(Z, start_dim=1)  # consider alternatives?
         logits = self.net.clf1(Z)
         loss = F.cross_entropy(logits, Y, weight=self.weight)
         return logits if predict else loss
