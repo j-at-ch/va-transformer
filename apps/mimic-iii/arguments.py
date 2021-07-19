@@ -1,4 +1,3 @@
-import os
 import argparse
 from pprint import pprint
 
@@ -23,9 +22,9 @@ class Arguments:
 
         # pretraining constants
 
-        self.parser.add_argument('--num_epochs', type=int, default=10)
+        self.parser.add_argument('--num_epochs', type=int, default=3)
         self.parser.add_argument('--num_batches_tr', type=int, default=1000)
-        self.parser.add_argument('--num_batches_val', type=int, default=1000)
+        self.parser.add_argument('--num_batches_val', type=int, default=100)
         self.parser.add_argument('--batch_size_tr', type=int, default=4)
         self.parser.add_argument('--batch_size_val', type=int, default=4)
         self.parser.add_argument('--grad_accumulate_every', type=int, default=4)

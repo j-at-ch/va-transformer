@@ -51,7 +51,7 @@ class FinetuningMethods:
     def train(self, train_loader, optim, epoch, num_batches, batch_size):
         self.model.train()
         cum_loss = 0
-        for i in tqdm.tqdm(range(num_batches), mininterval=0.1, desc=f'epoch {epoch}'):
+        for i in tqdm.tqdm(range(num_batches), mininterval=0.1, desc=f'epoch {epoch} training'):
             batch_loss = 0
             for __ in range(batch_size):
                 X, Y = next(train_loader)
@@ -71,11 +71,14 @@ class FinetuningMethods:
     def evaluate(self, val_loader, epoch, num_batches, batch_size):
         self.model.eval()
         cum_loss = 0
-        for i in tqdm.tqdm(range(num_batches), mininterval=0.1, desc=f'epoch {epoch}'):
-            for __ in range(batch_size):
+        for _ in tqdm.tqdm(range(num_batches), mininterval=0.1, desc=f'epoch {epoch} evaluation'):
+            batch_loss = 0
+            for _ in range(batch_size):
                 X, Y = next(val_loader)
                 loss = self.model(X, Y)
-                cum_loss += loss.item()
-        val_loss = cum_loss / (num_batches * batch_size)
-        self.writer.add_scalar('val_loss', val_loss, epoch * num_batches + i)
-        return val_loss
+                batch_loss += loss.item()
+            cum_loss += batch_loss
+        avg_loss = cum_loss / (num_batches * batch_size)
+        self.writer.add_scalar('avg_val_loss', avg_loss, (epoch + 1) * num_batches)
+        print(f'epoch avg val loss: {avg_loss}')
+        return avg_loss
