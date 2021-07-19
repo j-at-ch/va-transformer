@@ -24,7 +24,7 @@ d_items_path = os.path.join(args.mimic_root, "d_items.csv")
 train_path = os.path.join(args.data_root, "train_charts.pkl")
 val_path = os.path.join(args.data_root, "val_charts.pkl")
 mapping_path = os.path.join(args.data_root, "mappings.pkl")
-ckpt_path = os.path.join(args.save_root, args.model_name)
+ckpt_path = os.path.join(args.save_root, "models", args.model_name)
 logs_path = os.path.join(args.logs_root, "logs", args.model_name)
 
 train_lbl_path = os.path.join(args.data_root, "train_labels.pkl")
