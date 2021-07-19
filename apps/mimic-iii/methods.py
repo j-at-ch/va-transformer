@@ -73,8 +73,9 @@ class FinetuningMethods:
         cum_loss = 0
         for i in tqdm.tqdm(range(num_batches), mininterval=0.1, desc=f'epoch {epoch}'):
             for __ in range(batch_size):
-                loss = self.model(next(val_loader))
+                X, Y = next(val_loader)
+                loss = self.model(X, Y)
                 cum_loss += loss.item()
-        avg_val_loss = cum_loss / (num_batches * batch_size)
-        self.writer.add_scalar('avg_val_loss', avg_val_loss, epoch * num_batches + i)
-        return avg_val_loss
+        val_loss = cum_loss / (num_batches * batch_size)
+        self.writer.add_scalar('val_loss', val_loss, epoch * num_batches + i)
+        return val_loss
