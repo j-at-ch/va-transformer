@@ -93,7 +93,7 @@ fit_model = FinetuningWrapper(model, num_classes=2,
                               weight=weights)
 fit_model.to(device)
 
-optim = torch.optim.Adam(model.parameters(), lr=args.learning_rate)  # TODO: should this be model or fit_model?
+optim = torch.optim.Adam(fit_model.parameters(), lr=args.learning_rate)  # TODO: should this be model or fit_model?
 writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
 training = methods.FinetuningMethods(fit_model, writer)
 
@@ -103,6 +103,7 @@ best_val_loss = np.inf
 for epoch in range(args.num_epochs):
     training.train(ft_train_loader, optim, epoch, num_batches=args.num_batches_tr, batch_size=args.batch_size_tr)
     val_loss = training.evaluate(ft_val_loader, epoch, num_batches=args.num_batches_val, batch_size=args.batch_size_val)
+    print(next(ft_val_loader))
 
     if val_loss < best_val_loss:
         print("Saving checkpoint...")
