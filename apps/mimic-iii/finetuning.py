@@ -56,8 +56,8 @@ data_val = fetch_data_as_torch(val_path, 'val_tokens')
 ft_train_dataset = ClsSamplerDataset(data_train, args.seq_len, device, labels=train_labels)
 ft_val_dataset = ClsSamplerDataset(data_val, args.seq_len, device, labels=val_labels)
 
-ft_train_loader = cycle(DataLoader(ft_train_dataset, batch_size=args.ft_batch_size))
-ft_val_loader = cycle(DataLoader(ft_val_dataset, batch_size=args.ft_batch_size))
+ft_train_loader = cycle(DataLoader(ft_train_dataset, batch_size=args.ft_batch_size, shuffle=True))
+ft_val_loader = cycle(DataLoader(ft_val_dataset, batch_size=args.ft_batch_size, shuffle=True))
 
 # propensities
 
@@ -80,7 +80,7 @@ base_states = {k[len('net.'):] if k[:len('net.')] == 'net.' else k: v for k, v i
 
 model = TransformerWrapper(
     num_tokens=mappings.num_tokens,
-    max_seq_len=args.seq_len,  # TODO: is this now necessary or is it replaced by seq_len?
+    max_seq_len=args.seq_len,  # NOTE: max_seq_len necessary for the absolute positional embeddings.
     attn_layers=Decoder(
         dim=args.attn_dim,
         depth=args.attn_depth,
@@ -93,7 +93,7 @@ fit_model = FinetuningWrapper(model, num_classes=2,
                               weight=weights)
 fit_model.to(device)
 
-optim = torch.optim.Adam(fit_model.parameters(), lr=args.learning_rate)  # TODO: should this be model or fit_model?
+optim = torch.optim.Adam(fit_model.parameters(), lr=args.learning_rate)
 writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
 training = methods.FinetuningMethods(fit_model, writer)
 
@@ -101,8 +101,10 @@ training = methods.FinetuningMethods(fit_model, writer)
 
 best_val_loss = np.inf
 for epoch in range(args.num_epochs):
-    training.train(ft_train_loader, optim, epoch, num_batches=args.num_batches_tr, batch_size=args.batch_size_tr)
-    val_loss = training.evaluate(ft_val_loader, epoch, num_batches=args.num_batches_val, batch_size=args.batch_size_val)
+    training.train(ft_train_loader, optim, epoch,
+                   num_batches=args.num_batches_tr, batch_size=args.batch_size_tr)
+    val_loss = training.evaluate(ft_val_loader, epoch,
+                                 num_batches=args.num_batches_val, batch_size=args.batch_size_val)
     print(next(ft_val_loader))
 
     if val_loss < best_val_loss:
@@ -122,5 +124,4 @@ for epoch in range(args.num_epochs):
     writer.flush()
 
 writer.close()
-
-
+print("training finished and writer closed!")
