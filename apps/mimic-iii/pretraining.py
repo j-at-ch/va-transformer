@@ -55,15 +55,16 @@ pre_model.to(device)
 train_dataset = ClsSamplerDataset(data_train, args.seq_len, device)
 val_dataset = ClsSamplerDataset(data_val, args.seq_len, device)
 
-train_loader = cycle(DataLoader(train_dataset, batch_size=args.batch_size_tr))
-val_loader = cycle(DataLoader(val_dataset, batch_size=args.batch_size_val))
+train_loader = cycle(DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True))
+val_loader = cycle(DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True))
 
-optim = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+optim = torch.optim.Adam(pre_model.parameters(), lr=args.learning_rate)  # TODO should this be using pre_model's parameters?
 
 writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
 training = methods.TrainingMethods(pre_model, writer)
 
 # training loop
+
 best_val_loss = np.inf
 for epoch in range(args.num_epochs):
     training.train(train_loader, optim, epoch, num_batches=args.num_batches_tr, batch_size=args.batch_size_tr)
@@ -75,7 +76,7 @@ for epoch in range(args.num_epochs):
             'train_epoch': epoch,
             'model_state_dict': pre_model.state_dict(),
             'args': vars(args),
-            'SEQ_LEN': args.seq_len,
+            'seq_len': args.seq_len,
             'optim_state_dict': optim.state_dict(),
             'val_loss': val_loss
         }, ckpt_path)
@@ -86,3 +87,4 @@ for epoch in range(args.num_epochs):
     writer.flush()
 
 writer.close()
+print("training finished and writer closed!")

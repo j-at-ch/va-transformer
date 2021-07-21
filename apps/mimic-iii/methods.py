@@ -36,9 +36,10 @@ class TrainingMethods:
             for __ in range(batch_size):
                 loss = self.model(next(val_loader))
                 cum_loss += loss.item()
-        avg_val_loss = cum_loss / (num_batches * batch_size)
-        self.writer.add_scalar('avg_val_loss', avg_val_loss, epoch * num_batches + i)
-        return avg_val_loss
+        avg_loss = cum_loss / (num_batches * batch_size)
+        self.writer.add_scalar('avg_val_loss', avg_loss, epoch * num_batches + i)
+        print(f'epoch avg val loss: {avg_loss}')
+        return avg_loss
 
 
 class FinetuningMethods:
@@ -64,6 +65,7 @@ class FinetuningMethods:
             self.writer.add_scalar('train_loss', batch_loss / batch_size, epoch * num_batches + i)
             cum_loss += batch_loss
         avg_loss = cum_loss / (num_batches * batch_size)
+        self.writer.add_scalar('avg_train_loss', avg_loss, epoch * num_batches + i)
         print(f'epoch avg train loss: {avg_loss}')
         return avg_loss
 
