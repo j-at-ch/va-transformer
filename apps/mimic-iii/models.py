@@ -22,7 +22,7 @@ class FinetuningWrapper(nn.Module):
         # initialise net from pretrained
 
         if self.load_from_pretuning and state_dict is not None:
-            self.net.load_state_dict(state_dict)
+            self.load_state_dict(state_dict)
 
         # define classifier head layers
 
