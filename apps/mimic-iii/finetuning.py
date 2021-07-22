@@ -1,127 +1,136 @@
 import os
 import numpy as np
+from pprint import pprint
+
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
+from x_transformers import TransformerWrapper, Decoder
 
 import methods
 from data_utils import *
 from arguments import Arguments
 from models import FinetuningWrapper
 
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
 
-from x_transformers import TransformerWrapper, Decoder
+def finetune(args)
+    print('*' * 17, 'chart-transformer called for finetuning with the following settings:', sep='\n')
+    pprint(vars(args), indent=2)
 
+    # paths
 
-args = Arguments().parse(verbose=True)
+    d_items_path = os.path.join(args.mimic_root, "d_items.csv")
+    train_path = os.path.join(args.data_root, "train_charts.pkl")
+    val_path = os.path.join(args.data_root, "val_charts.pkl")
+    mapping_path = os.path.join(args.data_root, "mappings.pkl")
+    ckpt_path = os.path.join(args.save_root, "models", args.model_name)
+    logs_path = os.path.join(args.logs_root, "logs", args.model_name)
 
-# device
+    train_lbl_path = os.path.join(args.data_root, "train_labels.pkl")
+    val_lbl_path = os.path.join(args.data_root, "val_labels.pkl")
+    params_path = os.path.join(args.data_root, 'models', args.pretuned_model)
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #device
 
-# paths
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-d_items_path = os.path.join(args.mimic_root, "d_items.csv")
-train_path = os.path.join(args.data_root, "train_charts.pkl")
-val_path = os.path.join(args.data_root, "val_charts.pkl")
-mapping_path = os.path.join(args.data_root, "mappings.pkl")
-ckpt_path = os.path.join(args.save_root, "models", args.model_name)
-logs_path = os.path.join(args.logs_root, "logs", args.model_name)
+    # fetch mappings
 
-train_lbl_path = os.path.join(args.data_root, "train_labels.pkl")
-val_lbl_path = os.path.join(args.data_root, "val_labels.pkl")
-params_path = os.path.join(args.data_root, 'models', args.pretuned_model)
+    mappings_dict = fetch_mappings(mapping_path)
+    mappings = Mappings(mappings_dict)
 
-# fetch mappings
+    # fetch labels
 
-mappings_dict = fetch_mappings(mapping_path)
-mappings = Mappings(mappings_dict)
+    with open(train_lbl_path, 'rb') as f:
+        X = pickle.load(f)
+        train_labels = {k: v[args.label_set] for k, v in X['train_labels'].items()}
+        del X
 
-# fetch labels  # NOTE: depends on specific label file format and names.
+    with open(val_lbl_path, 'rb') as f:
+        X = pickle.load(f)
+        val_labels = {k: v[args.label_set] for k, v in X['val_labels'].items()}
+        del X
 
-with open(train_lbl_path, 'rb') as f:
-    X = pickle.load(f)
-    train_labels = {k: v[args.label_set] for k, v in X['train_labels'].items()}
-    del X
+    # generate datasets and loaders
 
-with open(val_lbl_path, 'rb') as f:
-    X = pickle.load(f)
-    val_labels = {k: v[args.label_set] for k, v in X['val_labels'].items()}
-    del X
+    data_train = fetch_data_as_torch(train_path, 'train_tokens')
+    data_val = fetch_data_as_torch(val_path, 'val_tokens')
 
-# generate datasets and loaders
+    ft_train_dataset = ClsSamplerDataset(data_train, args.seq_len, device, labels=train_labels)
+    ft_val_dataset = ClsSamplerDataset(data_val, args.seq_len, device, labels=val_labels)
 
-data_train = fetch_data_as_torch(train_path, 'train_tokens')
-data_val = fetch_data_as_torch(val_path, 'val_tokens')
+    ft_train_loader = cycle(DataLoader(ft_train_dataset, batch_size=args.ft_batch_size, shuffle=True))
+    ft_val_loader = cycle(DataLoader(ft_val_dataset, batch_size=args.ft_batch_size, shuffle=True))
 
-ft_train_dataset = ClsSamplerDataset(data_train, args.seq_len, device, labels=train_labels)
-ft_val_dataset = ClsSamplerDataset(data_val, args.seq_len, device, labels=val_labels)
-
-ft_train_loader = cycle(DataLoader(ft_train_dataset, batch_size=args.ft_batch_size, shuffle=True))
-ft_val_loader = cycle(DataLoader(ft_val_dataset, batch_size=args.ft_batch_size, shuffle=True))
-
-# propensities
+    # propensities
 
 
-def propensity(di):
-    x = sum(di.values()) / len(di)
-    return x
+    def propensity(di):
+        x = sum(di.values()) / len(di)
+        return x
 
 
-p = propensity(train_labels)
-weights = torch.tensor([p, 1 - p]).to(device)
+    p = propensity(train_labels)
+    weights = torch.tensor([p, 1 - p]).to(device)
 
-# fetch model params
+    # fetch model params
 
-X = torch.load(params_path, map_location=device)
-states = X['model_state_dict']
-base_states = {k[len('net.'):] if k[:len('net.')] == 'net.' else k: v for k, v in states.items()}
+    X = torch.load(params_path, map_location=device)
+    states = X['model_state_dict']
+    base_states = {k[len('net.'):] if k[:len('net.')] == 'net.' else k: v for k, v in states.items()}
 
-# initialisation of model
+    # initialisation of model
 
-model = TransformerWrapper(
-    num_tokens=mappings.num_tokens,
-    max_seq_len=args.seq_len,  # NOTE: max_seq_len necessary for the absolute positional embeddings.
-    attn_layers=Decoder(
-        dim=args.attn_dim,
-        depth=args.attn_depth,
-        heads=args.attn_heads)
-)
+    model = TransformerWrapper(
+        num_tokens=mappings.num_tokens,
+        max_seq_len=args.seq_len,  # NOTE: max_seq_len necessary for the absolute positional embeddings.
+        attn_layers=Decoder(
+            dim=args.attn_dim,
+            depth=args.attn_depth,
+            heads=args.attn_heads)
+    )
 
-fit_model = FinetuningWrapper(model, num_classes=2,
-                              seq_len=args.seq_len,
-                              state_dict=base_states,
-                              weight=weights)
-fit_model.to(device)
+    fit_model = FinetuningWrapper(model, num_classes=2,
+                                  seq_len=args.seq_len,
+                                  state_dict=base_states,
+                                  weight=weights)
+    fit_model.to(device)
 
-optim = torch.optim.Adam(fit_model.parameters(), lr=args.learning_rate)
-writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
-training = methods.FinetuningMethods(fit_model, writer)
+    # initialise optimiser
 
-# training loop
+    optim = torch.optim.Adam(fit_model.parameters(), lr=args.learning_rate)
+    writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
+    training = methods.FinetuningMethods(fit_model, writer)
 
-best_val_loss = np.inf
-for epoch in range(args.num_epochs):
-    training.train(ft_train_loader, optim, epoch,
-                   num_batches=args.num_batches_tr, batch_size=args.batch_size_tr)
-    val_loss = training.evaluate(ft_val_loader, epoch,
-                                 num_batches=args.num_batches_val, batch_size=args.batch_size_val)
-    print(next(ft_val_loader))
+    # training loop
 
-    if val_loss < best_val_loss:
-        print("Saving checkpoint...")
-        torch.save({
-            'train_epoch': epoch,
-            'model_state_dict': fit_model.state_dict(),
-            'args': vars(args),
-            'seq_len': args.seq_len,
-            'optim_state_dict': optim.state_dict(),
-            'val_loss': val_loss
-        }, ckpt_path)
-        print("Checkpoint saved!\n")
-        best_val_loss = val_loss
-    print(f'epoch {epoch} completed!')
-    print('flushing writer...')
-    writer.flush()
+    best_val_loss = np.inf
+    for epoch in range(args.num_epochs):
+        ________ = training.train(ft_train_loader, optim, epoch,
+                                  num_batches=args.num_batches_tr, batch_size=args.batch_size_tr)
+        val_loss = training.evaluate(ft_val_loader, epoch,
+                                     num_batches=args.num_batches_val, batch_size=args.batch_size_val)
 
-writer.close()
-print("training finished and writer closed!")
+        if val_loss < best_val_loss:
+            print("Saving checkpoint...")
+            torch.save({
+                'train_epoch': epoch,
+                'model_state_dict': fit_model.state_dict(),
+                'args': vars(args),
+                'seq_len': args.seq_len,
+                'optim_state_dict': optim.state_dict(),
+                'val_loss': val_loss
+            }, ckpt_path)
+            print("Checkpoint saved!\n")
+            best_val_loss = val_loss
+
+        print(f'epoch {epoch} completed!')
+        print('flushing writer...')
+        writer.flush()
+
+    writer.close()
+    print("training finished and writer closed!")
+
+
+if __name__ == "__main__":
+    arguments = Arguments().parse()
+    finetune(arguments)
