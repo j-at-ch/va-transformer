@@ -1,10 +1,11 @@
 import os
-import numpy as np
-from pprint import pprint
 
+from pprint import pprint
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from x_transformers import TransformerWrapper, Decoder
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, roc_auc_score
 
 import methods
 from data_utils import *
@@ -12,13 +13,12 @@ from arguments import Arguments
 from models import FinetuningWrapper
 
 
-def finetune(args)
+def finetune(args):
     print('*' * 17, 'chart-transformer called for finetuning with the following settings:', sep='\n')
     pprint(vars(args), indent=2)
 
     # paths
 
-    d_items_path = os.path.join(args.mimic_root, "d_items.csv")
     train_path = os.path.join(args.data_root, "train_charts.pkl")
     val_path = os.path.join(args.data_root, "val_charts.pkl")
     mapping_path = os.path.join(args.data_root, "mappings.pkl")
@@ -29,7 +29,7 @@ def finetune(args)
     val_lbl_path = os.path.join(args.data_root, "val_labels.pkl")
     params_path = os.path.join(args.data_root, 'models', args.pretuned_model)
 
-    #device
+    # device
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -63,11 +63,9 @@ def finetune(args)
 
     # propensities
 
-
     def propensity(di):
         x = sum(di.values()) / len(di)
         return x
-
 
     p = propensity(train_labels)
     weights = torch.tensor([p, 1 - p]).to(device)
@@ -110,6 +108,8 @@ def finetune(args)
         val_loss = training.evaluate(ft_val_loader, epoch,
                                      num_batches=args.num_batches_val, batch_size=args.batch_size_val)
 
+        # whether to checkpoint model
+
         if val_loss < best_val_loss:
             print("Saving checkpoint...")
             torch.save({
@@ -122,6 +122,30 @@ def finetune(args)
             }, ckpt_path)
             print("Checkpoint saved!\n")
             best_val_loss = val_loss
+
+        # tracking model classification metrics for val set
+
+        fit_model.eval()
+        with torch.no_grad():
+            y_score = torch.tensor([]).to(device)
+            y_true = torch.tensor([]).to(device)
+
+            for i, (x, y) in enumerate(ft_val_loader):
+                y_true = torch.cat((y_true, y))
+                logits = fit_model(x, y, predict=True)
+                y_score = torch.cat((y_score, F.softmax(logits, dim=1)))
+
+            acc = accuracy_score(y_true, torch.argmax(y_score, dim=1), normalize=True)
+            bal_acc = balanced_accuracy_score(y_true, torch.argmax(y_score, dim=1))
+            roc_auc = roc_auc_score(y_true, y_score[:, 1])
+
+            writer.add_scalar('val/acc', acc, epoch)
+            writer.add_scalar('val/bal_acc', bal_acc, epoch)
+            writer.add_scalar('val/roc_auc', roc_auc, epoch)
+
+            writer.add_pr_curve('val/pr_curve', y_true, y_score, epoch)
+
+        # flushing writer
 
         print(f'epoch {epoch} completed!')
         print('flushing writer...')
