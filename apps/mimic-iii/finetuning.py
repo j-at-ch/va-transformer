@@ -139,12 +139,10 @@ def finetune(args):
                 y_true = torch.cat((y_true, y))
                 logits = fit_model(x, y, predict=True)
                 y_score = torch.cat((y_score, F.softmax(logits, dim=1)))
-                if i % 10 == 0:
-                    print(i)
 
             y_true = y_true.cpu()
             y_score = y_score.cpu()
-            
+
             acc = accuracy_score(y_true, torch.argmax(y_score, dim=1), normalize=True)
             bal_acc = balanced_accuracy_score(y_true, torch.argmax(y_score, dim=1))
             roc_auc = roc_auc_score(y_true, y_score[:, 1])
@@ -155,7 +153,10 @@ def finetune(args):
             writer.add_scalar('val/bal_acc', bal_acc, epoch)
             writer.add_scalar('val/roc_auc', roc_auc, epoch)
 
-            writer.add_pr_curve('val/pr_curve', y_true, y_score, epoch)
+            print(y_true.shape())
+            print(y_score.shape())
+            
+            writer.add_pr_curve('val/pr_curve', y_true, y_score[:, 1], epoch)
 
         # flushing writer
 
