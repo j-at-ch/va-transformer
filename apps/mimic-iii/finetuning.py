@@ -1,4 +1,5 @@
 import os
+import sys
 
 from pprint import pprint
 import torch.nn.functional as F
@@ -58,8 +59,11 @@ def finetune(args):
     ft_train_dataset = ClsSamplerDataset(data_train, args.seq_len, device, labels=train_labels)
     ft_val_dataset = ClsSamplerDataset(data_val, args.seq_len, device, labels=val_labels)
 
-    ft_train_loader = cycle(DataLoader(ft_train_dataset, batch_size=args.ft_batch_size, shuffle=True))
-    ft_val_loader = cycle(DataLoader(ft_val_dataset, batch_size=args.ft_batch_size, shuffle=True))
+    ft_train_loader = DataLoader(ft_train_dataset, batch_size=args.ft_batch_size, shuffle=True)
+    ft_val_loader = DataLoader(ft_val_dataset, batch_size=args.ft_batch_size, shuffle=True)
+
+    ft_train_cycler = cycle(ft_train_loader)
+    ft_val_cycler = cycle(ft_val_loader)
 
     # propensities
 
@@ -103,9 +107,9 @@ def finetune(args):
 
     best_val_loss = np.inf
     for epoch in range(args.num_epochs):
-        ________ = training.train(ft_train_loader, optim, epoch,
+        ________ = training.train(ft_train_cycler, optim, epoch,
                                   num_batches=args.num_batches_tr, batch_size=args.batch_size_tr)
-        val_loss = training.evaluate(ft_val_loader, epoch,
+        val_loss = training.evaluate(ft_val_cycler, epoch,
                                      num_batches=args.num_batches_val, batch_size=args.batch_size_val)
 
         # whether to checkpoint model
