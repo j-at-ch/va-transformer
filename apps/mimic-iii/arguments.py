@@ -43,7 +43,7 @@ class Arguments:
 
         # pretraining specs
 
-        self.parser.add_argument('--model_name', type=str, default='model_exp')
+        self.parser.add_argument('--model_name', type=str, default='test_experiment.pt')
         self.parser.add_argument('--writer_flush_secs', type=int, default=120)
 
         # finetuning arguments
