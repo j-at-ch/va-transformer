@@ -125,6 +125,7 @@ def finetune(args):
 
         # tracking model classification metrics for val set
 
+        print("checking metrics")
         fit_model.eval()
         with torch.no_grad():
             y_score = torch.tensor([]).to(device)
@@ -134,10 +135,14 @@ def finetune(args):
                 y_true = torch.cat((y_true, y))
                 logits = fit_model(x, y, predict=True)
                 y_score = torch.cat((y_score, F.softmax(logits, dim=1)))
+                if i % 10 == 0:
+                    print(i)
 
             acc = accuracy_score(y_true, torch.argmax(y_score, dim=1), normalize=True)
             bal_acc = balanced_accuracy_score(y_true, torch.argmax(y_score, dim=1))
             roc_auc = roc_auc_score(y_true, y_score[:, 1])
+
+            print("metrics computed")
 
             writer.add_scalar('val/acc', acc, epoch)
             writer.add_scalar('val/bal_acc', bal_acc, epoch)
