@@ -153,9 +153,9 @@ def finetune(args):
             writer.add_scalar('val/bal_acc', bal_acc, epoch)
             writer.add_scalar('val/roc_auc', roc_auc, epoch)
 
-            print(y_true.shape())
-            print(y_score.shape())
-            
+            print(y_true.shape)
+            print(y_score.shape)
+
             writer.add_pr_curve('val/pr_curve', y_true, y_score[:, 1], epoch)
 
         # flushing writer
