@@ -142,6 +142,9 @@ def finetune(args):
                 if i % 10 == 0:
                     print(i)
 
+            y_true = y_true.cpu()
+            y_score = y_score.cpu()
+            
             acc = accuracy_score(y_true, torch.argmax(y_score, dim=1), normalize=True)
             bal_acc = balanced_accuracy_score(y_true, torch.argmax(y_score, dim=1))
             roc_auc = roc_auc_score(y_true, y_score[:, 1])
