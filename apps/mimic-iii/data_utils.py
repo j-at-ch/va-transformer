@@ -1,6 +1,7 @@
 import numpy as np
 import pickle
 import torch
+import os
 
 from torch.utils.data import DataLoader, Dataset
 
@@ -84,3 +85,8 @@ def fetch_data_as_torch(path, var_key):
     di = data[var_key]
     return {k: torch.from_numpy(v) for k, v in di.items()}
 
+
+def retrieve_model_args(data_root, model_name, device):
+    params_path = os.path.join(data_root, 'models', model_name)
+    model_dict = torch.load(params_path, map_location=device)
+    return model_dict
