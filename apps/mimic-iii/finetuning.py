@@ -72,7 +72,12 @@ def finetune(args):
         return x
 
     p = propensity(train_labels)
-    weights = torch.tensor([p, 1 - p]).to(device)
+    print(p)
+
+    if args.weight_loss:
+        weights = torch.tensor([p, 1 - p]).to(device)
+    else:
+        weights = None
 
     # fetch model params
 
