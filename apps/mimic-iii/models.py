@@ -26,13 +26,14 @@ class FinetuningWrapper(nn.Module):
 
         # define classifier head layers
 
-        self.num_features = net.to_logits.in_features * self.seq_len
+        self.num_features = net.to_logits.in_features #* self.seq_len
         self.net.clf1 = nn.Linear(self.num_features, num_classes, bias=True)
         del self.net.to_logits
 
     def forward(self, X, Y, predict=False, **kwargs):
         Z = self.net(X, return_embeddings=True, **kwargs)
-        Z = torch.flatten(Z, start_dim=1)  # consider alternatives?
+        #Z = torch.flatten(Z, start_dim=1)  # consider alternatives?
+        Z = torch.flatten(Z[:, 0, :], start_dim=1)  # TEST
         logits = self.net.clf1(Z)
         loss = F.cross_entropy(logits, Y, weight=self.weight)
         return logits if predict else loss
