@@ -99,5 +99,5 @@ def pretrain(args):
 
 
 if __name__ == "__main__":
-    arguments = Arguments().parse()
+    arguments = Arguments(mode='pretraining').parse()
     pretrain(arguments)

@@ -3,8 +3,9 @@ from pprint import pprint
 
 
 class Arguments:
-    def __init__(self):
+    def __init__(self, mode):
         self.parser = argparse.ArgumentParser(description='chart-transformer')
+        self.mode = mode
         self.arguments = None
 
     def initialise(self):
@@ -41,16 +42,19 @@ class Arguments:
         self.parser.add_argument('--attn_depth', type=int, default=3)
         self.parser.add_argument('--attn_heads', type=int, default=4)
 
-        # pretraining specs
+        # general arguments
 
         self.parser.add_argument('--model_name', type=str, default='test_experiment.pt')
         self.parser.add_argument('--writer_flush_secs', type=int, default=120)
 
+        # pretraining specs
+
         # finetuning arguments
 
-        self.parser.add_argument('--ft_batch_size', type=int, default=100)
-        self.parser.add_argument('--label_set', type=str, default='readm_30', choices=['readm_30', 'readm_7'])
-        self.parser.add_argument('--pretuned_model', type=str, default='')
+        if self.mode == 'finetuning':
+            self.parser.add_argument('--ft_batch_size', type=int, default=100)
+            self.parser.add_argument('--label_set', type=str, default='readm_30', choices=['readm_30', 'readm_7'])
+            self.parser.add_argument('--pretuned_model', type=str, required=True)
 
     def parse(self, verbose=False):
         self.initialise()
