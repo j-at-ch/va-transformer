@@ -24,8 +24,8 @@ class Arguments:
         # pretraining constants
 
         self.parser.add_argument('--num_epochs', type=int, default=3)
-        self.parser.add_argument('--num_batches_tr', type=int, default=1000)
-        self.parser.add_argument('--num_batches_val', type=int, default=100)
+        self.parser.add_argument('--num_batches_tr', type=int, default=2)
+        self.parser.add_argument('--num_batches_val', type=int, default=2)
         self.parser.add_argument('--batch_size_tr', type=int, default=4)
         self.parser.add_argument('--batch_size_val', type=int, default=4)
         self.parser.add_argument('--grad_accumulate_every', type=int, default=4)
@@ -48,6 +48,8 @@ class Arguments:
         self.parser.add_argument('--writer_flush_secs', type=int, default=120)
 
         # pretraining specs
+
+        self.parser.add_argument('--test_run', type=bool, default=False)
 
         # finetuning arguments
 
