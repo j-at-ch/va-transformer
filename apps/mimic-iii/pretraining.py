@@ -72,6 +72,10 @@ def pretrain(args):
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
 
+    # code for testing if needed
+    #train_loader = [X for i, X in enumerate(train_loader) if i < 2]
+    #val_loader = [X for i, X in enumerate(val_loader) if i < 2]
+
     train_cycler = cycle(train_loader)
     val_cycler = cycle(val_loader)
 
