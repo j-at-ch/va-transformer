@@ -1,5 +1,7 @@
 import os
 from pprint import pprint
+
+import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from x_transformers import TransformerWrapper, Decoder
@@ -18,6 +20,7 @@ def pretrain(args):
 
     # paths
 
+    d_items_path = os.path.join(args.mimic_root, "d_items.csv")
     train_path = os.path.join(args.data_root, "train_charts.pkl")
     val_path = os.path.join(args.data_root, "val_charts.pkl")
     mapping_path = os.path.join(args.data_root, "mappings.pkl")
@@ -89,6 +92,16 @@ def pretrain(args):
             }, ckpt_path)
             print("Checkpoint saved!\n")
             best_val_loss = val_loss
+
+        pre_model.eval()
+        with torch.no_grad():
+            tokens = torch.tensor(np.arange(0, 10), dtype=torch.int)
+            X = torch.zeros(200, dtype=torch.int)
+            X[0:len(tokens)] = tokens
+            Z = fit_model.net.token_emb(X)
+            # metadata = [''] * 200
+            writer.add_embedding(Z, tag='token embeddings')
+            # TODO: add labelling logic here to append as meta_data label
 
         print(f'epoch {epoch} completed!')
         print('flushing writer...')
