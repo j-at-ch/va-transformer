@@ -98,6 +98,7 @@ def pretrain(args):
             tokens = torch.tensor(np.arange(0, 10), dtype=torch.int)
             X = torch.zeros(200, dtype=torch.int)
             X[0:len(tokens)] = tokens
+            X = X.to(device)
             Z = pre_model.net.token_emb(X)
             # metadata = [''] * 200
             writer.add_embedding(Z, tag='token embeddings')
