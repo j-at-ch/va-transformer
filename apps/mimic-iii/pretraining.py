@@ -1,19 +1,14 @@
-import os
-import sys
-from pprint import pprint
-
 import pandas as pd
-import torch
-from torch.utils.data import DataLoader
+from pprint import pprint
 from torch.utils.tensorboard import SummaryWriter
-from x_transformers import TransformerWrapper, Decoder
-from x_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
 # repo imports
 
 import methods
 from data_utils import *
 from arguments import Arguments
+from z_transformers.transformers import Decoder, TransformerWrapper
+from z_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
 
 def pretrain(args):
@@ -72,9 +67,11 @@ def pretrain(args):
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
 
-    # code for testing if needed
-    #train_loader = [X for i, X in enumerate(train_loader) if i < 2]
-    #val_loader = [X for i, X in enumerate(val_loader) if i < 2]
+    #  for quick test run
+
+    if args.test_run:
+        train_loader = [X for i, X in enumerate(train_loader) if i < 2]
+        val_loader = [X for i, X in enumerate(val_loader) if i < 2]
 
     train_cycler = cycle(train_loader)
     val_cycler = cycle(val_loader)

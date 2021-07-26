@@ -8,7 +8,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from x_transformers import TransformerWrapper, Decoder
+from z_transformers.transformers import TransformerWrapper, Decoder
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, roc_auc_score
 
 import methods
@@ -167,12 +167,12 @@ def finetune(args):
 
                 # specify tokens to observe embeddings of
 
-            #tokens = torch.tensor(np.arange(0, 10), dtype=torch.int)
-            #X = torch.zeros(200, dtype=torch.int)
-            #X[0:len(tokens)] = tokens
-            #Z = fit_model.net.token_emb(X)
+            tokens = torch.tensor(np.arange(0, 10), dtype=torch.int)
+            X = torch.zeros(200, dtype=torch.int)
+            X[0:len(tokens)] = tokens
+            Z = fit_model.net.token_emb(X)
             #metadata = [''] * 200
-            #writer.add_embedding(Z, )
+            writer.add_embedding(Z, tag='token embeddings')
             # TODO: add labelling logic here to append as meta_data label
 
         # flushing writer
