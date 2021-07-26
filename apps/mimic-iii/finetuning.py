@@ -2,6 +2,9 @@ import os
 import sys
 
 from pprint import pprint
+
+import numpy as np
+import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -108,6 +111,7 @@ def finetune(args):
     writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
     training = methods.FinetuningMethods(fit_model, writer)
 
+
     # training loop
 
     best_val_loss = np.inf
@@ -159,7 +163,17 @@ def finetune(args):
             writer.add_scalar('val/roc_auc', roc_auc, epoch)
             writer.add_pr_curve('val/pr_curve', y_true, y_score[:, 1], epoch)
 
-        # add embedding observations?
+            # add weight/bias observations?
+
+                # specify tokens to observe embeddings of
+
+            #tokens = torch.tensor(np.arange(0, 10), dtype=torch.int)
+            #X = torch.zeros(200, dtype=torch.int)
+            #X[0:len(tokens)] = tokens
+            #Z = fit_model.net.token_emb(X)
+            #metadata = [''] * 200
+            #writer.add_embedding(Z, )
+            # TODO: add labelling logic here to append as meta_data label
 
         # flushing writer
 

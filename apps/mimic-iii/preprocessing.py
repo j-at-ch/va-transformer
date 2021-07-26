@@ -101,7 +101,7 @@ for subset in ['val', 'train', 'test']:
 
     # grouper for charts
 
-    gpdf = (pd.read_csv(chartevents_path, skiprows=0, nrows=10000000,
+    gpdf = (pd.read_csv(chartevents_path, skiprows=0, nrows=20000000,
                         header=0,
                         usecols=['HADM_ID', 'CHARTTIME', 'ITEMID'],
                         dtype={'HADM_ID': np.int},
