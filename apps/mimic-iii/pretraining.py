@@ -42,15 +42,6 @@ def pretrain(args):
 
     d_items_df = pd.read_csv(d_items_path, index_col='ITEMID', dtype={'ITEMID': str})
     labeller = Labellers(mappings_dict, d_items_df)
-    #t = torch.tensor([1,2,3,4])
-    #t = t.to(device)
-    #print(t)
-    #print(t.numpy())
-    #labs = [i for i in map(labeller.token2label, t.numpy())]
-    #print(labs)
-
-
-    #sys.exit()
 
     # get data
 
@@ -78,8 +69,11 @@ def pretrain(args):
     train_dataset = ClsSamplerDataset(data_train, args.seq_len, device)
     val_dataset = ClsSamplerDataset(data_val, args.seq_len, device)
 
-    train_loader = cycle(DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True))
-    val_loader = cycle(DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True))
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
+
+    train_cycler = cycle(train_loader)
+    val_cycler = cycle(val_loader)
 
     optim = torch.optim.Adam(pre_model.parameters(), lr=args.learning_rate)
     writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
@@ -89,12 +83,8 @@ def pretrain(args):
 
     best_val_loss = np.inf
     for epoch in range(args.num_epochs):
-        ________ = training.train(train_loader, optim, epoch,
-                                  num_batches=args.num_batches_tr,
-                                  batch_size=args.batch_size_tr)
-        val_loss = training.evaluate(val_loader, epoch,
-                                     num_batches=args.num_batches_val,
-                                     batch_size=args.batch_size_val)
+        ________ = training.train(train_loader, optim, epoch, batch_size=args.batch_size_tr)
+        val_loss = training.evaluate(val_loader, epoch, batch_size=args.batch_size_val)
 
         if val_loss < best_val_loss:
             print("Saving checkpoint...")
@@ -121,7 +111,6 @@ def pretrain(args):
                                  metadata=metadata,
                                  global_step=epoch,
                                  tag='token embeddings')
-            # TODO: add labelling logic here to append as meta_data label
 
         print(f'epoch {epoch} completed!')
         print('flushing writer...')
