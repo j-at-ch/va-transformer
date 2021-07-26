@@ -1,6 +1,8 @@
 import os
+import sys
 from pprint import pprint
 
+import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -35,6 +37,20 @@ def pretrain(args):
 
     mappings_dict = fetch_mappings(mapping_path)
     mappings = Mappings(mappings_dict)
+
+    # labellers
+
+    d_items_df = pd.read_csv(d_items_path, index_col='ITEMID', dtype={'ITEMID': str})
+    labeller = Labellers(mappings_dict, d_items_df)
+    #t = torch.tensor([1,2,3,4])
+    #t = t.to(device)
+    #print(t)
+    #print(t.numpy())
+    #labs = [i for i in map(labeller.token2label, t.numpy())]
+    #print(labs)
+
+
+    #sys.exit()
 
     # get data
 
@@ -95,13 +111,16 @@ def pretrain(args):
 
         pre_model.eval()
         with torch.no_grad():
-            tokens = torch.tensor(np.arange(0, 10), dtype=torch.int)
+            tokens = torch.tensor(np.arange(0, 200), dtype=torch.int)
             X = torch.zeros(200, dtype=torch.int)
             X[0:len(tokens)] = tokens
             X = X.to(device)
             Z = pre_model.net.token_emb(X)
-            # metadata = [''] * 200
-            writer.add_embedding(Z, tag='token embeddings')
+            metadata = [label for label in map(labeller.token2label, X.numpy())]
+            writer.add_embedding(Z,
+                                 metadata=metadata,
+                                 global_step=epoch,
+                                 tag='token embeddings')
             # TODO: add labelling logic here to append as meta_data label
 
         print(f'epoch {epoch} completed!')
