@@ -107,7 +107,7 @@ def pretrain(args):
             X[0:len(tokens)] = tokens
             X = X.to(device)
             Z = pre_model.net.token_emb(X)
-            metadata = [label for label in map(labeller.token2label, X.numpy())]
+            metadata = [label for label in map(labeller.token2label, X.cpu().numpy())]
             writer.add_embedding(Z,
                                  metadata=metadata,
                                  global_step=epoch,
