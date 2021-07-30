@@ -1,3 +1,4 @@
+import os
 import argparse
 from pprint import pprint
 
@@ -58,6 +59,31 @@ class Arguments:
             self.parser.add_argument('--label_set', type=str, default='readm_30', choices=['readm_30', 'readm_7'])
             self.parser.add_argument('--pretuned_model', type=str, required=True)
             self.parser.add_argument('--weighted_loss', type=bool, default=False)
+
+    def parse(self, verbose=False):
+        self.initialise()
+        self.arguments = self.parser.parse_args()
+        if verbose: pprint(vars(self.arguments), indent=4)
+        return self.arguments
+
+
+class PreprocessingArguments:
+    def __init__(self):
+        self.parser = argparse.ArgumentParser(description='preprocessor')
+        self.arguments = None
+
+    def initialise(self):
+
+        # data roots
+
+        self.parser.add_argument('--mimic_root', type=str)
+        self.parser.set_defaults(mimic_root='C:/Users/james/Data/MIMIC/mimic-iii-clinical-database-1.4')
+        self.parser.add_argument('--save_root', type=str)
+        self.parser.set_defaults(save_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers/test')
+
+        # general arguments
+
+        self.parser.add_argument('--nrows', type=int, default=1000000)
 
     def parse(self, verbose=False):
         self.initialise()
