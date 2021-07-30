@@ -21,7 +21,7 @@ class TrainingMethods:
             batch_loss = loss.item()
             optim.step()
             optim.zero_grad()
-            self.writer.add_scalar('train_loss', batch_loss / batch_size, epoch * len(train_loader) + i)
+            self.writer.add_scalar('loss/train', batch_loss / batch_size, epoch * len(train_loader) + i)
             cum_loss += batch_loss
         avg_loss = cum_loss / (len(train_loader) * batch_size)
         print(f'epoch avg train loss: {avg_loss}')
@@ -36,12 +36,12 @@ class TrainingMethods:
             loss = self.model(X)
             cum_loss += loss.item()
         avg_loss = cum_loss / (len(val_loader) * batch_size)
-        self.writer.add_scalar('avg_val_loss', avg_loss, epoch * len(val_loader) + i)
+        self.writer.add_scalar('loss/val/avg', avg_loss, epoch * len(val_loader) + i)
         print(f'epoch avg val loss: {avg_loss}')
         return avg_loss
 
 
-class FinetuningMethods:
+class FinetuningMethods:  # TODO: bring code in line with enumeration in TrainingMethods.
     def __init__(self, model, writer):
         self.model = model
         clip_value = 0.5
