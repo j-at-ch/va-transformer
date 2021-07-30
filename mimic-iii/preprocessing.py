@@ -1,8 +1,11 @@
 import os
+import sys
+
 import numpy as np
 import pandas as pd
 import pickle as pickle
 import torch
+import tqdm
 from pprint import pprint
 from sklearn.model_selection import train_test_split
 
@@ -35,7 +38,7 @@ def preprocess(args):
 
     charted = admissions[admissions.HAS_CHARTEVENTS_DATA == 1]
     charted.drop('ROW_ID', axis=1, inplace=True)
-    charted['HADM_IN_SEQ'] = charted.groupby('SUBJECT_ID')['ADMITTIME'].rank().astype(int)
+    charted.loc[:, 'HADM_IN_SEQ'] = charted.groupby('SUBJECT_ID')['ADMITTIME'].rank().astype(int)
     charted = charted.sort_values(by=['SUBJECT_ID', 'HADM_IN_SEQ'])
     charted['ADMITTIME_NEXT'] = charted.groupby('SUBJECT_ID')['ADMITTIME'].shift(-1)
     charted['DIS2ADM'] = charted['ADMITTIME_NEXT'] - charted['DISCHTIME']
@@ -75,22 +78,18 @@ def preprocess(args):
 
     token_shift = 1
     pad_token = 0
+    #eos_token = 1
 
     itemid2token = dict(zip(d_items['ITEMID'], range(token_shift, token_shift + len(d_items))))
 
     # add special tokens to the dictionary
 
     itemid2token['[PAD]'] = pad_token
+    #itemid2token['[EOS]'] = 1
     #itemid2token['[BOS]'] = 1
-    #itemid2token['[EOS]'] = 2
 
     token2itemid = {v: k for k, v in itemid2token.items()}
     token2label = dict(zip(range(len(d_items)), d_items['LABEL']))
-
-    with open(os.path.join(args.save_root, 'mappings.pkl'), 'wb') as f:
-        pickle.dump({'itemid2token': itemid2token,
-                     'token2itemid': token2itemid},
-                    f)
 
 
     def map2token(itemid):  # TODO: can now use data_utils.Mappings here.
@@ -107,20 +106,28 @@ def preprocess(args):
 
     # loop through sets and generate output files
 
+    df = pd.read_csv(chartevents_path, skiprows=0, nrows=args.nrows,
+                       header=0,
+                       usecols=['HADM_ID', 'CHARTTIME', 'ITEMID'],
+                       dtype={'HADM_ID': np.int},
+                       converters={'ITEMID': map2token},
+                       parse_dates=['CHARTTIME'])
+
+    print('df read in!')
+
     for subset in ['val', 'train', 'test']:
         print(f'Processing {subset} set data...')
 
-        # grouper for charts
+        # grouper for charts  # TODO: this is the bottleneck!
 
-        gpdf = (pd.read_csv(chartevents_path, skiprows=0, nrows=args.nrows,
-                            header=0,
-                            usecols=['HADM_ID', 'CHARTTIME', 'ITEMID'],
-                            dtype={'HADM_ID': np.int},
-                            converters={'ITEMID': map2token},
-                            parse_dates=['CHARTTIME'])
-                .query(f'HADM_ID.isin(@{subset}_indices)')
-                .groupby(by='HADM_ID')
+        gpdf = (df.query(f'HADM_ID.isin(@{subset}_indices)')
+                  .groupby(by='HADM_ID')
                 )
+
+        # count train token counts
+
+        if subset == 'train':
+            token2trcount = gpdf.obj.ITEMID.value_counts().to_dict()
 
         # initialise
 
@@ -131,7 +138,7 @@ def preprocess(args):
 
         # populate with entries
 
-        for i in gpdf.groups:
+        for i in tqdm.tqdm(gpdf.groups):
             time_origin = get_admittime(i)
             temp = gpdf.get_group(i).sort_values(by="CHARTTIME")
             tokens[i] = np.array(temp['ITEMID'], dtype=int)
@@ -164,6 +171,12 @@ def preprocess(args):
         del labels
 
         print(f'{subset} set data processed!')
+
+    with open(os.path.join(args.save_root, 'mappings.pkl'), 'wb') as f:
+        pickle.dump({'itemid2token': itemid2token,
+                     'token2itemid': token2itemid,
+                     'token2trcount': token2trcount},
+                    f)
 
 if __name__ == "__main__":
     arguments = PreprocessingArguments().parse()
