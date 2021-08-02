@@ -47,6 +47,7 @@ class Arguments:
 
         self.parser.add_argument('--model_name', type=str, default='test_experiment.pt')
         self.parser.add_argument('--writer_flush_secs', type=int, default=120)
+        self.parser.add_argument('--write_embeddings', type=bool, default=True)
 
         # pretraining specs
 

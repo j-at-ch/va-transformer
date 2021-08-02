@@ -12,7 +12,7 @@ from z_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
 
 def pretrain(args):
-    print('*'*17, 'chart-transformer called for training with the following settings:', sep='\n')
+    print('*'*17, 'chart-transformer summoned for training with the following settings:', sep='\n')
     pprint(vars(args), indent=2)
 
     # paths
@@ -100,18 +100,20 @@ def pretrain(args):
             print("Checkpoint saved!\n")
             best_val_loss = val_loss
 
-        pre_model.eval()
-        with torch.no_grad():
-            tokens = torch.tensor(np.arange(0, 200), dtype=torch.int)
-            X = torch.zeros(200, dtype=torch.int)
-            X[0:len(tokens)] = tokens
-            X = X.to(device)
-            Z = pre_model.net.token_emb(X)
-            metadata = [label for label in map(labeller.token2label, X.cpu().numpy())]
-            writer.add_embedding(Z,
-                                 metadata=metadata,
-                                 global_step=epoch,
-                                 tag='token embeddings')
+        if args.write_embeddings:
+            pre_model.eval()
+            with torch.no_grad():
+                tokens = list(mappings.topNtokens_tr(N=200).keys())
+                tokens = torch.tensor(tokens, dtype=torch.int)
+                X = torch.zeros(200, dtype=torch.int)
+                X[0:len(tokens)] = tokens
+                X = X.to(device)
+                Z = pre_model.net.token_emb(X)
+                metadata = [label for label in map(labeller.token2label, X.cpu().numpy())]
+                writer.add_embedding(Z,
+                                     metadata=metadata,
+                                     global_step=epoch,
+                                     tag='token embeddings')
 
         print(f'epoch {epoch} completed!')
         print('flushing writer...')
