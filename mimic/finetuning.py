@@ -12,7 +12,7 @@ from models import FinetuningWrapper
 
 
 def finetune(args):
-    print('*' * 17, 'chart-transformer called for finetuning with the following settings:', sep='\n')
+    print('*' * 17, 'chart-transformer summoned for finetuning with the following settings:', sep='\n')
     pprint(vars(args), indent=2)
 
     # paths
