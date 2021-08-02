@@ -46,7 +46,7 @@ class Mappings:
     def __init__(self, mappings):
         self.itemid2token = mappings['itemid2token']
         self.token2itemid = mappings['token2itemid']
-        self.token2count_tr = mappings['token2count_tr']
+        self.token2trcount = mappings['token2trcount']
         self.num_tokens = len(self.itemid2token)
 
     def decode_token(self, token):
@@ -56,7 +56,7 @@ class Mappings:
         return ' '.join(list(map(self.decode_token, tokens)))
 
     def topNtokens_tr(self, N):
-        d = sorted(self.token2count_tr.items(), key=lambda item: item[1], reverse=True)
+        d = sorted(self.token2trcount.items(), key=lambda item: item[1], reverse=True)
         return dict(d[0:N])
 
 
