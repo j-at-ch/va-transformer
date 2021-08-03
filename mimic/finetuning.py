@@ -175,9 +175,9 @@ def finetune(args):
                 print("Writing token embeddings to writer...")
                 fit_model.eval()
                 with torch.no_grad():
-                    tokens = list(mappings.topNtokens_tr(N=1000).keys())
+                    tokens = list(mappings.topNtokens_tr(N=500).keys())
                     X = torch.tensor(tokens, dtype=torch.int)
-                    Z = torch.Tensor()
+                    Z = torch.Tensor().to(device)
                     for X_part in torch.split(X, args.seq_len):
                         X_part = X_part.to(device)
                         Z_part = fit_model.net.token_emb(X_part)
