@@ -16,20 +16,22 @@ class Arguments:
         self.parser.add_argument('--mimic_root', type=str)
         self.parser.set_defaults(mimic_root='C:/Users/james/Data/MIMIC/mimic-iii-clinical-database-1.4')
         self.parser.add_argument('--data_root', type=str)
-        self.parser.set_defaults(data_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers')
+        self.parser.set_defaults(data_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers/data')
+        self.parser.add_argument('--models_root', type=str)
+        self.parser.set_defaults(models_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers/models')
         self.parser.add_argument('--save_root', type=str)
         self.parser.set_defaults(save_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers')
         self.parser.add_argument('--logs_root', type=str)
-        self.parser.set_defaults(logs_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers')
+        self.parser.set_defaults(logs_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers/logs')
 
         # pretraining constants
 
         self.parser.add_argument('--num_epochs', type=int, default=3)
-        self.parser.add_argument('--num_batches_tr', type=int, default=2)
-        self.parser.add_argument('--num_batches_val', type=int, default=2)
+        self.parser.add_argument('--num_batches_tr', type=int, default=2)  # TODO: deprecate
+        self.parser.add_argument('--num_batches_val', type=int, default=2)  # TODO: deprecate
         self.parser.add_argument('--batch_size_tr', type=int, default=4)
         self.parser.add_argument('--batch_size_val', type=int, default=4)
-        self.parser.add_argument('--grad_accumulate_every', type=int, default=4)
+        self.parser.add_argument('--grad_accumulate_every', type=int, default=4)  # TODO: deprecate
         self.parser.add_argument('--learning_rate', type=float, default=1e-4)
         self.parser.add_argument('--validate_every', type=int, default=10)
         self.parser.add_argument('--checkpoint_after', type=int, default=100)

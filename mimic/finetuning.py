@@ -1,4 +1,6 @@
 from pprint import pprint
+import pandas as pd
+import torch
 
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
@@ -17,6 +19,7 @@ def finetune(args):
 
     # paths
 
+    d_items_path = os.path.join(args.data_root, "d_items.csv")
     train_path = os.path.join(args.data_root, "train_charts.pkl")
     val_path = os.path.join(args.data_root, "val_charts.pkl")
     mapping_path = os.path.join(args.data_root, "mappings.pkl")
@@ -25,7 +28,7 @@ def finetune(args):
 
     train_lbl_path = os.path.join(args.data_root, "train_labels.pkl")
     val_lbl_path = os.path.join(args.data_root, "val_labels.pkl")
-    params_path = os.path.join(args.data_root, 'models', args.pretuned_model)
+    params_path = os.path.join(args.models_root, args.pretuned_model)
 
     # device
 
@@ -35,6 +38,11 @@ def finetune(args):
 
     mappings_dict = fetch_mappings(mapping_path)
     mappings = Mappings(mappings_dict)
+
+    # labellers
+
+    d_items_df = pd.read_csv(d_items_path, index_col='ITEMID', dtype={'ITEMID': str})
+    labeller = Labellers(mappings_dict, d_items_df)
 
     # fetch labels
 
@@ -62,14 +70,19 @@ def finetune(args):
     ft_train_cycler = cycle(ft_train_loader)
     ft_val_cycler = cycle(ft_val_loader)
 
+    #  for quick test run
+
+    if args.test_run:
+        ft_train_loader = [X for i, X in enumerate(ft_train_loader) if i < 2]
+        ft_val_loader = [X for i, X in enumerate(ft_val_loader) if i < 2]
+
     # propensities
 
     def propensity(di):
-        x = sum(di.values()) / len(di)
-        return x
+        return sum(di.values()) / len(di)
 
     p = propensity(train_labels)
-    print(p)
+    print(f"positive class propensity is {p}")
 
     if args.weighted_loss:
         weights = torch.tensor([p, 1 - p]).to(device)
@@ -105,14 +118,13 @@ def finetune(args):
     writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
     training = methods.FinetuningMethods(fit_model, writer)
 
-
     # training loop
 
     best_val_loss = np.inf
     for epoch in range(args.num_epochs):
-        ________ = training.train(ft_train_cycler, optim, epoch,
+        ________ = training.train(ft_train_loader, optim, epoch,
                                   num_batches=args.num_batches_tr, batch_size=args.batch_size_tr)
-        val_loss = training.evaluate(ft_val_cycler, epoch,
+        val_loss = training.evaluate(ft_val_loader, epoch,
                                      num_batches=args.num_batches_val, batch_size=args.batch_size_val)
 
         # whether to checkpoint model
@@ -157,15 +169,24 @@ def finetune(args):
             writer.add_scalar('val/roc_auc', roc_auc, epoch)
             writer.add_pr_curve('val/pr_curve', y_true, y_score[:, 1], epoch)
 
-            # TODO: bring labelling code in line with pretraining.
-            # add weight/bias observations?
-            # specify tokens to observe embeddings of
-            #tokens = torch.tensor(np.arange(0, 10), dtype=torch.int)
-            #X = torch.zeros(200, dtype=torch.int)
-            #X[0:len(tokens)] = tokens
-            #Z = fit_model.net.token_emb(X)
-            ##metadata = [''] * 200
-            #writer.add_embedding(Z, tag='token embeddings')
+            # TODO: add weight/bias observations?
+
+            if args.write_embeddings & (epoch == 0 or epoch == -1 % args.num_epochs):
+                print("Writing token embeddings to writer...")
+                fit_model.eval()
+                with torch.no_grad():
+                    tokens = list(mappings.topNtokens_tr(N=1000).keys())
+                    X = torch.tensor(tokens, dtype=torch.int)
+                    Z = torch.Tensor()
+                    for X_part in torch.split(X, args.seq_len):
+                        X_part = X_part.to(device)
+                        Z_part = fit_model.net.token_emb(X_part)
+                        Z = torch.cat((Z, Z_part))
+                    metadata = [label for label in map(labeller.token2label, X.cpu().numpy())]
+                    writer.add_embedding(Z,
+                                         metadata=metadata,
+                                         global_step=epoch,
+                                         tag='token embeddings')
 
         # flushing writer
 
