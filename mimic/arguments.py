@@ -17,7 +17,7 @@ class Arguments:
         self.parser.set_defaults(mimic_root='C:/Users/james/Data/MIMIC/mimic-iii-clinical-database-1.4')
         self.parser.add_argument('--data_root', type=str)
         self.parser.set_defaults(data_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers/data')
-        self.parser.add_argument('--models_root', type=str)
+        self.parser.add_argument('--model_root', type=str)
         self.parser.set_defaults(models_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers/models')
         self.parser.add_argument('--save_root', type=str)
         self.parser.set_defaults(save_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers')
@@ -27,17 +27,17 @@ class Arguments:
         # pretraining constants
 
         self.parser.add_argument('--num_epochs', type=int, default=3)
-        self.parser.add_argument('--num_batches_tr', type=int, default=2)  # TODO: deprecate
-        self.parser.add_argument('--num_batches_val', type=int, default=2)  # TODO: deprecate
         self.parser.add_argument('--batch_size_tr', type=int, default=4)
         self.parser.add_argument('--batch_size_val', type=int, default=4)
-        self.parser.add_argument('--grad_accumulate_every', type=int, default=4)  # TODO: deprecate
         self.parser.add_argument('--learning_rate', type=float, default=1e-4)
         self.parser.add_argument('--validate_every', type=int, default=10)
         self.parser.add_argument('--checkpoint_after', type=int, default=100)
         self.parser.add_argument('--generate_every', type=int, default=20)
         self.parser.add_argument('--generate_length', type=int, default=200)
         self.parser.add_argument('--seq_len', type=int, default=200)
+        self.parser.add_argument('--num_batches_tr', type=int, default=2)  # TODO: deprecate
+        self.parser.add_argument('--num_batches_val', type=int, default=2)  # TODO: deprecate
+        self.parser.add_argument('--grad_accumulate_every', type=int, default=4)  # TODO: deprecate
 
         # attention specification
 
@@ -47,7 +47,7 @@ class Arguments:
 
         # general arguments
 
-        self.parser.add_argument('--model_name', type=str, default='test_experiment.pt')
+        self.parser.add_argument('--model_name', type=str, default='test_experiment')
         self.parser.add_argument('--writer_flush_secs', type=int, default=120)
         self.parser.add_argument('--write_embeddings', type=bool, default=True)
 

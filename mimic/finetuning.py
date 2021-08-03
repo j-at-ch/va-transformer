@@ -23,12 +23,12 @@ def finetune(args):
     train_path = os.path.join(args.data_root, "train_charts.pkl")
     val_path = os.path.join(args.data_root, "val_charts.pkl")
     mapping_path = os.path.join(args.data_root, "mappings.pkl")
-    ckpt_path = os.path.join(args.save_root, "models", args.model_name)
+    ckpt_path = os.path.join(args.save_root, "models", args.model_name + ".pt")
     logs_path = os.path.join(args.logs_root, "logs", args.model_name)
 
     train_lbl_path = os.path.join(args.data_root, "train_labels.pkl")
     val_lbl_path = os.path.join(args.data_root, "val_labels.pkl")
-    params_path = os.path.join(args.models_root, args.pretuned_model)
+    params_path = os.path.join(args.model_root, args.pretuned_model)
 
     # device
 
