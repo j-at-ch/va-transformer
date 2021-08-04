@@ -26,7 +26,7 @@ class FinetuningWrapper(nn.Module):
 
         # define classifier head layers
 
-        self.num_features = net.to_logits.in_features #* self.seq_len
+        self.num_features = net.to_logits.in_features * self.seq_len
         self.net.clf1 = nn.Linear(self.num_features, num_classes, bias=True)
         del self.net.to_logits
 
