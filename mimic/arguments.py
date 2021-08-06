@@ -18,7 +18,7 @@ class Arguments:
         self.parser.add_argument('--data_root', type=str)
         self.parser.set_defaults(data_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers/data')
         self.parser.add_argument('--model_root', type=str)
-        self.parser.set_defaults(models_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers/models')
+        self.parser.set_defaults(model_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers/models')
         self.parser.add_argument('--save_root', type=str)
         self.parser.set_defaults(save_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers')
         self.parser.add_argument('--logs_root', type=str)
@@ -44,6 +44,8 @@ class Arguments:
         self.parser.add_argument('--attn_dim', type=int, default=100)
         self.parser.add_argument('--attn_depth', type=int, default=3)
         self.parser.add_argument('--attn_heads', type=int, default=4)
+        self.parser.add_argument('--attn_dropout', type=float, default=0.)
+        self.parser.add_argument('--ff_dropout', type=float, default=0.)
 
         # general arguments
 

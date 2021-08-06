@@ -51,7 +51,10 @@ def pretrain(args):
         attn_layers=Decoder(
             dim=args.attn_dim,
             depth=args.attn_depth,
-            heads=args.attn_heads)
+            heads=args.attn_heads,
+            attn_dropout=args.attn_dropout,
+            ff_dropout=args.ff_dropout
+        )
     )
 
     # wrap for autoregressive

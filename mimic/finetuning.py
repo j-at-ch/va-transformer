@@ -1,9 +1,8 @@
 from pprint import pprint
 import pandas as pd
-import torch
-
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
+
 from z_transformers.transformers import TransformerWrapper, Decoder
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, roc_auc_score
 
@@ -103,7 +102,9 @@ def finetune(args):
         attn_layers=Decoder(
             dim=args.attn_dim,
             depth=args.attn_depth,
-            heads=args.attn_heads)
+            heads=args.attn_heads,
+            attn_dropout=args.attn_dropout,
+            ff_dropout=args.ff_dropout)
     )
 
     fit_model = FinetuningWrapper(model, num_classes=2,
@@ -169,7 +170,7 @@ def finetune(args):
             writer.add_scalar('val/roc_auc', roc_auc, epoch)
             writer.add_pr_curve('val/pr_curve', y_true, y_score[:, 1], epoch)
 
-            # TODO: add weight/bias observations?
+            # TODO: add parameter tracking?
 
             if args.write_embeddings & (epoch == 0 or epoch == -1 % args.num_epochs):
                 print("Writing token embeddings to writer...")
