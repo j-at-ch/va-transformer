@@ -22,6 +22,7 @@ def top_p(logits, thres=0.9):
     sorted_logits[sorted_indices_to_remove] = float('-inf')
     return sorted_logits.scatter(1, sorted_indices, sorted_logits)
 
+
 # topk
 
 def top_k(logits, thres=0.9):
@@ -30,6 +31,7 @@ def top_k(logits, thres=0.9):
     probs = torch.full_like(logits, float('-inf'))
     probs.scatter_(1, ind, val)
     return probs
+
 
 # entmax
 
@@ -42,7 +44,6 @@ class AutoregressiveWrapper(nn.Module):
         super().__init__()
         self.pad_value = pad_value
         self.ignore_index = ignore_index
-
         self.net = net
         self.max_seq_len = net.max_seq_len
 
@@ -106,5 +107,5 @@ class AutoregressiveWrapper(nn.Module):
             kwargs['mask'] = mask
 
         out = self.net(xi, **kwargs)
-        loss = F.cross_entropy(out.transpose(1, 2), xo, ignore_index=self.ignore_index)
+        loss = F.cross_entropy(out.transpose(1, 2), xo, ignore_index=self.ignore_index)  # NOTE: reduction="mean"
         return loss

@@ -14,7 +14,7 @@ class FinetuningWrapper(nn.Module):
         self.ignore_index = ignore_index
         self.num_classes = num_classes
         self.weight = weight.to(torch.float) if weight is not None else weight
-        self.net = copy.deepcopy(net)  # deepcopy is necessary here.
+        self.net = copy.deepcopy(net)  # deepcopy is necessary here if we don't want to update the original also.
         self.max_seq_len = self.net.max_seq_len
         self.seq_len = seq_len
         self.load_from_pretuning = load_from_pretuning
@@ -35,5 +35,5 @@ class FinetuningWrapper(nn.Module):
         Z = torch.flatten(Z, start_dim=1)  # consider alternatives?
         #Z = torch.flatten(Z[:, 0, :], start_dim=1)  # TEST
         logits = self.net.clf1(Z)
-        loss = F.cross_entropy(logits, Y, weight=self.weight)
+        loss = F.cross_entropy(logits, Y, weight=self.weight)  # note: weighted mean, normalised by tot weight.
         return logits if predict else loss
