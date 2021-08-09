@@ -21,7 +21,7 @@ def pretrain(args):
     train_path = os.path.join(args.data_root, "train_charts.pkl")
     val_path = os.path.join(args.data_root, "val_charts.pkl")
     mapping_path = os.path.join(args.data_root, "mappings.pkl")
-    ckpt_path = os.path.join(args.save_root, args.model_name)
+    ckpt_path = os.path.join(args.save_root, args.model_name + ".pt")
     logs_path = os.path.join(args.logs_root, args.model_name)
 
     # device
@@ -128,4 +128,14 @@ def pretrain(args):
 
 if __name__ == "__main__":
     arguments = Arguments(mode='pretraining').parse()
+
+    # check output roots exist; if not, create...
+
+    if not os.path.exists(arguments.save_root):
+        os.mkdir(arguments.save_root)
+    if not os.path.exists(arguments.logs_root):
+        os.mkdir(arguments.logs_root)
+
+    # run pretraining
+
     pretrain(arguments)

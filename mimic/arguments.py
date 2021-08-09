@@ -14,21 +14,21 @@ class Arguments:
         # data roots
 
         self.parser.add_argument('--mimic_root', type=str)
-        self.parser.set_defaults(mimic_root='/home/james/Documents/Data/50000000rows')
+        self.parser.set_defaults(mimic_root='/home/james/Documents/Charters/50000000rows/data')
         self.parser.add_argument('--data_root', type=str)
-        self.parser.set_defaults(data_root='/home/james/Documents/Data/50000000rows')
+        self.parser.set_defaults(data_root='/home/james/Documents/Charters/50000000rows/data')
         self.parser.add_argument('--model_root', type=str)
-        self.parser.set_defaults(model_root='/home/james/Documents/Data/50000000rows')
+        self.parser.set_defaults(model_root='/home/james/Documents/Charters/50000000rows/models')
         self.parser.add_argument('--save_root', type=str)
-        self.parser.set_defaults(save_root='/home/james/Documents/Data/50000000rows')
+        self.parser.set_defaults(save_root='/home/james/Documents/Charters/50000000rows/results')
         self.parser.add_argument('--logs_root', type=str)
-        self.parser.set_defaults(logs_root='/home/james/Documents/Data/50000000rows')
+        self.parser.set_defaults(logs_root='/home/james/Documents/Charters/50000000rows/logs')
 
         # pretraining constants
 
         self.parser.add_argument('--num_epochs', type=int, default=3)
-        self.parser.add_argument('--batch_size_tr', type=int, default=4)
-        self.parser.add_argument('--batch_size_val', type=int, default=4)
+        self.parser.add_argument('--batch_size_tr', type=int, default=100)
+        self.parser.add_argument('--batch_size_val', type=int, default=100)
         self.parser.add_argument('--learning_rate', type=float, default=1e-4)
         self.parser.add_argument('--validate_every', type=int, default=10)
         self.parser.add_argument('--checkpoint_after', type=int, default=100)
