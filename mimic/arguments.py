@@ -14,15 +14,15 @@ class Arguments:
         # data roots
 
         self.parser.add_argument('--mimic_root', type=str)
-        self.parser.set_defaults(mimic_root='C:/Users/james/Data/MIMIC/mimic-iii-clinical-database-1.4')
+        self.parser.set_defaults(mimic_root='/home/james/Documents/Data/50000000rows')
         self.parser.add_argument('--data_root', type=str)
-        self.parser.set_defaults(data_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers/data')
+        self.parser.set_defaults(data_root='/home/james/Documents/Data/50000000rows')
         self.parser.add_argument('--model_root', type=str)
-        self.parser.set_defaults(model_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers/models')
+        self.parser.set_defaults(model_root='/home/james/Documents/Data/50000000rows')
         self.parser.add_argument('--save_root', type=str)
-        self.parser.set_defaults(save_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers')
+        self.parser.set_defaults(save_root='/home/james/Documents/Data/50000000rows')
         self.parser.add_argument('--logs_root', type=str)
-        self.parser.set_defaults(logs_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers/logs')
+        self.parser.set_defaults(logs_root='/home/james/Documents/Data/50000000rows')
 
         # pretraining constants
 
@@ -52,6 +52,7 @@ class Arguments:
         self.parser.add_argument('--model_name', type=str, default='test_experiment')
         self.parser.add_argument('--writer_flush_secs', type=int, default=120)
         self.parser.add_argument('--write_embeddings', type=bool, default=True)
+        self.parser.add_argument('--cuda_device', type=str, default="cuda:0")
 
         # pretraining specs
 

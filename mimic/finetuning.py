@@ -31,7 +31,7 @@ def finetune(args):
 
     # device
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(args.cuda_device if torch.cuda.is_available() else "cpu")
 
     # fetch mappings
 
