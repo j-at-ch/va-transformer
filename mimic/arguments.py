@@ -30,11 +30,11 @@ class Arguments:
         self.parser.add_argument('--batch_size_tr', type=int, default=100)
         self.parser.add_argument('--batch_size_val', type=int, default=100)
         self.parser.add_argument('--learning_rate', type=float, default=1e-4)
-        self.parser.add_argument('--validate_every', type=int, default=10)
+        self.parser.add_argument('--validate_every', type=int, default=10)  # note: deprecated
         self.parser.add_argument('--checkpoint_after', type=int, default=100)
-        self.parser.add_argument('--generate_every', type=int, default=20)
-        self.parser.add_argument('--generate_length', type=int, default=200)
-        self.parser.add_argument('--seq_len', type=int, default=200)
+        self.parser.add_argument('--generate_every', type=int, default=20)  # note: deprecated
+        self.parser.add_argument('--generate_length', type=int, default=200)  # note: deprecated
+        self.parser.add_argument('--seq_len', type=int, default=200)  #
 
         # attention specification
 
