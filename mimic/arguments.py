@@ -35,9 +35,6 @@ class Arguments:
         self.parser.add_argument('--generate_every', type=int, default=20)
         self.parser.add_argument('--generate_length', type=int, default=200)
         self.parser.add_argument('--seq_len', type=int, default=200)
-        #self.parser.add_argument('--num_batches_tr', type=int, default=2)  # TODO: deprecate
-        #self.parser.add_argument('--num_batches_val', type=int, default=2)  # TODO: deprecate
-        #self.parser.add_argument('--grad_accumulate_every', type=int, default=4)  # TODO: deprecate
 
         # attention specification
 
