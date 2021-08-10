@@ -14,15 +14,15 @@ class Arguments:
         # data roots
 
         self.parser.add_argument('--mimic_root', type=str)
-        self.parser.set_defaults(mimic_root='/home/james/Documents/Charters/50000000rows/data')
+        self.parser.set_defaults(mimic_root='/home/james/Documents/Charters/all_rows/data')
         self.parser.add_argument('--data_root', type=str)
-        self.parser.set_defaults(data_root='/home/james/Documents/Charters/50000000rows/data')
+        self.parser.set_defaults(data_root='/home/james/Documents/Charters/all_rows/data')
         self.parser.add_argument('--model_root', type=str)
-        self.parser.set_defaults(model_root='/home/james/Documents/Charters/50000000rows/models')
+        self.parser.set_defaults(model_root='/home/james/Documents/Charters/all_rows/models')
         self.parser.add_argument('--save_root', type=str)
-        self.parser.set_defaults(save_root='/home/james/Documents/Charters/50000000rows/results')
+        self.parser.set_defaults(save_root='/home/james/Documents/Charters/all_rows/results')
         self.parser.add_argument('--logs_root', type=str)
-        self.parser.set_defaults(logs_root='/home/james/Documents/Charters/50000000rows/logs')
+        self.parser.set_defaults(logs_root='/home/james/Documents/Charters/all_rows/logs')
 
         # pretraining constants
 
@@ -35,9 +35,9 @@ class Arguments:
         self.parser.add_argument('--generate_every', type=int, default=20)
         self.parser.add_argument('--generate_length', type=int, default=200)
         self.parser.add_argument('--seq_len', type=int, default=200)
-        self.parser.add_argument('--num_batches_tr', type=int, default=2)  # TODO: deprecate
-        self.parser.add_argument('--num_batches_val', type=int, default=2)  # TODO: deprecate
-        self.parser.add_argument('--grad_accumulate_every', type=int, default=4)  # TODO: deprecate
+        #self.parser.add_argument('--num_batches_tr', type=int, default=2)  # TODO: deprecate
+        #self.parser.add_argument('--num_batches_val', type=int, default=2)  # TODO: deprecate
+        #self.parser.add_argument('--grad_accumulate_every', type=int, default=4)  # TODO: deprecate
 
         # attention specification
 
@@ -83,9 +83,9 @@ class PreprocessingArguments:
         # data roots
 
         self.parser.add_argument('--mimic_root', type=str)
-        self.parser.set_defaults(mimic_root='C:/Users/james/Data/MIMIC/mimic-iii-clinical-database-1.4')
+        self.parser.set_defaults(mimic_root='/home/james/Documents/Charters/mimic-iii-clinical-database-1.4')
         self.parser.add_argument('--save_root', type=str)
-        self.parser.set_defaults(save_root='C:/Users/james/Data/MIMIC/mimic-iii-chart-transformers/test')
+        self.parser.set_defaults(save_root='/home/james/Documents/Charters/preprocessing_output')
 
         # general arguments
 

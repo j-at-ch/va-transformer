@@ -17,7 +17,7 @@ def pretrain(args):
 
     # paths
 
-    d_items_path = os.path.join(args.data_root, "d_items.csv")
+    d_items_path = os.path.join(args.data_root, "D_ITEMS.csv")
     train_path = os.path.join(args.data_root, "train_charts.pkl")
     val_path = os.path.join(args.data_root, "val_charts.pkl")
     mapping_path = os.path.join(args.data_root, "mappings.pkl")
@@ -87,8 +87,8 @@ def pretrain(args):
 
     best_val_loss = np.inf
     for epoch in range(args.num_epochs):
-        ________ = training.train(train_loader, optim, epoch, batch_size=args.batch_size_tr)
-        val_loss = training.evaluate(val_loader, epoch, batch_size=args.batch_size_val)
+        ________ = training.train(train_loader, optim, epoch)
+        val_loss = training.evaluate(val_loader, epoch)
 
         if val_loss < best_val_loss:
             print("Saving checkpoint...")
@@ -103,17 +103,19 @@ def pretrain(args):
             print("Checkpoint saved!\n")
             best_val_loss = val_loss
 
-        if args.write_embeddings:
+        if args.write_embeddings & (epoch == 0 or epoch == -1 % args.num_epochs):
+            print("Writing token embeddings to writer...")
             pre_model.eval()
             with torch.no_grad():
-                tokens = list(mappings.topNtokens_tr(N=200).keys())
-                tokens = torch.tensor(tokens, dtype=torch.int)
-                X = torch.zeros(200, dtype=torch.int)
-                X[0:len(tokens)] = tokens
-                X = X.to(device)
-                Z = pre_model.net.token_emb(X)
-                metadata = [label for label in map(labeller.token2label, X.cpu().numpy())]
-                writer.add_embedding(Z,
+                tokens = list(mappings.topNtokens_tr(N=2000).keys())
+                x = torch.tensor(tokens, dtype=torch.int)
+                z = torch.Tensor().to(device)
+                for x_part in torch.split(x, args.seq_len):
+                    x_part = x_part.to(device)
+                    z_part = pre_model.net.token_emb(x_part)
+                    z = torch.cat((z, z_part))
+                metadata = [label for label in map(labeller.token2label, x.cpu().numpy())]
+                writer.add_embedding(z,
                                      metadata=metadata,
                                      global_step=epoch,
                                      tag='token embeddings')

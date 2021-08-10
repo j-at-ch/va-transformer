@@ -18,7 +18,7 @@ def finetune(args):
 
     # paths
 
-    d_items_path = os.path.join(args.data_root, "d_items.csv")
+    d_items_path = os.path.join(args.data_root, "D_ITEMS.csv")
     train_path = os.path.join(args.data_root, "train_charts.pkl")
     val_path = os.path.join(args.data_root, "val_charts.pkl")
     mapping_path = os.path.join(args.data_root, "mappings.pkl")
@@ -123,8 +123,7 @@ def finetune(args):
 
     best_val_loss = np.inf
     for epoch in range(args.num_epochs):
-        ________ = training.train(ft_train_loader, optim, epoch,
-                                  num_batches=args.num_batches_tr, batch_size=args.batch_size_tr)
+        ________ = training.train(ft_train_loader, optim, epoch)
         val_loss = training.evaluate(ft_val_loader, epoch,
                                      num_batches=args.num_batches_val, batch_size=args.batch_size_val)
 
@@ -176,15 +175,15 @@ def finetune(args):
                 print("Writing token embeddings to writer...")
                 fit_model.eval()
                 with torch.no_grad():
-                    tokens = list(mappings.topNtokens_tr(N=500).keys())
-                    X = torch.tensor(tokens, dtype=torch.int)
-                    Z = torch.Tensor().to(device)
-                    for X_part in torch.split(X, args.seq_len):
-                        X_part = X_part.to(device)
-                        Z_part = fit_model.net.token_emb(X_part)
-                        Z = torch.cat((Z, Z_part))
-                    metadata = [label for label in map(labeller.token2label, X.cpu().numpy())]
-                    writer.add_embedding(Z,
+                    tokens = list(mappings.topNtokens_tr(N=2000).keys())
+                    x = torch.tensor(tokens, dtype=torch.int)
+                    z = torch.Tensor().to(device)
+                    for x_part in torch.split(x, args.seq_len):
+                        x_part = x_part.to(device)
+                        z_part = fit_model.net.token_emb(x_part)
+                        z = torch.cat((z, z_part))
+                    metadata = [label for label in map(labeller.token2label, x.cpu().numpy())]
+                    writer.add_embedding(x,
                                          metadata=metadata,
                                          global_step=epoch,
                                          tag='token embeddings')
