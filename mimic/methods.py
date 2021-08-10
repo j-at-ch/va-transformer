@@ -1,5 +1,3 @@
-import sys
-import numpy as np
 import tqdm
 import torch
 
@@ -11,7 +9,7 @@ class TrainingMethods:
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip_value)
         self.writer = writer
 
-    def train(self, train_loader, optim, epoch, batch_size):
+    def train(self, train_loader, optim, epoch):
         self.model.train()
         cum_loss = 0
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
@@ -29,7 +27,7 @@ class TrainingMethods:
         return epoch_loss
 
     @torch.no_grad()
-    def evaluate(self, val_loader, epoch, batch_size):
+    def evaluate(self, val_loader, epoch):
         self.model.eval()
         cum_loss = 0
         for i, X in tqdm.tqdm(enumerate(val_loader), total=len(val_loader),
@@ -38,7 +36,7 @@ class TrainingMethods:
             cum_loss += loss.item()
 
         epoch_loss = cum_loss / len(val_loader)
-        self.writer.add_scalar('loss/val', epoch_loss, epoch * len(val_loader) + i)
+        self.writer.add_scalar('loss/val', epoch_loss, (epoch + 1) * len(val_loader))
         print(f'epoch avg val loss: {epoch_loss}')
         return epoch_loss
 
@@ -50,7 +48,7 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are now equal except f
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip_value)
         self.writer = writer
 
-    def train(self, train_loader, optim, epoch, num_batches, batch_size):
+    def train(self, train_loader, optim, epoch):
         self.model.train()
         cum_loss = 0
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
@@ -68,7 +66,7 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are now equal except f
         return epoch_loss
 
     @torch.no_grad()
-    def evaluate(self, val_loader, epoch, num_batches, batch_size):
+    def evaluate(self, val_loader, epoch):
         self.model.eval()
         cum_loss = 0
         for i, X in tqdm.tqdm(enumerate(val_loader), total=len(val_loader),
@@ -77,6 +75,6 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are now equal except f
             cum_loss += loss.item()
 
         epoch_loss = cum_loss / len(val_loader)
-        self.writer.add_scalar('loss/val', epoch_loss, epoch * len(val_loader) + i)
+        self.writer.add_scalar('loss/val', epoch_loss, (epoch + 1) * len(val_loader))
         print(f'epoch avg val loss: {epoch_loss}')
         return epoch_loss
