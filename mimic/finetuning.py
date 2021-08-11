@@ -1,3 +1,4 @@
+import sys
 from pprint import pprint
 import pandas as pd
 import torch.nn.functional as F
@@ -81,7 +82,7 @@ def finetune(args):
         return sum(di.values()) / len(di)
 
     p = propensity(train_labels)
-    print(f"positive class propensity is {p}")
+    print(f"Train set positive class propensity is {p}")
 
     if args.weighted_loss:
         weights = torch.tensor([p, 1 - p]).to(device)
@@ -92,7 +93,8 @@ def finetune(args):
 
     X = torch.load(params_path, map_location=device)
     states = X['model_state_dict']
-    base_states = {k[len('net.'):] if k[:len('net.')] == 'net.' else k: v for k, v in states.items()}
+
+    # base_states = {k[len('net.'):] if k[:len('net.')] == 'net.' else k: v for k, v in states.items()}
 
     # initialisation of model
 
@@ -109,8 +111,10 @@ def finetune(args):
 
     fit_model = FinetuningWrapper(model, num_classes=2,
                                   seq_len=args.seq_len,
-                                  state_dict=base_states,
+                                  state_dict=states,
+                                  load_from_pretuning=True,
                                   weight=weights)
+
     fit_model.to(device)
 
     # initialise optimiser
@@ -119,13 +123,19 @@ def finetune(args):
     writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
     training = methods.FinetuningMethods(fit_model, writer)
 
+    # write initial embeddings
+
+    if args.write_initial_embeddings:
+        print("Writing initial token embeddings to writer...")
+        training.write_embeddings(0, mappings, labeller, args.seq_len, device)
+        print("Initial token embeddings written!")
+
     # training loop
 
     best_val_loss = np.inf
     for epoch in range(args.num_epochs):
         ________ = training.train(ft_train_loader, optim, epoch)
-        val_loss = training.evaluate(ft_val_loader, epoch,
-                                     num_batches=args.num_batches_val, batch_size=args.batch_size_val)
+        val_loss = training.evaluate(ft_val_loader, epoch)
 
         # whether to checkpoint model
 
@@ -173,20 +183,8 @@ def finetune(args):
 
             if args.write_embeddings & (epoch == 0 or epoch == -1 % args.num_epochs):
                 print("Writing token embeddings to writer...")
-                fit_model.eval()
-                with torch.no_grad():
-                    tokens = list(mappings.topNtokens_tr(N=2000).keys())
-                    x = torch.tensor(tokens, dtype=torch.int)
-                    z = torch.Tensor().to(device)
-                    for x_part in torch.split(x, args.seq_len):
-                        x_part = x_part.to(device)
-                        z_part = fit_model.net.token_emb(x_part)
-                        z = torch.cat((z, z_part))
-                    metadata = [label for label in map(labeller.token2label, x.cpu().numpy())]
-                    writer.add_embedding(x,
-                                         metadata=metadata,
-                                         global_step=epoch,
-                                         tag='token embeddings')
+                training.write_embeddings(epoch + 1, mappings, labeller, args.seq_len, device)
+                print("Token embeddings written!")
 
         # flushing writer
 

@@ -49,6 +49,7 @@ class Arguments:
         self.parser.add_argument('--model_name', type=str, default='test_experiment')
         self.parser.add_argument('--writer_flush_secs', type=int, default=120)
         self.parser.add_argument('--write_embeddings', type=bool, default=True)
+        self.parser.add_argument('--write_initial_embeddings', type=bool, default=True)
         self.parser.add_argument('--cuda_device', type=str, default="cuda:0")
 
         # pretraining specs

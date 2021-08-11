@@ -78,3 +78,19 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are now equal except f
         self.writer.add_scalar('loss/val', epoch_loss, (epoch + 1) * len(val_loader))
         print(f'epoch avg val loss: {epoch_loss}')
         return epoch_loss
+
+    @torch.no_grad()
+    def write_embeddings(self, step, mappings, labeller, seq_len, device):
+        self.model.eval()
+        tokens = list(mappings.topNtokens_tr(N=2000).keys())
+        x = torch.tensor(tokens, dtype=torch.int)
+        z = torch.Tensor().to(device)
+        for x_part in torch.split(x, seq_len):
+            x_part = x_part.to(device)
+            z_part = self.model.net.token_emb(x_part)
+            z = torch.cat((z, z_part))
+        metadata = [label for label in map(labeller.token2label, x.cpu().numpy())]
+        self.writer.add_embedding(z,
+                                  metadata=metadata,
+                                  global_step=step,
+                                  tag='token_embeddings')
