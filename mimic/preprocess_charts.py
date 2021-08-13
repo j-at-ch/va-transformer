@@ -25,7 +25,8 @@ def preprocess(args):
     # read in admissions
 
     admissions = pd.read_csv(admissions_path,
-                             parse_dates=['ADMITTIME', 'DISCHTIME'])
+                             index_col='ROW_ID',
+                             parse_dates=['ADMITTIME', 'DISCHTIME', 'DEATHTIME'])
 
     # extract only those charted and apply labelling logic
 
