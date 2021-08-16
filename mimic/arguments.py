@@ -50,7 +50,7 @@ class Arguments:
         self.parser.add_argument('--writer_flush_secs', type=int, default=120)
         self.parser.add_argument('--write_embeddings', type=bool, default=True)
         self.parser.add_argument('--write_initial_embeddings', type=bool, default=True)
-        self.parser.add_argument('--cuda_device', type=str, default="cuda:0")
+        self.parser.add_argument('--device', type=str, default="cuda:0")
 
         # pretraining specs
 
@@ -60,7 +60,7 @@ class Arguments:
 
         if self.mode == 'finetuning':
             self.parser.add_argument('--ft_batch_size', type=int, default=100)
-            self.parser.add_argument('--label_set', type=str, default='readm_30', choices=['readm_30', 'readm_7'])
+            self.parser.add_argument('--label_set', type=str, required=True)
             self.parser.add_argument('--pretuned_model', type=str, required=True)
             self.parser.add_argument('--weighted_loss', type=bool, default=False)
 

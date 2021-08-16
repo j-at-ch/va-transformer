@@ -17,16 +17,16 @@ def pretrain(args):
 
     # paths
 
-    d_items_path = os.path.join(args.data_root, "D_ITEMS.csv")
-    train_path = os.path.join(args.data_root, "train_charts.pkl")
-    val_path = os.path.join(args.data_root, "val_charts.pkl")
+    d_items_path = os.path.join(args.data_root, "D_LABITEMS.csv")
+    train_path = os.path.join(args.data_root, "train_data.pkl")
+    val_path = os.path.join(args.data_root, "val_data.pkl")
     mapping_path = os.path.join(args.data_root, "mappings.pkl")
     ckpt_path = os.path.join(args.save_root, args.model_name + ".pt")
     logs_path = os.path.join(args.logs_root, args.model_name)
 
     # device
 
-    device = torch.device(args.cuda_device if torch.cuda.is_available() else "cpu")
+    device = torch.device(args.device)
 
     # mappings
 
@@ -118,7 +118,7 @@ def pretrain(args):
                 writer.add_embedding(z,
                                      metadata=metadata,
                                      global_step=epoch,
-                                     tag='token embeddings')
+                                     tag='token_embeddings')
 
         print(f'epoch {epoch} completed!')
         print('flushing writer...')

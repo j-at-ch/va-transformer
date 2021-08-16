@@ -48,7 +48,7 @@ def augment_admissions(args):
     df.loc[:, 'LOS'] = (df.DISCHTIME - df.ADMITTIME)
     df.loc[:, 'ADMIT_TO_EXPIRE'] = (df.DEATHTIME - df.ADMITTIME)
     df.loc[:, 'DEATH>1D'] = (df.ADMIT_TO_EXPIRE > pd.Timedelta(days=1)).astype('int')
-    df.loc[:, 'DEATH>2D'] = (df.ADMIT_TO_EXPIRE > pd.Timedelta(days=2)).astype('int')
+    df.loc[:, 'DEATH>2.5D'] = (df.ADMIT_TO_EXPIRE > pd.Timedelta(days=2.5)).astype('int')
     df.loc[:, 'DEATH>3D'] = (df.ADMIT_TO_EXPIRE > pd.Timedelta(days=3)).astype('int')
     df.loc[:, 'DEATH>7D'] = (df.ADMIT_TO_EXPIRE > pd.Timedelta(days=7)).astype('int')
     df.loc[:, 'DEATH>10D'] = (df.ADMIT_TO_EXPIRE > pd.Timedelta(days=10)).astype('int')
@@ -73,8 +73,13 @@ def augment_admissions(args):
 
     # select hadms for a given problem.
 
-    hadms = admaug[((admaug.LOS > pd.Timedelta(days=2)) &
-                    (admaug.ADMIT_TO_EXPIRE > pd.Timedelta(days=2.5)))].index.to_numpy()
+    hadms = admaug[(
+            (admaug.LOS > pd.Timedelta(days=2)) &
+            (
+                pd.isna(admaug.ADMIT_TO_EXPIRE) |
+                (admaug.ADMIT_TO_EXPIRE > pd.Timedelta(days=2.5))
+            )
+            )].index.to_numpy()
 
     # split first-hadm_ids into train, val, test and assert that they partition.
 
@@ -82,6 +87,7 @@ def augment_admissions(args):
     val_indices, test_indices = train_test_split(surplus, test_size=0.5)
     del surplus
     assert set(hadms) == set(train_indices) | set(val_indices) | set(test_indices)
+    print(f"num_train: {len(train_indices)}, num_val: {len(val_indices)}, num_test: {len(test_indices)}")
 
     # ready the tokens:
 
@@ -94,6 +100,15 @@ def augment_admissions(args):
 
     token2itemid = {v: k for k, v in itemid2token.items()}
 
+    def map2token(itemid):  # TODO: can now use data_utils.Mappings here.
+        return itemid2token[int(itemid)]  # TODO: check this works.
+
+    def map2itemid(token):
+        return str(token2itemid[token])
+
+    def map2itemidstr(tokens):
+        return ' '.join(list(map(map2itemid, tokens)))
+
     def ts_to_posix(time):
         return pd.Timestamp(time, unit='s').timestamp()
 
@@ -102,7 +117,7 @@ def augment_admissions(args):
 
     # loop through index sets and generate output files
 
-    for subset in ['val', 'train', 'test']:
+    for subset in ['train', 'val', 'test']:
         print(f'Processing {subset} set data...')
 
         # grouper for charts
@@ -114,7 +129,11 @@ def augment_admissions(args):
         # train token counts
 
         if subset == 'train':
-            token2trcount = groups.obj.ITEMID.value_counts().to_dict()
+            token2trcount = (groups.obj['ITEMID']
+                             .apply(map2token)
+                             .value_counts()
+                             .to_dict()
+                             )
 
         # initialise
 
@@ -129,7 +148,10 @@ def augment_admissions(args):
         for i in tqdm.tqdm(groups.groups):
             admittime = ts_to_posix(get_from_admaug(i, 'ADMITTIME'))
             temp = groups.get_group(i).sort_values(by="CHARTTIME")
-            tokens[i] = np.array(temp['ITEMID'], dtype=int)
+            tokens[i] = np.fromiter(
+                map(map2token, temp['ITEMID']),
+                dtype=int
+            )
             times[i] = np.fromiter(
                 map(ts_to_posix, temp['CHARTTIME']),
                 dtype=np.int64
@@ -137,6 +159,7 @@ def augment_admissions(args):
             times_rel[i] = times[i] - admittime
 
             targets[i] = {
+                'DEATH>2.5D': get_from_admaug(i, 'DEATH>2.5D'),
                 'DEATH>3D': get_from_admaug(i, 'DEATH>3D'),
                 'DEATH>7D': get_from_admaug(i, 'DEATH>7D'),
                 'LOS': get_from_admaug(i, 'LOS')
@@ -144,7 +167,7 @@ def augment_admissions(args):
 
         # write out charts to pickle
 
-        save_path = os.path.join(args.save_root, f'{subset}_labs.pkl')
+        save_path = os.path.join(args.save_root, f'{subset}_data.pkl')
 
         with open(save_path, 'wb') as f:
             pickle.dump({f'{subset}_tokens': tokens,
