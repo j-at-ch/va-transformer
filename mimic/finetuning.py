@@ -19,20 +19,20 @@ def finetune(args):
 
     # paths
 
-    d_items_path = os.path.join(args.data_root, "D_ITEMS.csv")
-    train_path = os.path.join(args.data_root, "train_charts.pkl")
-    val_path = os.path.join(args.data_root, "val_charts.pkl")
+    d_items_path = os.path.join(args.data_root, "D_LABITEMS.csv")
+    train_path = os.path.join(args.data_root, "train_data.pkl")
+    val_path = os.path.join(args.data_root, "val_data.pkl")
     mapping_path = os.path.join(args.data_root, "mappings.pkl")
     ckpt_path = os.path.join(args.save_root, args.model_name + ".pt")
     logs_path = os.path.join(args.logs_root, args.model_name)
 
-    train_lbl_path = os.path.join(args.data_root, "train_labels.pkl")
-    val_lbl_path = os.path.join(args.data_root, "val_labels.pkl")
+    train_lbl_path = os.path.join(args.data_root, "train_targets.pkl")
+    val_lbl_path = os.path.join(args.data_root, "val_targets.pkl")
     params_path = os.path.join(args.model_root, args.pretuned_model)
 
     # device
 
-    device = torch.device(args.cuda_device if torch.cuda.is_available() else "cpu")
+    device = torch.device(args.device)
 
     # fetch mappings
 
@@ -48,12 +48,12 @@ def finetune(args):
 
     with open(train_lbl_path, 'rb') as f:
         X = pickle.load(f)
-        train_labels = {k: v[args.label_set] for k, v in X['train_labels'].items()}
+        train_targets = {k: v[args.label_set] for k, v in X['train_targets'].items()}
         del X
 
     with open(val_lbl_path, 'rb') as f:
         X = pickle.load(f)
-        val_labels = {k: v[args.label_set] for k, v in X['val_labels'].items()}
+        val_targets = {k: v[args.label_set] for k, v in X['val_targets'].items()}
         del X
 
     # generate datasets and loaders
@@ -61,8 +61,8 @@ def finetune(args):
     data_train = fetch_data_as_torch(train_path, 'train_tokens')
     data_val = fetch_data_as_torch(val_path, 'val_tokens')
 
-    ft_train_dataset = ClsSamplerDataset(data_train, args.seq_len, device, labels=train_labels)
-    ft_val_dataset = ClsSamplerDataset(data_val, args.seq_len, device, labels=val_labels)
+    ft_train_dataset = ClsSamplerDataset(data_train, args.seq_len, device, labels=train_targets)
+    ft_val_dataset = ClsSamplerDataset(data_val, args.seq_len, device, labels=val_targets)
 
     ft_train_loader = DataLoader(ft_train_dataset, batch_size=args.ft_batch_size, shuffle=True)
     ft_val_loader = DataLoader(ft_val_dataset, batch_size=args.ft_batch_size, shuffle=True)
@@ -81,7 +81,7 @@ def finetune(args):
     def propensity(di):
         return sum(di.values()) / len(di)
 
-    p = propensity(train_labels)
+    p = propensity(train_targets)
     print(f"Train set positive class propensity is {p}")
 
     if args.weighted_loss:
