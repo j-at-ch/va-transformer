@@ -114,7 +114,6 @@ def finetune(args):
                                   state_dict=states,
                                   load_from_pretuning=True,
                                   weight=weights)
-
     fit_model.to(device)
 
     # initialise optimiser
@@ -144,12 +143,18 @@ def finetune(args):
             print("Saving checkpoint...")
             torch.save({
                 'train_epoch': epoch,
-                'model_state_dict': fit_model.state_dict(),
+                'val_loss': val_loss,
                 'args': vars(args),
-                'seq_len': args.seq_len,
-                'optim_state_dict': optimizer.state_dict(),
-                'val_loss': val_loss
+                'model_state_dict': fit_model.state_dict(),
+                'optim_state_dict': optimizer.state_dict()
             }, ckpt_path)
+
+            # track checkpoint's embeddings
+            if args.write_embeddings:
+                print("Writing checkpoint's token embeddings to writer...")
+                training.write_embeddings(epoch + 1, mappings, labeller, args.seq_len, device)
+                print("Checkpoint's token embeddings written!")
+
             print("Checkpoint saved!\n")
             best_val_loss = val_loss
 
@@ -162,21 +167,11 @@ def finetune(args):
         ________ = training.predict(ft_train_loader, epoch, device, prefix="train")
         ________ = training.predict(ft_val_loader, epoch, device, prefix="val")
 
-        # tracking embeddings
-
-        fit_model.eval()
-        with torch.no_grad():
-            if args.write_embeddings & (epoch == 0 or epoch == -1 % args.num_epochs):
-                print("Writing token embeddings to writer...")
-                training.write_embeddings(epoch + 1, mappings, labeller, args.seq_len, device)
-                print("Token embeddings written!")
-
         # flushing writer
 
         print(f'epoch {epoch} completed!')
         print('flushing writer...')
         writer.flush()
-
     writer.close()
     print("training finished and writer closed!")
 
