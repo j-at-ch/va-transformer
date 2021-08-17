@@ -15,4 +15,6 @@ python mimic/finetuning.py \
     --pretuned_model 'pretraining_labevents_2days_2108161643.pt' \
     --weighted_loss 'True' \
     --ff_dropout 0.1 \
-    --label_set 'DEATH>2.5D'
+    --label_set 'DEATH>2.5D' \
+    --scheduler_decay 0.9 \
+    --test_run 'True'

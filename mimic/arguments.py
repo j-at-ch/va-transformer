@@ -29,7 +29,6 @@ class Arguments:
         self.parser.add_argument('--num_epochs', type=int, default=3)
         self.parser.add_argument('--batch_size_tr', type=int, default=100)
         self.parser.add_argument('--batch_size_val', type=int, default=100)
-        self.parser.add_argument('--learning_rate', type=float, default=1e-4)
         self.parser.add_argument('--validate_every', type=int, default=10)  # note: deprecated
         self.parser.add_argument('--checkpoint_after', type=int, default=100)
         self.parser.add_argument('--generate_every', type=int, default=20)  # note: deprecated
@@ -51,9 +50,7 @@ class Arguments:
         self.parser.add_argument('--write_embeddings', type=bool, default=True)
         self.parser.add_argument('--write_initial_embeddings', type=bool, default=True)
         self.parser.add_argument('--device', type=str, default="cuda:0")
-
-        # pretraining specs
-
+        self.parser.add_argument('--learning_rate', type=float, default=1e-4)
         self.parser.add_argument('--test_run', type=bool, default=False)
 
         # finetuning arguments
@@ -63,6 +60,7 @@ class Arguments:
             self.parser.add_argument('--label_set', type=str, required=True)
             self.parser.add_argument('--pretuned_model', type=str, required=True)
             self.parser.add_argument('--weighted_loss', type=bool, default=False)
+            self.parser.add_argument('--scheduler_decay', type=float, default=1)
 
     def parse(self, verbose=False):
         self.initialise()

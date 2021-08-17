@@ -1,5 +1,7 @@
 import tqdm
 import torch
+import torch.nn.functional as F
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, roc_auc_score
 
 
 class TrainingMethods:
@@ -9,7 +11,7 @@ class TrainingMethods:
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip_value)
         self.writer = writer
 
-    def train(self, train_loader, optim, epoch):
+    def train(self, train_loader, optimizer, epoch):
         self.model.train()
         cum_loss = 0
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
@@ -17,8 +19,8 @@ class TrainingMethods:
             loss = self.model(X)
             loss.backward()
             batch_loss = loss.item()
-            optim.step()
-            optim.zero_grad()
+            optimizer.step()
+            optimizer.zero_grad()
             self.writer.add_scalar('loss/train', batch_loss, epoch * len(train_loader) + i)
             cum_loss += batch_loss
 
@@ -48,7 +50,7 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are now equal except f
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip_value)
         self.writer = writer
 
-    def train(self, train_loader, optim, epoch):
+    def train(self, train_loader, optimizer, epoch):
         self.model.train()
         cum_loss = 0
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
@@ -56,8 +58,8 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are now equal except f
             loss = self.model(*X)
             loss.backward()
             batch_loss = loss.item()
-            optim.step()
-            optim.zero_grad()
+            optimizer.step()
+            optimizer.zero_grad()
             self.writer.add_scalar('loss/train', batch_loss, epoch * len(train_loader) + i)
             cum_loss += batch_loss
 
@@ -78,6 +80,30 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are now equal except f
         self.writer.add_scalar('loss/val', epoch_loss, (epoch + 1) * len(val_loader))
         print(f'epoch avg val loss: {epoch_loss}')
         return epoch_loss
+
+    @torch.no_grad()
+    def predict(self, val_loader, epoch, device, prefix="val"):
+        self.model.eval()
+        y_score = torch.tensor([]).to(device)
+        y_true = torch.tensor([]).to(device)
+        for i, (x, y) in enumerate(val_loader):
+            y_true = torch.cat((y_true, y))
+            logits = self.model(x, y, predict=True)
+            y_score = torch.cat((y_score, F.softmax(logits, dim=1)))
+        y_true = y_true.cpu()
+        y_score = y_score.cpu()
+
+        acc = accuracy_score(y_true, torch.argmax(y_score, dim=1), normalize=True)
+        bal_acc = balanced_accuracy_score(y_true, torch.argmax(y_score, dim=1))
+        roc_auc = roc_auc_score(y_true, y_score[:, 1])
+
+        self.writer.add_scalar(prefix + '/acc', acc, epoch)
+        self.writer.add_scalar(prefix + '/bal_acc', bal_acc, epoch)
+        self.writer.add_scalar(prefix + '/roc_auc', roc_auc, epoch)
+        self.writer.add_pr_curve(prefix + '/pr_curve', y_true, y_score[:, 1], epoch)
+        print(f'epoch {prefix}/roc_auc is {roc_auc}')
+        return y_score, y_true
+
 
     @torch.no_grad()
     def write_embeddings(self, step, mappings, labeller, seq_len, device):

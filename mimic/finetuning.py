@@ -119,7 +119,8 @@ def finetune(args):
 
     # initialise optimiser
 
-    optim = torch.optim.Adam(fit_model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.Adam(fit_model.parameters(), lr=args.learning_rate)
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.scheduler_decay)
     writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
     training = methods.FinetuningMethods(fit_model, writer)
 
@@ -134,7 +135,7 @@ def finetune(args):
 
     best_val_loss = np.inf
     for epoch in range(args.num_epochs):
-        ________ = training.train(ft_train_loader, optim, epoch)
+        ________ = training.train(ft_train_loader, optimizer, epoch)
         val_loss = training.evaluate(ft_val_loader, epoch)
 
         # whether to checkpoint model
@@ -146,41 +147,25 @@ def finetune(args):
                 'model_state_dict': fit_model.state_dict(),
                 'args': vars(args),
                 'seq_len': args.seq_len,
-                'optim_state_dict': optim.state_dict(),
+                'optim_state_dict': optimizer.state_dict(),
                 'val_loss': val_loss
             }, ckpt_path)
             print("Checkpoint saved!\n")
             best_val_loss = val_loss
 
+        # update scheduler
+
+        scheduler.step()
+
         # tracking model classification metrics for val set
 
-        print("checking performance on validation set...")
+        ________ = training.predict(ft_train_loader, epoch, device, prefix="train")
+        ________ = training.predict(ft_val_loader, epoch, device, prefix="val")
+
+        # tracking embeddings
+
         fit_model.eval()
         with torch.no_grad():
-            y_score = torch.tensor([]).to(device)
-            y_true = torch.tensor([]).to(device)
-
-            for i, (x, y) in enumerate(ft_val_loader):
-                y_true = torch.cat((y_true, y))
-                logits = fit_model(x, y, predict=True)
-                y_score = torch.cat((y_score, F.softmax(logits, dim=1)))
-
-            y_true = y_true.cpu()
-            y_score = y_score.cpu()
-
-            acc = accuracy_score(y_true, torch.argmax(y_score, dim=1), normalize=True)
-            bal_acc = balanced_accuracy_score(y_true, torch.argmax(y_score, dim=1))
-            roc_auc = roc_auc_score(y_true, y_score[:, 1])
-
-            print("metrics computed")
-
-            writer.add_scalar('val/acc', acc, epoch)
-            writer.add_scalar('val/bal_acc', bal_acc, epoch)
-            writer.add_scalar('val/roc_auc', roc_auc, epoch)
-            writer.add_pr_curve('val/pr_curve', y_true, y_score[:, 1], epoch)
-
-            # TODO: add parameter tracking?
-
             if args.write_embeddings & (epoch == 0 or epoch == -1 % args.num_epochs):
                 print("Writing token embeddings to writer...")
                 training.write_embeddings(epoch + 1, mappings, labeller, args.seq_len, device)
