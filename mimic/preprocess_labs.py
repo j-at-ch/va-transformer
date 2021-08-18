@@ -16,7 +16,7 @@ def augment_admissions(args):
     admissions_path = os.path.join(args.mimic_root, "ADMISSIONS.csv")
     labevents_path = os.path.join(args.mimic_root, "LABEVENTS.csv")
     d_labitems_path = os.path.join(args.mimic_root, "D_LABITEMS.csv")
-    targets_path = os.path.join(args.save_root, "admission_targets.csv")
+    targets_path = os.path.join(args.save_root, "augmented_admissions.csv")
 
     # read admissions
 
@@ -158,6 +158,8 @@ def augment_admissions(args):
             )
             times_rel[i] = times[i] - admittime
 
+            # TODO: include values here
+
             targets[i] = {
                 'DEATH>2.5D': get_from_admaug(i, 'DEATH>2.5D'),
                 'DEATH>3D': get_from_admaug(i, 'DEATH>3D'),
@@ -209,18 +211,12 @@ def preprocess_labs(args):  # TODO: this is currently not functioning
     # read in labevents
 
     labevents = (pd.read_csv(labevents_path,
+                             nrows=args.nrows,
                              index_col='ROW_ID',
                              parse_dates=['CHARTTIME'])
                  .dropna(subset=['HADM_ID']).astype({'HADM_ID': 'int'})
+                 .astype({'VALUEUOM': 'str'})
                  )
-
-    # extract the labs only for non-na HADM_IDs
-
-    labs = pd.read_csv(labevents_path)
-    l = labs[labs.HADM_ID.isna() == False]
-    l.loc[:, 'HADM_ID'] = l.HADM_ID.astype('int')
-    l = l[l.VALUENUM.isna() == False]
-    l.loc[:, 'VALUEUOM'] = l.VALUEUOM.astype('str')
 
     uom_scales = {
         50889: {"mg/L": 1, "mg/dL": 10, "MG/DL": 10},
@@ -228,8 +224,8 @@ def preprocess_labs(args):  # TODO: this is currently not functioning
         50926: {"mIU/L": 1, "mIU/mL": 1},
         50958: {"mIU/L": 1, "mIU/mL": 1},
         50989: {"pg/mL": 1, "ng/dL": 10},
-        51127: {"#/uL": 1, "#/CU MM": 1},  # unclear #/CU MM RBC Ascites - dist looks roughly same.
-        51128: {"#/uL": 1, "#/CU MM": 1},  # unclear #/CU MM WBC Ascites - dist looks roughly same.
+        51127: {"#/uL": 1, "#/CU MM": 1},  # unclear #/CU MM RBC Ascites - distr looks roughly same.
+        51128: {"#/uL": 1, "#/CU MM": 1},  # unclear #/CU MM WBC Ascites - distr looks roughly same.
     }
 
     def unitscale(itemid, valueuom):
@@ -239,15 +235,29 @@ def preprocess_labs(args):  # TODO: this is currently not functioning
             scale_val_by = 1
         return scale_val_by
 
-    l['SCALE'] = l.apply(lambda x: unitscale(x['ITEMID'], x['VALUEUOM']), axis=1)
-    l['VALUE_SCALED'] = l['SCALE'] * l['VALUENUM']
+    labevents['SCALE'] = labevents.apply(lambda x: unitscale(x['ITEMID'], x['VALUEUOM']), axis=1)
+    labevents['VALUE_SCALED'] = labevents['SCALE'] * labevents['VALUENUM']
+    lab_quantiles = labevents.groupby('ITEMID').VALUE_SCALED.quantile([0.1, 0.25, 0.75, 0.9])
+    val_num_items = labevents.groupby('ITEMID').VALUENUM.count()
+    print(val_num_items[val_num_items==0])
 
-    l.loc[:, ['HADM_ID', 'CHARTTIME', 'ITEMID', 'VALUE_SCALED']] \
-        .to_csv("/home/james/Documents/Charters/labs/derived_labevents.csv")
+    def get_quantile(itemid, value):  # TODO: what about NA VALUENUMs?
+        q = lab_quantiles.loc[itemid]
+        if value > q.iloc[-1]:
+            index = len(q)
+        else:
+            array = (value <= q)
+            a, = np.where(array)
+            index = a[0]
+        return index
 
-    # lab_quantiles = l.head(10000000).groupby('ITEMID').VALUE_SCALED.quantile([0.1, 0.25, 0.75, 0.9])
+    df = labevents.dropna(subset=['VALUENUM']).head(1000)
+    df['QUANT'] = df.apply(lambda x: get_quantile(x.ITEMID, x.VALUENUM), axis=1)
 
+    #labevents.loc[:, ['HADM_ID', 'CHARTTIME', 'ITEMID', 'VALUE_SCALED']] \
+    #    .to_csv("/home/james/Documents/Charters/labs/derived_labevents.csv")
 
 if __name__ == "__main__":
     arguments = PreprocessingArguments().parse()
-    augment_admissions(arguments)
+    #augment_admissions(arguments)
+    preprocess_labs(arguments)
