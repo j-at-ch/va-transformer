@@ -53,9 +53,25 @@ def augment_admissions(args):
     df.loc[:, 'DEATH>7D'] = (df.ADMIT_TO_EXPIRE > pd.Timedelta(days=7)).astype('int')
     df.loc[:, 'DEATH>10D'] = (df.ADMIT_TO_EXPIRE > pd.Timedelta(days=10)).astype('int')
 
+    temp = labevents
+    temp['ADMITTIME'] = temp.apply(lambda x: df.loc[x.HADM_ID, 'ADMITTIME'], axis=1)
+    print(temp['ADMITTIME'])
+    temp = temp[temp.CHARTTIME <= temp.ADMITTIME + pd.Timedelta(days=2)]
+    df = pd.concat([df,
+                    pd.DataFrame({
+                        'NUMLABS<2d': temp.groupby('HADM_ID').ITEMID.count(),
+                        'NUMLABVALS<2d': temp.groupby('HADM_ID').VALUENUM.count()
+                    })
+                    ], axis=1
+                   )
+
+    print(df[df['NUMLABS<2d'].isna()==False])
+
     print(f"writing augmented admissions df to {targets_path}...")
     df.to_csv(targets_path)
     print("written!")
+
+    sys.exit()
 
     admaug = df
 
@@ -146,8 +162,9 @@ def augment_admissions(args):
         # populate with entries
 
         for i in tqdm.tqdm(groups.groups):
-            admittime = ts_to_posix(get_from_admaug(i, 'ADMITTIME'))
+            admittime = get_from_admaug(i, 'ADMITTIME')
             temp = groups.get_group(i).sort_values(by="CHARTTIME")
+            temp = temp[temp.CHARTTIME < admittime + pd.Timedelta(days=2)]
             tokens[i] = np.fromiter(
                 map(map2token, temp['ITEMID']),
                 dtype=int
@@ -156,7 +173,7 @@ def augment_admissions(args):
                 map(ts_to_posix, temp['CHARTTIME']),
                 dtype=np.int64
             )
-            times_rel[i] = times[i] - admittime
+            times_rel[i] = times[i] - ts_to_posix(admittime)
 
             # TODO: include values here
 
@@ -239,7 +256,7 @@ def preprocess_labs(args):  # TODO: this is currently not functioning
     labevents['VALUE_SCALED'] = labevents['SCALE'] * labevents['VALUENUM']
     lab_quantiles = labevents.groupby('ITEMID').VALUE_SCALED.quantile([0.1, 0.25, 0.75, 0.9])
     val_num_items = labevents.groupby('ITEMID').VALUENUM.count()
-    print(val_num_items[val_num_items==0])
+    print(val_num_items[val_num_items == 0])
 
     def get_quantile(itemid, value):  # TODO: what about NA VALUENUMs?
         q = lab_quantiles.loc[itemid]
@@ -256,6 +273,9 @@ def preprocess_labs(args):  # TODO: this is currently not functioning
 
     #labevents.loc[:, ['HADM_ID', 'CHARTTIME', 'ITEMID', 'VALUE_SCALED']] \
     #    .to_csv("/home/james/Documents/Charters/labs/derived_labevents.csv")
+
+    print(df['QUANT'])
+
 
 if __name__ == "__main__":
     arguments = PreprocessingArguments().parse()
