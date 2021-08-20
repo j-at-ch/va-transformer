@@ -101,9 +101,8 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are now equal except f
         self.writer.add_scalar(prefix + '/bal_acc', bal_acc, epoch)
         self.writer.add_scalar(prefix + '/roc_auc', roc_auc, epoch)
         self.writer.add_pr_curve(prefix + '/pr_curve', y_true, y_score[:, 1], epoch)
-        print(f'epoch {prefix}/roc_auc is {roc_auc}')
+        print(f'epoch {prefix}/roc_auc = {roc_auc}, {prefix}/bal_acc = {bal_acc}, {prefix}/acc = {acc}')
         return y_score, y_true
-
 
     @torch.no_grad()
     def write_embeddings(self, step, mappings, labeller, seq_len, device):
