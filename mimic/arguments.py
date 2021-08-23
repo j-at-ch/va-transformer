@@ -51,6 +51,7 @@ class Arguments:
         self.parser.add_argument('--write_initial_embeddings', type=bool, default=True)
         self.parser.add_argument('--device', type=str, default="cuda:0")
         self.parser.add_argument('--learning_rate', type=float, default=1e-4)
+        self.parser.add_argument('--scheduler_decay', type=float, default=1)
         self.parser.add_argument('--test_run', type=bool, default=False)
 
         # finetuning arguments
@@ -60,7 +61,6 @@ class Arguments:
             self.parser.add_argument('--label_set', type=str, required=True)
             self.parser.add_argument('--pretuned_model', type=str, required=True)
             self.parser.add_argument('--weighted_loss', type=bool, default=False)
-            self.parser.add_argument('--scheduler_decay', type=float, default=1)
 
     def parse(self, verbose=False):
         self.initialise()
