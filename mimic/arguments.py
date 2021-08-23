@@ -85,7 +85,7 @@ class PreprocessingArguments:
 
         # general arguments
 
-        self.parser.add_argument('--nrows', type=int, default=1000000)
+        ####
 
     def parse(self, verbose=False):
         self.initialise()

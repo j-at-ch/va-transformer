@@ -33,7 +33,7 @@ def augment_admissions(args):
                              index_col='ROW_ID',
                              parse_dates=['CHARTTIME'])
                  .dropna(subset=['HADM_ID'])
-                 .astype({'HADM_ID': 'int', 'VALUEUOM':'str'})
+                 .astype({'HADM_ID': 'int', 'VALUEUOM': 'str'})
                  )
 
     labsinfo = pd.DataFrame(
@@ -53,37 +53,33 @@ def augment_admissions(args):
     adm.loc[:, 'DEATH>2.5D'] = (adm.ADMIT_TO_EXPIRE > pd.Timedelta(days=2.5)).astype('int')
     adm.loc[:, 'DEATH<=3D'] = (adm.ADMIT_TO_EXPIRE <= pd.Timedelta(days=3)).astype('int')
     adm.loc[:, 'DEATH>3D'] = (adm.ADMIT_TO_EXPIRE > pd.Timedelta(days=3)).astype('int')
+    adm.loc[:, 'DEATH<=7D'] = (adm.ADMIT_TO_EXPIRE <= pd.Timedelta(days=7)).astype('int')
     adm.loc[:, 'DEATH>7D'] = (adm.ADMIT_TO_EXPIRE > pd.Timedelta(days=7)).astype('int')
     adm.loc[:, 'DEATH>10D'] = (adm.ADMIT_TO_EXPIRE > pd.Timedelta(days=10)).astype('int')
 
     # add in calculations relying on a join between ADMISSIONS summaries and LABEVENTS:
 
-    #temp = labevents
-    #temp['ADMITTIME'] = temp.apply(lambda x: adm.loc[x.HADM_ID, 'ADMITTIME'], axis=1)
-    #print(temp['ADMITTIME'])
-    #temp = temp
-
     labevents = labevents.join(adm[['ADMITTIME']], on='HADM_ID')
     labevents_2d = labevents[labevents.CHARTTIME <= labevents.ADMITTIME + pd.Timedelta(days=2)]
 
     adm = pd.concat([adm,
-                    pd.DataFrame({
-                        'NUMLABS<2d': labevents_2d.groupby('HADM_ID').ITEMID.count(),
-                        'NUMLABVALS<2d': labevents_2d.groupby('HADM_ID').VALUENUM.count()
-                    })
-                    ], axis=1
-                   )
+                     pd.DataFrame({
+                         'NUMLABS<2D': labevents_2d.groupby('HADM_ID').ITEMID.count(),
+                         'NUMLABVALS<2D': labevents_2d.groupby('HADM_ID').VALUENUM.count()
+                     })
+                     ], axis=1
+                    )
 
     print(f"writing augmented admissions df to {targets_path}...")
     adm.to_csv(targets_path)
-    print("written!")
+    print("written!\n")
 
     # select hadms for this data slice:
 
     hadms = adm[(
-            (adm.LOS > pd.Timedelta(days=2)) & (adm['NUMLABS<2d'] > 0)
-            #(pd.isna(adm.ADMIT_TO_EXPIRE) | (adm.ADMIT_TO_EXPIRE > pd.Timedelta(days=2.5)))
-            )].index.to_numpy()
+            (adm.LOS > pd.Timedelta(days=2)) & (adm['NUMLABS<2D'] > 0)
+        # (pd.isna(adm.ADMIT_TO_EXPIRE) | (adm.ADMIT_TO_EXPIRE > pd.Timedelta(days=2.5)))
+    )].index.to_numpy()
 
     # split first-hadm_ids into train, val, test and assert that they partition.
 
@@ -131,14 +127,14 @@ def augment_admissions(args):
         51128: {"#/uL": 1, "#/CU MM": 1},  # unclear #/CU MM WBC Ascites - distr looks roughly same.
     }
 
-    def unitscale(itemid, valueuom):  # TODO: note exceptions
+    def unitscale(itemid, valueuom):  # TODO: induces major bottleneck - solve.
         if (itemid in uom_scales) & (valueuom != 'nan'):
             scale_val_by = uom_scales[itemid][valueuom]
         else:
             scale_val_by = 1
         return scale_val_by
 
-    def get_numeric_quantile_from_(quantiles_df, itemid, value):  # TODO: note exceptions
+    def get_numeric_quantile_from_(quantiles_df, itemid, value):
         if itemid not in quantiles_df.index:
             return -1
         q = quantiles_df.loc[itemid]
@@ -152,14 +148,16 @@ def augment_admissions(args):
             index = a[0]
         return index
 
-    def apply_quantile_fct(df, quantiles_df):  # TODO: note exceptions
+    def apply_quantile_fct(df, quantiles_df):
         if pd.isna(df.VALUENUM):
             return -1
         else:
             return get_numeric_quantile_from_(quantiles_df, df.ITEMID, df.VALUENUM)
 
+    print("unit-scaling lab values...")
     labevents['SCALE'] = labevents.apply(lambda x: unitscale(x['ITEMID'], x['VALUEUOM']), axis=1)
     labevents['VALUE_SCALED'] = labevents['SCALE'] * labevents['VALUENUM']
+    print("lab values unit-scaled!\n")
 
     # loop through index sets and generate output files
 
@@ -175,20 +173,24 @@ def augment_admissions(args):
         # train token counts
 
         if subset == 'train':
+            print("counting train token frequencies...")
             token2trcount = (groups.obj['ITEMID']
                              .apply(map2token)
                              .value_counts()
                              .to_dict()
                              )
+            print("train token frequencies counted!\n")
 
+            print("calculating train lab value quantiles...")
             lab_quantiles_train = groups.obj.groupby('ITEMID').VALUE_SCALED.quantile([0.1, 0.25, 0.75, 0.9])
+            print("train lab value quantiles calculated!\n")
 
         # initialise
 
         tokens = dict()
         times = dict()
         times_rel = dict()
-        values = dict()  # TODO: need to add scaled values in too (with quantiles).
+        values = dict()
         quantiles = dict()
         targets = dict()
 
@@ -197,8 +199,8 @@ def augment_admissions(args):
         for i in tqdm.tqdm(groups.groups):
             admittime = get_from_adm(i, 'ADMITTIME')
             temp = groups.get_group(i).sort_values(by="CHARTTIME")
-            temp = temp[temp.CHARTTIME < admittime + pd.Timedelta(days=2)]
-            assert not temp.empty
+            temp = temp[temp.CHARTTIME <= admittime + pd.Timedelta(days=2)]
+            assert not temp.empty, f"Empty labs for hadm:{i}. There should be {get_from_adm(i, 'NUMLABS<2D')}"
             temp['QUANTILE'] = temp.apply(lambda x: apply_quantile_fct(x, lab_quantiles_train), axis=1)
 
             tokens[i] = np.fromiter(
@@ -219,6 +221,7 @@ def augment_admissions(args):
                 'DEATH<=3D': get_from_adm(i, 'DEATH<=3D'),
                 'DEATH>3D': get_from_adm(i, 'DEATH>3D'),
                 'DEATH>7D': get_from_adm(i, 'DEATH>7D'),
+                'DEATH<=7D': get_from_adm(i, 'DEATH<=7D'),
                 'LOS': get_from_adm(i, 'LOS')
             }
 
@@ -252,77 +255,6 @@ def augment_admissions(args):
                     f)
 
 
-def preprocess_labs(args):  # TODO: this is currently not fully-functional
-    print('*' * 17, 'preprocessor summoned for with the following settings:', sep='\n')
-    pprint(vars(args), indent=2)
-
-    # paths & dirs
-
-    admissions_path = os.path.join(args.mimic_root, "ADMISSIONS.csv")
-    labevents_path = os.path.join(args.mimic_root, "LABEVENTS.csv")
-    d_labitems_path = os.path.join(args.mimic_root, "D_LABITEMS.csv")
-
-    if not os.path.exists(args.save_root) or not os.path.isdir(args.save_root):
-        os.mkdir(args.save_root)
-
-    # read in labevents
-
-    labevents = (pd.read_csv(labevents_path,
-                             nrows=args.nrows,
-                             index_col='ROW_ID',
-                             parse_dates=['CHARTTIME'])
-                 .dropna(subset=['HADM_ID']).astype({'HADM_ID': 'int'})
-                 .astype({'VALUEUOM': 'str'})
-                 )
-
-    uom_scales = {
-        50889: {"mg/L": 1, "mg/dL": 10, "MG/DL": 10},
-        50916: {"ug/dL": 10, "nG/mL": 1},
-        50926: {"mIU/L": 1, "mIU/mL": 1},
-        50958: {"mIU/L": 1, "mIU/mL": 1},
-        50989: {"pg/mL": 1, "ng/dL": 10},
-        51127: {"#/uL": 1, "#/CU MM": 1},  # unclear #/CU MM RBC Ascites - distr looks roughly same.
-        51128: {"#/uL": 1, "#/CU MM": 1},  # unclear #/CU MM WBC Ascites - distr looks roughly same.
-    }
-
-    def unitscale(itemid, valueuom):
-        if (itemid in uom_scales) & (valueuom != 'nan'):
-            scale_val_by = uom_scales[itemid][valueuom]
-        else:
-            scale_val_by = 1
-        return scale_val_by
-
-    labevents['SCALE'] = labevents.apply(lambda x: unitscale(x['ITEMID'], x['VALUEUOM']), axis=1)
-    labevents['VALUE_SCALED'] = labevents['SCALE'] * labevents['VALUENUM']
-    lab_quantiles = labevents.groupby('ITEMID').VALUE_SCALED.quantile([0.1, 0.25, 0.75, 0.9])
-    #val_num_items = labevents.groupby('ITEMID').VALUENUM.count()
-
-    def get_num_quantile(itemid, value):  # TODO: what about NA VALUENUMs?
-        q = lab_quantiles.loc[itemid]
-        if value > q.iloc[-1]:
-            index = len(q)
-        else:
-            array = (value <= q)
-            a, = np.where(array)
-            index = a[0]
-        return index
-
-    df = labevents
-
-    def apply_quantile_fct(df):
-        if pd.isna(df.VALUENUM):
-            return -1
-        else:
-            return get_num_quantile(df.ITEMID, df.VALUENUM)
-
-    df['QUANT'] = df.apply(lambda x: apply_quantile_fct(x), axis=1)
-
-    #labevents.loc[:, ['HADM_ID', 'CHARTTIME', 'ITEMID', 'VALUE_SCALED']] \
-    #    .to_csv("/home/james/Documents/Charters/labs/derived_labevents.csv")
-    #print(df[df.QUANT==-1][['ITEMID', 'VALUENUM', 'QUANT']])
-
-
 if __name__ == "__main__":
     arguments = PreprocessingArguments().parse()
     augment_admissions(arguments)
-    #preprocess_labs(arguments)
