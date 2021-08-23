@@ -79,15 +79,23 @@ def pretrain(args):
     train_cycler = cycle(train_loader)
     val_cycler = cycle(val_loader)
 
-    optim = torch.optim.Adam(pre_model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.Adam(pre_model.parameters(), lr=args.learning_rate)
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.scheduler_decay)
     writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
     training = methods.TrainingMethods(pre_model, writer)
+
+    # write initial embeddings
+
+    if args.write_initial_embeddings:
+        print("Writing initial token embeddings to writer...")
+        training.write_embeddings(0, mappings, labeller, args.seq_len, device)
+        print("Initial token embeddings written!")
 
     # training loop
 
     best_val_loss = np.inf
     for epoch in range(args.num_epochs):
-        ________ = training.train(train_loader, optim, epoch)
+        ________ = training.train(train_loader, optimizer, epoch)
         val_loss = training.evaluate(val_loader, epoch)
 
         if val_loss < best_val_loss:
@@ -97,32 +105,26 @@ def pretrain(args):
                 'model_state_dict': pre_model.state_dict(),
                 'args': vars(args),
                 'seq_len': args.seq_len,
-                'optim_state_dict': optim.state_dict(),
+                'optim_state_dict': optimizer.state_dict(),
                 'val_loss': val_loss
             }, ckpt_path)
+
+            # track checkpoint's embeddings
+            if args.write_embeddings & (epoch > int(args.num_epochs/2)):
+                print("Writing checkpoint's token embeddings to writer...")
+                training.write_embeddings(epoch + 1, mappings, labeller, args.seq_len, device)
+                print("Checkpoint's token embeddings written!")
+
             print("Checkpoint saved!\n")
             best_val_loss = val_loss
-
-        if args.write_embeddings & (epoch == 0 or epoch == -1 % args.num_epochs):
-            print("Writing token embeddings to writer...")
-            pre_model.eval()
-            with torch.no_grad():
-                tokens = list(mappings.topNtokens_tr(N=2000).keys())
-                x = torch.tensor(tokens, dtype=torch.int)
-                z = torch.Tensor().to(device)
-                for x_part in torch.split(x, args.seq_len):
-                    x_part = x_part.to(device)
-                    z_part = pre_model.net.token_emb(x_part)
-                    z = torch.cat((z, z_part))
-                metadata = [label for label in map(labeller.token2label, x.cpu().numpy())]
-                writer.add_embedding(z,
-                                     metadata=metadata,
-                                     global_step=epoch,
-                                     tag='token_embeddings')
 
         print(f'epoch {epoch} completed!')
         print('flushing writer...')
         writer.flush()
+
+        # update scheduler
+
+        scheduler.step()
 
     writer.close()
     print("training finished and writer closed!")
