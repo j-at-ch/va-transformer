@@ -1,11 +1,8 @@
-import sys
-from pprint import pprint
 import pandas as pd
-import torch.nn.functional as F
+from pprint import pprint
 from torch.utils.tensorboard import SummaryWriter
 
 from z_transformers.transformers import TransformerWrapper, Decoder
-from sklearn.metrics import accuracy_score, balanced_accuracy_score, roc_auc_score
 
 import methods
 from data_utils import *
@@ -126,9 +123,7 @@ def finetune(args):
     # write initial embeddings
 
     if args.write_initial_embeddings:
-        print("Writing initial token embeddings to writer...")
-        training.write_embeddings(0, mappings, labeller, args.seq_len, device)
-        print("Initial token embeddings written!")
+        training.write_embeddings(-1, mappings, labeller, args.seq_len, device)
 
     # training loop
 
@@ -150,15 +145,12 @@ def finetune(args):
             }, ckpt_path)
 
             # track checkpoint's embeddings
-            if args.write_embeddings:
-                print("Writing checkpoint's token embeddings to writer...")
-                training.write_embeddings(epoch + 1, mappings, labeller, args.seq_len, device)
-                print("Checkpoint's token embeddings written!")
+
+            if args.write_best_val_embeddings:
+                training.write_embeddings(epoch, mappings, labeller, args.seq_len, device)
 
             print("Checkpoint saved!\n")
             best_val_loss = val_loss
-
-        # update scheduler
 
         scheduler.step()
 
@@ -172,6 +164,12 @@ def finetune(args):
         print(f'epoch {epoch} completed!')
         print('flushing writer...')
         writer.flush()
+
+    # write final embeddings
+
+    if args.write_final_embeddings:
+        training.write_embeddings(args.num_epochs, mappings, labeller, args.seq_len, device)
+
     writer.close()
     print("training finished and writer closed!")
 
