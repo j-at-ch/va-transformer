@@ -1,16 +1,15 @@
 import os
-import sys
 import numpy as np
 import pandas as pd
 import pickle as pickle
 import tqdm
-from pprint import pprint
+
 from sklearn.model_selection import train_test_split
 
 from arguments import PreprocessingArguments
 
 
-def augment_admissions(args):
+def preprocess_labs(args):
     # paths
 
     admissions_path = os.path.join(args.mimic_root, "ADMISSIONS.csv")
@@ -77,8 +76,9 @@ def augment_admissions(args):
     # select hadms for this data slice:
 
     hadms = adm[(
-            (adm.LOS > pd.Timedelta(days=2)) & (adm['NUMLABS<2D'] > 0)
-        # (pd.isna(adm.ADMIT_TO_EXPIRE) | (adm.ADMIT_TO_EXPIRE > pd.Timedelta(days=2.5)))
+            (adm.LOS >= pd.Timedelta(days=2)) & (adm['NUMLABS<2D'] > 0)
+            & (pd.isna(adm.ADMIT_TO_EXPIRE) | (adm.ADMIT_TO_EXPIRE >= pd.Timedelta(days=2)))
+            # remove deaths occurring during stay and before 2 days.
     )].index.to_numpy()
 
     # split first-hadm_ids into train, val, test and assert that they partition.
@@ -102,12 +102,6 @@ def augment_admissions(args):
 
     def map2token(itemid):
         return itemid2token[int(itemid)]
-
-    def map2itemid(token):
-        return str(token2itemid[token])
-
-    def map2itemidstr(tokens):
-        return ' '.join(list(map(map2itemid, tokens)))
 
     def ts_to_posix(time):
         return pd.Timestamp(time, unit='s').timestamp()
@@ -257,4 +251,4 @@ def augment_admissions(args):
 
 if __name__ == "__main__":
     arguments = PreprocessingArguments().parse()
-    augment_admissions(arguments)
+    preprocess_labs(arguments)
