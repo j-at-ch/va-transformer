@@ -81,7 +81,7 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are largely equal exce
             cum_loss += batch_loss
 
         epoch_loss = cum_loss / len(train_loader)
-        self.writer.add_scalar('loss/val', epoch_loss, epoch)
+        self.writer.add_scalar('loss/train', epoch_loss, epoch)
         print(f'epoch avg train loss: {epoch_loss}')
         return epoch_loss
 
