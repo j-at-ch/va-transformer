@@ -21,10 +21,11 @@ class TrainingMethods:
             batch_loss = loss.item()
             optimizer.step()
             optimizer.zero_grad()
-            self.writer.add_scalar('loss/train', batch_loss, epoch * len(train_loader) + i)
+            self.writer.add_scalar('batch_loss/train', batch_loss, epoch * len(train_loader) + i)
             cum_loss += batch_loss
 
         epoch_loss = cum_loss / len(train_loader)
+        self.writer.add_scalar('loss/train', epoch_loss, epoch)
         print(f'epoch avg train loss: {epoch_loss}')
         return epoch_loss
 
@@ -38,7 +39,7 @@ class TrainingMethods:
             cum_loss += loss.item()
 
         epoch_loss = cum_loss / len(val_loader)
-        self.writer.add_scalar('loss/val', epoch_loss, (epoch + 1) * len(val_loader))
+        self.writer.add_scalar('loss/val', epoch_loss, epoch)
         print(f'epoch avg val loss: {epoch_loss}')
         return epoch_loss
 
@@ -59,7 +60,7 @@ class TrainingMethods:
                                   tag='token_embeddings')
 
 
-class FinetuningMethods:  # NOTE: FineTuning and Training are now equal except for the '*' in self.model and predict.
+class FinetuningMethods:  # NOTE: FineTuning and Training are largely equal except for the '*' in self.model and predict
     def __init__(self, model, writer):
         self.model = model
         clip_value = 0.5
@@ -76,10 +77,11 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are now equal except f
             batch_loss = loss.item()
             optimizer.step()
             optimizer.zero_grad()
-            self.writer.add_scalar('loss/train', batch_loss, epoch * len(train_loader) + i)
+            self.writer.add_scalar('batch_loss/train', batch_loss, epoch * len(train_loader) + i)
             cum_loss += batch_loss
 
         epoch_loss = cum_loss / len(train_loader)
+        self.writer.add_scalar('loss/val', epoch_loss, epoch)
         print(f'epoch avg train loss: {epoch_loss}')
         return epoch_loss
 
@@ -93,7 +95,7 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are now equal except f
             cum_loss += loss.item()
 
         epoch_loss = cum_loss / len(val_loader)
-        self.writer.add_scalar('loss/val', epoch_loss, (epoch + 1) * len(val_loader))
+        self.writer.add_scalar('loss/val', epoch_loss, epoch)
         print(f'epoch avg val loss: {epoch_loss}')
         return epoch_loss
 
@@ -118,6 +120,7 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are now equal except f
         self.writer.add_scalar(prefix + '/roc_auc', roc_auc, epoch)
         self.writer.add_pr_curve(prefix + '/pr_curve', y_true, y_score[:, 1], epoch)
         print(f'epoch {prefix}/roc_auc = {roc_auc}, {prefix}/bal_acc = {bal_acc}, {prefix}/acc = {acc}')
+
         return y_score, y_true
 
     @torch.no_grad()

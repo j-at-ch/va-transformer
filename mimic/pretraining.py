@@ -87,9 +87,7 @@ def pretrain(args):
     # write initial embeddings
 
     if args.write_initial_embeddings:
-        print("Writing initial token embeddings to writer...")
-        training.write_embeddings(0, mappings, labeller, args.seq_len, device)
-        print("Initial token embeddings written!")
+        training.write_embeddings(-1, mappings, labeller, args.seq_len, device)
 
     # training loop
 
@@ -110,10 +108,9 @@ def pretrain(args):
             }, ckpt_path)
 
             # track checkpoint's embeddings
-            if args.write_embeddings & (epoch > int(args.num_epochs/2)):
-                print("Writing checkpoint's token embeddings to writer...")
-                training.write_embeddings(epoch + 1, mappings, labeller, args.seq_len, device)
-                print("Checkpoint's token embeddings written!")
+
+            if args.write_best_val_embeddings:
+                training.write_embeddings(epoch, mappings, labeller, args.seq_len, device)
 
             print("Checkpoint saved!\n")
             best_val_loss = val_loss
@@ -122,9 +119,12 @@ def pretrain(args):
         print('flushing writer...')
         writer.flush()
 
-        # update scheduler
-
         scheduler.step()
+
+    # write final embeddings
+
+    if args.write_final_embeddings:
+        training.write_embeddings(args.num_epochs, mappings, labeller, args.seq_len, device)
 
     writer.close()
     print("training finished and writer closed!")
@@ -133,7 +133,7 @@ def pretrain(args):
 if __name__ == "__main__":
     arguments = Arguments(mode='pretraining').parse()
 
-    # check output roots exist; if not, create...
+    # check output roots exist: if not, create...
 
     if not os.path.exists(arguments.save_root):
         os.mkdir(arguments.save_root)
