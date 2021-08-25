@@ -69,7 +69,7 @@ def finetune(args):
 
     #  for quick test run
 
-    if args.test_run:
+    if bool(args.test_run):
         ft_train_loader = [X for i, X in enumerate(ft_train_loader) if i < 2]
         ft_val_loader = [X for i, X in enumerate(ft_val_loader) if i < 2]
 
@@ -81,7 +81,7 @@ def finetune(args):
     p = propensity(train_targets)
     print(f"Train set positive class propensity is {p}")
 
-    if args.weighted_loss:
+    if bool(args.weighted_loss):
         weights = torch.tensor([p, 1 - p]).to(device)
     else:
         weights = None
@@ -122,7 +122,7 @@ def finetune(args):
 
     # write initial embeddings
 
-    if args.write_initial_embeddings:
+    if bool(args.write_initial_embeddings):
         training.write_embeddings(-1, mappings, labeller, args.seq_len, device)
 
     # training loop
@@ -146,7 +146,7 @@ def finetune(args):
 
             # track checkpoint's embeddings
 
-            if args.write_best_val_embeddings:
+            if bool(args.write_best_val_embeddings):
                 training.write_embeddings(epoch, mappings, labeller, args.seq_len, device)
 
             print("Checkpoint saved!\n")
@@ -167,7 +167,7 @@ def finetune(args):
 
     # write final embeddings
 
-    if args.write_final_embeddings:
+    if bool(args.write_final_embeddings):
         training.write_embeddings(args.num_epochs, mappings, labeller, args.seq_len, device)
 
     writer.close()

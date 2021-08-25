@@ -72,12 +72,9 @@ def pretrain(args):
 
     #  for quick test run
 
-    if args.test_run:
+    if bool(args.test_run):
         train_loader = [X for i, X in enumerate(train_loader) if i < 2]
         val_loader = [X for i, X in enumerate(val_loader) if i < 2]
-
-    train_cycler = cycle(train_loader)
-    val_cycler = cycle(val_loader)
 
     optimizer = torch.optim.Adam(pre_model.parameters(), lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.scheduler_decay)
@@ -86,7 +83,7 @@ def pretrain(args):
 
     # write initial embeddings
 
-    if args.write_initial_embeddings:
+    if bool(args.write_initial_embeddings):
         training.write_embeddings(-1, mappings, labeller, args.seq_len, device)
 
     # training loop
@@ -109,7 +106,7 @@ def pretrain(args):
 
             # track checkpoint's embeddings
 
-            if args.write_best_val_embeddings:
+            if bool(args.write_best_val_embeddings):
                 training.write_embeddings(epoch, mappings, labeller, args.seq_len, device)
 
             print("Checkpoint saved!\n")
@@ -123,7 +120,7 @@ def pretrain(args):
 
     # write final embeddings
 
-    if args.write_final_embeddings:
+    if bool(args.write_final_embeddings):
         training.write_embeddings(args.num_epochs, mappings, labeller, args.seq_len, device)
 
     writer.close()
