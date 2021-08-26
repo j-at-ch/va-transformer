@@ -104,8 +104,8 @@ def finetune(args):
             heads=args.attn_heads,
             attn_dropout=args.attn_dropout,
             ff_dropout=args.ff_dropout,
-            use_rezero=args.use_rezero
-        ),
+            use_rezero=bool(args.use_rezero)
+        )
     )
 
     fit_model = FinetuningWrapper(model, num_classes=2,
