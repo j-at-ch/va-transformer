@@ -11,10 +11,7 @@ from collections import namedtuple
 
 from einops import rearrange, repeat, reduce
 from einops.layers.torch import Rearrange
-
 from entmax import entmax15
-
-from mimic.v_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
 # constants
 
@@ -313,7 +310,7 @@ class FeedForward(nn.Module):
 
 # attention.
 
-class VanillaAttention(nn.Module):
+class VAttention(nn.Module):
     def __init__(
             self,
             dim,
@@ -329,9 +326,11 @@ class VanillaAttention(nn.Module):
 
         qk_dim = v_dim = dim_head * heads  # stacking heads together
 
-        self.to_q = nn.Linear(dim, qk_dim, bias=False)  # the attention heads
+        self.to_q = nn.Linear(dim, qk_dim, bias=False)  # the attention heads; dim is the embedded dim of attn.
         self.to_k = nn.Linear(dim, qk_dim, bias=False)
         self.to_v = nn.Linear(dim, v_dim, bias=False)
+
+        self.to_g = nn.Linear(1, 1, bias=False)  # DEV
 
         self.dropout = nn.Dropout(dropout)
         self.attn_fn = F.softmax
@@ -339,14 +338,15 @@ class VanillaAttention(nn.Module):
 
     def forward(
             self,
-            x,
+            x,  # shape (b, n, dim)
+            quantiles  # DEV: shape (b, n, 1)
     ):
-        b, n, _, h = *x.shape, self.heads
+        b, n, _, h = *x.shape, self.heads  # b = batch size; n = seq_len _ = dim; h = num_heads
         device = x.device
 
         q_input = k_input = v_input = x  # queries always computed from x
 
-        q = self.to_q(q_input)  # output is x_dims * (dim_head * heads). i.e. b *
+        q = self.to_q(q_input)  # output is x_dims * (dim_head * heads).
         k = self.to_k(k_input)
         v = self.to_v(v_input)
 
@@ -354,6 +354,12 @@ class VanillaAttention(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), (q, k, v))
 
         dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale  # inner product between q and k
+
+        # DEV: here is where we introduce quantiles:
+
+        g = self.to_g(quantiles)
+        dots = einsum('b h i j, j -> b h i j', dots, g)
+
         mask_value = max_neg_value(dots)  # gets max neg value for given torch dtype. NB: to be pushed through softmax.
 
         pre_softmax_attn = dots.clone()
@@ -366,7 +372,7 @@ class VanillaAttention(nn.Module):
             dots.masked_fill_(mask, mask_value)
             del mask
 
-        attn = self.attn_fn(dots, dim=-1)
+        attn = self.attn_fn(dots, dim=-1)  # applied on the j dimension of dots
         post_softmax_attn = attn.clone()
 
         attn = self.dropout(attn)
@@ -382,253 +388,31 @@ class VanillaAttention(nn.Module):
         return self.to_out(out), intermediates
 
 
-class AttentionLayers(nn.Module):
+class VAttentionLayers(nn.Module):
     def __init__(
             self,
             dim,
             depth,
             heads=8,
             causal=False,
-            cross_attend=False,
-            only_cross=False,
             use_scalenorm=False,
             use_rmsnorm=False,
             use_rezero=False,
-            rel_pos_bias=False,
-            rel_pos_num_buckets=32,
-            rel_pos_max_distance=128,
-            position_infused_attn=False,
-            rotary_pos_emb=False,
-            rotary_emb_dim=None,
-            custom_layers=None,
-            sandwich_coef=None,
-            par_ratio=None,
-            residual_attn=False,
-            cross_residual_attn=False,
-            macaron=False,
             pre_norm=True,
-            gate_residual=False,
             **kwargs
     ):
         super().__init__()
         ff_kwargs, kwargs = groupby_prefix_and_trim('ff_', kwargs)  # note: trims and groups kwargs
         attn_kwargs, _ = groupby_prefix_and_trim('attn_', kwargs)
 
-        dim_head = attn_kwargs.get('dim_head', DEFAULT_DIM_HEAD)
-
         self.dim = dim
         self.depth = depth
         self.layers = nn.ModuleList([])
 
-        self.has_pos_emb = position_infused_attn or rel_pos_bias or rotary_pos_emb
-        self.pia_pos_emb = FixedPositionalEmbedding(dim) if position_infused_attn else None
-
-        rotary_emb_dim = max(default(rotary_emb_dim, dim_head // 2), 32)
-        self.rotary_pos_emb = RotaryEmbedding(rotary_emb_dim) if rotary_pos_emb else None
-
-        assert rel_pos_num_buckets <= rel_pos_max_distance, \
-            'number of relative position buckets must be less than the relative position max distance'
-        self.rel_pos = RelativePositionBias(scale=dim_head ** 0.5, causal=causal, heads=heads,
-                                            num_buckets=rel_pos_num_buckets,
-                                            max_distance=rel_pos_max_distance) if rel_pos_bias else None
-
         self.pre_norm = pre_norm
-
-        self.residual_attn = residual_attn
-        self.cross_residual_attn = cross_residual_attn
-        self.cross_attend = cross_attend
-
         norm_class = ScaleNorm if use_scalenorm else nn.LayerNorm
         norm_class = RMSNorm if use_rmsnorm else norm_class
         norm_fn = partial(norm_class, dim)
-
-        norm_fn = nn.Identity if use_rezero else norm_fn
-        branch_fn = Rezero if use_rezero else None
-
-        if cross_attend and not only_cross:
-            default_block = ('a', 'c', 'f')
-        elif cross_attend and only_cross:
-            default_block = ('c', 'f')
-        else:
-            default_block = ('a', 'f')
-
-        if macaron:
-            default_block = ('f',) + default_block
-
-        if exists(custom_layers):
-            layer_types = custom_layers
-        elif exists(par_ratio):
-            par_depth = depth * len(default_block)
-            assert 1 < par_ratio <= par_depth, 'par ratio out of range'
-            default_block = tuple(filter(not_equals('f'), default_block))
-            par_attn = par_depth // par_ratio
-            depth_cut = par_depth * 2 // 3  # 2 / 3 attention layer cutoff suggested by PAR paper
-            par_width = (depth_cut + depth_cut // par_attn) // par_attn
-            assert len(default_block) <= par_width, 'default block is too large for par_ratio'
-            par_block = default_block + ('f',) * (par_width - len(default_block))
-            par_head = par_block * par_attn
-            layer_types = par_head + ('f',) * (par_depth - len(par_head))
-        elif exists(sandwich_coef):
-            assert sandwich_coef > 0 and sandwich_coef <= depth, 'sandwich coefficient should be less than the depth'
-            layer_types = ('a',) * sandwich_coef + default_block * (depth - sandwich_coef) + ('f',) * sandwich_coef
-        else:
-            layer_types = default_block * depth
-
-        self.layer_types = layer_types
-        self.num_attn_layers = len(list(filter(equals('a'), layer_types)))
-
-        for layer_type in self.layer_types:
-            if layer_type == 'a':
-                layer = Attention(dim, heads=heads, causal=causal, **attn_kwargs)
-            elif layer_type == 'c':
-                layer = Attention(dim, heads=heads, **attn_kwargs)
-            elif layer_type == 'f':
-                layer = FeedForward(dim, **ff_kwargs)
-                layer = layer if not macaron else Scale(0.5, layer)
-            else:
-                raise Exception(f'invalid layer type {layer_type}')
-
-            if isinstance(layer, Attention) and exists(branch_fn):
-                layer = branch_fn(layer)
-
-            if gate_residual:
-                residual_fn = GRUGating(dim)
-            else:
-                residual_fn = Residual()
-
-            self.layers.append(nn.ModuleList([
-                norm_fn(),
-                layer,
-                residual_fn
-            ]))
-
-    def forward(
-            self,
-            x,
-            context=None,
-            mask=None,
-            context_mask=None,
-            mems=None,
-            return_hiddens=False
-    ):
-        assert not (self.cross_attend ^ exists(context)), 'context must be passed in if cross_attend is set to True'
-
-        hiddens = []
-        intermediates = []
-        prev_attn = None
-        prev_cross_attn = None
-
-        mems = mems.copy() if exists(mems) else [None] * self.num_attn_layers
-
-        rotary_pos_emb = None
-        if exists(self.rotary_pos_emb):
-            max_rotary_emb_length = max(list(map(lambda m: (m.shape[1] if exists(m) else 0) + x.shape[1], mems)))
-            rotary_pos_emb = self.rotary_pos_emb(max_rotary_emb_length, x.device)
-
-        for ind, (layer_type, (norm, block, residual_fn)) in enumerate(zip(self.layer_types, self.layers)):
-            is_last = ind == (len(self.layers) - 1)
-
-            if layer_type == 'a':
-                hiddens.append(x)
-                layer_mem = mems.pop(0)
-
-            residual = x
-
-            if self.pre_norm:
-                x = norm(x)
-
-            if layer_type == 'a':
-                out, inter = block(x, mask=mask, sinusoidal_emb=self.pia_pos_emb, rel_pos=self.rel_pos,
-                                   rotary_pos_emb=rotary_pos_emb, prev_attn=prev_attn, mem=layer_mem)
-            elif layer_type == 'c':
-                out, inter = block(x, context=context, mask=mask, context_mask=context_mask, prev_attn=prev_cross_attn)
-            elif layer_type == 'f':
-                out = block(x)
-
-            x = residual_fn(out, residual)
-
-            if layer_type in ('a', 'c'):
-                intermediates.append(inter)
-
-            if layer_type == 'a' and self.residual_attn:
-                prev_attn = inter.pre_softmax_attn
-            elif layer_type == 'c' and self.cross_residual_attn:
-                prev_cross_attn = inter.pre_softmax_attn
-
-            if not self.pre_norm and not is_last:
-                x = norm(x)
-
-        if return_hiddens:
-            intermediates = LayerIntermediates(
-                hiddens=hiddens,
-                attn_intermediates=intermediates
-            )
-
-            return x, intermediates
-
-        return x
-
-
-class VanillaAttentionLayers(nn.Module):
-    def __init__(
-            self,
-            dim,
-            depth,
-            heads=8,
-            causal=False,
-            cross_attend=False,
-            only_cross=False,
-            use_scalenorm=False,
-            use_rmsnorm=False,
-            use_rezero=False,
-            rel_pos_bias=False,
-            rel_pos_num_buckets=32,
-            rel_pos_max_distance=128,
-            position_infused_attn=False,
-            rotary_pos_emb=False,
-            rotary_emb_dim=None,
-            custom_layers=None,
-            sandwich_coef=None,
-            par_ratio=None,
-            residual_attn=False,
-            cross_residual_attn=False,
-            macaron=False,
-            pre_norm=True,
-            gate_residual=False,
-            **kwargs
-    ):
-        super().__init__()
-        ff_kwargs, kwargs = groupby_prefix_and_trim('ff_', kwargs)  # note: trims and groups kwargs
-        attn_kwargs, _ = groupby_prefix_and_trim('attn_', kwargs)
-
-        dim_head = attn_kwargs.get('dim_head', DEFAULT_DIM_HEAD)
-
-        self.dim = dim
-        self.depth = depth
-        self.layers = nn.ModuleList([])
-
-        self.has_pos_emb = position_infused_attn or rel_pos_bias or rotary_pos_emb
-        self.pia_pos_emb = FixedPositionalEmbedding(dim) if position_infused_attn else None
-
-        rotary_emb_dim = max(default(rotary_emb_dim, dim_head // 2), 32)
-        self.rotary_pos_emb = RotaryEmbedding(rotary_emb_dim) if rotary_pos_emb else None
-
-        assert rel_pos_num_buckets <= rel_pos_max_distance, \
-            'number of relative position buckets must be less than the relative position max distance'
-        self.rel_pos = RelativePositionBias(scale=dim_head ** 0.5, causal=causal, heads=heads,
-                                            num_buckets=rel_pos_num_buckets,
-                                            max_distance=rel_pos_max_distance) if rel_pos_bias else None
-
-        self.pre_norm = pre_norm
-
-        self.residual_attn = residual_attn
-        self.cross_residual_attn = cross_residual_attn
-        self.cross_attend = cross_attend
-
-        norm_class = ScaleNorm if use_scalenorm else nn.LayerNorm
-        norm_class = RMSNorm if use_rmsnorm else norm_class
-        norm_fn = partial(norm_class, dim)
-
         norm_fn = nn.Identity if use_rezero else norm_fn
 
         default_block = ('a', 'f')
@@ -639,7 +423,7 @@ class VanillaAttentionLayers(nn.Module):
 
         for layer_type in self.layer_types:
             if layer_type == 'a':
-                layer = VanillaAttention(dim, heads=heads, causal=causal, **attn_kwargs)
+                layer = VAttention(dim, heads=heads, causal=causal, **attn_kwargs)
             elif layer_type == 'f':
                 layer = FeedForward(dim, **ff_kwargs)
             else:
@@ -655,28 +439,24 @@ class VanillaAttentionLayers(nn.Module):
 
     def forward(
             self,
-            x,
+            x, quantiles,
             context=None,
             mask=None,
             context_mask=None,
             mems=None,
             return_hiddens=False
     ):
-        assert not (self.cross_attend ^ exists(context)), 'context must be passed in if cross_attend is set to True'
 
         hiddens = []
         intermediates = []
         prev_attn = None
-        prev_cross_attn = None
 
         mems = mems.copy() if exists(mems) else [None] * self.num_attn_layers
 
         rotary_pos_emb = None
-        if exists(self.rotary_pos_emb):
-            max_rotary_emb_length = max(list(map(lambda m: (m.shape[1] if exists(m) else 0) + x.shape[1], mems)))
-            rotary_pos_emb = self.rotary_pos_emb(max_rotary_emb_length, x.device)
 
         for ind, (layer_type, (norm, block, residual_fn)) in enumerate(zip(self.layer_types, self.layers)):
+            # block is what was called 'layer' in __init__()
             is_last = ind == (len(self.layers) - 1)
 
             if layer_type == 'a':
@@ -689,7 +469,7 @@ class VanillaAttentionLayers(nn.Module):
                 x = norm(x)
 
             if layer_type == 'a':
-                out, inter = block(x, mask=mask, sinusoidal_emb=self.pia_pos_emb, rel_pos=self.rel_pos,
+                out, inter = block(x, quantiles, mask=mask, sinusoidal_emb=self.pia_pos_emb, rel_pos=self.rel_pos,
                                    rotary_pos_emb=rotary_pos_emb, prev_attn=prev_attn, mem=layer_mem)
             elif layer_type == 'c':
                 out, inter = block(x, context=context, mask=mask, context_mask=context_mask, prev_attn=prev_cross_attn)
@@ -720,116 +500,16 @@ class VanillaAttentionLayers(nn.Module):
         return x
 
 
-class Encoder(AttentionLayers):
+class VEncoder(VAttentionLayers):
     def __init__(self, **kwargs):
         assert 'causal' not in kwargs, 'cannot set causality on encoder'
         super().__init__(causal=False, **kwargs)
 
 
-class Decoder(AttentionLayers):
+class VDecoder(VAttentionLayers):
     def __init__(self, **kwargs):
         assert 'causal' not in kwargs, 'cannot set causality on decoder'
         super().__init__(causal=True, **kwargs)
-
-
-class CrossAttender(AttentionLayers):
-    def __init__(self, **kwargs):
-        super().__init__(cross_attend=True, only_cross=True, **kwargs)
-
-
-class TransformerWrapper(nn.Module):
-    def __init__(
-            self,
-            *,
-            num_tokens,
-            max_seq_len,
-            attn_layers,
-            emb_dim=None,
-            max_mem_len=0.,
-            emb_dropout=0.,
-            num_memory_tokens=None,
-            tie_embedding=False,
-            use_pos_emb=True
-    ):
-        super().__init__()
-        assert isinstance(attn_layers, AttentionLayers), 'attention layers must be one of Encoder or Decoder'
-
-        dim = attn_layers.dim
-        emb_dim = default(emb_dim, dim)
-
-        self.max_seq_len = max_seq_len
-        self.max_mem_len = max_mem_len
-
-        self.token_emb = nn.Embedding(num_tokens, emb_dim)
-        self.pos_emb = AbsolutePositionalEmbedding(emb_dim, max_seq_len) \
-            if (use_pos_emb and not attn_layers.has_pos_emb) else always(0)
-        self.emb_dropout = nn.Dropout(emb_dropout)
-
-        self.project_emb = nn.Linear(emb_dim, dim) if emb_dim != dim else nn.Identity()
-        self.attn_layers = attn_layers
-        self.norm = nn.LayerNorm(dim)
-
-        self.init_()
-
-        self.to_logits = nn.Linear(dim, num_tokens) if not tie_embedding else lambda t: t @ self.token_emb.weight.t()
-
-        # memory tokens (like [cls]) from Memory Transformers paper
-        num_memory_tokens = default(num_memory_tokens, 0)
-        self.num_memory_tokens = num_memory_tokens
-        if num_memory_tokens > 0:
-            self.memory_tokens = nn.Parameter(torch.randn(num_memory_tokens, dim))
-
-            # let funnel encoder know number of memory tokens, if specified
-            # TODO: think of a cleaner solution
-            if hasattr(attn_layers, 'num_memory_tokens'):
-                attn_layers.num_memory_tokens = num_memory_tokens
-
-    def init_(self):
-        nn.init.normal_(self.token_emb.weight, std=0.02)
-
-    def forward(
-            self,
-            x,
-            return_embeddings=False,
-            mask=None,
-            return_mems=False,
-            return_attn=False,
-            mems=None,
-            **kwargs
-    ):
-        b, n, device, num_mem = *x.shape, x.device, self.num_memory_tokens
-        x = self.token_emb(x)
-        x = x + self.pos_emb(x)
-        x = self.emb_dropout(x)
-
-        x = self.project_emb(x)
-
-        if num_mem > 0:
-            mem = repeat(self.memory_tokens, 'n d -> b n d', b=b)
-            x = torch.cat((mem, x), dim=1)
-
-            # auto-handle masking after appending memory tokens
-            if exists(mask):
-                mask = F.pad(mask, (num_mem, 0), value=True)
-
-        x, intermediates = self.attn_layers(x, mask=mask, mems=mems, return_hiddens=True, **kwargs)
-        x = self.norm(x)
-
-        mem, x = x[:, :num_mem], x[:, num_mem:]
-
-        out = self.to_logits(x) if not return_embeddings else x
-
-        if return_mems:
-            hiddens = intermediates.hiddens
-            new_mems = list(map(lambda pair: torch.cat(pair, dim=-2), zip(mems, hiddens))) if exists(mems) else hiddens
-            new_mems = list(map(lambda t: t[..., -self.max_mem_len:, :].detach(), new_mems))
-            return out, new_mems
-
-        if return_attn:
-            attn_maps = list(map(lambda t: t.post_softmax_attn, intermediates.attn_intermediates))
-            return out, attn_maps
-
-        return out
 
 
 class VTransformerWrapper(nn.Module):
@@ -847,7 +527,7 @@ class VTransformerWrapper(nn.Module):
             use_pos_emb=True
     ):
         super().__init__()
-        assert isinstance(attn_layers, AttentionLayers), 'attention layers must be one of Encoder or Decoder'
+        assert isinstance(attn_layers, VAttentionLayers), 'attention layers must be one of Encoder or Decoder'
 
         dim = attn_layers.dim
         emb_dim = default(emb_dim, dim)
@@ -884,7 +564,7 @@ class VTransformerWrapper(nn.Module):
 
     def forward(
             self,
-            x,
+            x, quantiles,
             return_embeddings=False,
             mask=None,
             return_mems=False,
@@ -907,7 +587,7 @@ class VTransformerWrapper(nn.Module):
             if exists(mask):
                 mask = F.pad(mask, (num_mem, 0), value=True)
 
-        x, intermediates = self.attn_layers(x, mask=mask, mems=mems, return_hiddens=True, **kwargs)
+        x, intermediates = self.attn_layers(x, quantiles, mask=mask, mems=mems, return_hiddens=True, **kwargs)
         x = self.norm(x)
 
         mem, x = x[:, :num_mem], x[:, num_mem:]
