@@ -1,3 +1,4 @@
+import sys
 import pandas as pd
 from pprint import pprint
 from torch.utils.tensorboard import SummaryWriter
@@ -8,6 +9,7 @@ import methods
 from data_utils import *
 from arguments import Arguments
 from v_transformers.transformers import Decoder, TransformerWrapper
+from v_transformers.transformers_dev import VDecoder, VTransformerWrapper
 from v_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
 

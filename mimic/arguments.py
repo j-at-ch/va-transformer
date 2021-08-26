@@ -14,15 +14,15 @@ class Arguments:
         # data roots
 
         self.parser.add_argument('--mimic_root', type=str)
-        self.parser.set_defaults(mimic_root='/home/james/Documents/Charters/all_rows/data')
+        self.parser.set_defaults(mimic_root='/home/james/Documents/Charters/mimic-iii-clinical-database-1.4')
         self.parser.add_argument('--data_root', type=str)
-        self.parser.set_defaults(data_root='/home/james/Documents/Charters/all_rows/data')
+        self.parser.set_defaults(data_root='/home/james/Documents/Charters/labs_dataset4/data')
         self.parser.add_argument('--model_root', type=str)
-        self.parser.set_defaults(model_root='/home/james/Documents/Charters/all_rows/models')
+        self.parser.set_defaults(model_root='/home/james/Documents/Charters/labs_dataset4/models')
         self.parser.add_argument('--save_root', type=str)
-        self.parser.set_defaults(save_root='/home/james/Documents/Charters/all_rows/results')
+        self.parser.set_defaults(save_root='/home/james/Documents/Charters/labs_dataset4/results')
         self.parser.add_argument('--logs_root', type=str)
-        self.parser.set_defaults(logs_root='/home/james/Documents/Charters/all_rows/logs')
+        self.parser.set_defaults(logs_root='/home/james/Documents/Charters/labs_dataset4/logs')
 
         # pretraining constants
 

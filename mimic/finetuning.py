@@ -64,9 +64,6 @@ def finetune(args):
     ft_train_loader = DataLoader(ft_train_dataset, batch_size=args.ft_batch_size, shuffle=True)
     ft_val_loader = DataLoader(ft_val_dataset, batch_size=args.ft_batch_size, shuffle=True)
 
-    ft_train_cycler = cycle(ft_train_loader)
-    ft_val_cycler = cycle(ft_val_loader)
-
     #  for quick test run
 
     if bool(args.test_run):

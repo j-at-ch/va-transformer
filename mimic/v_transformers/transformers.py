@@ -773,6 +773,8 @@ class TransformerWrapper(nn.Module):
 
         x = self.project_emb(x)
 
+        print(x.shape) ##
+
         if num_mem > 0:
             mem = repeat(self.memory_tokens, 'n d -> b n d', b=b)
             x = torch.cat((mem, x), dim=1)
@@ -787,6 +789,8 @@ class TransformerWrapper(nn.Module):
         mem, x = x[:, :num_mem], x[:, num_mem:]
 
         out = self.to_logits(x) if not return_embeddings else x
+
+        print(out.shape) ##
 
         if return_mems:
             hiddens = intermediates.hiddens
