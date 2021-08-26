@@ -8,8 +8,8 @@ from torch.utils.tensorboard import SummaryWriter
 import methods
 from data_utils import *
 from arguments import Arguments
-from v_transformers.transformers import Decoder, TransformerWrapper
-from v_transformers.transformers_dev import VDecoder, VTransformerWrapper
+#from v_transformers.transformers import Decoder, TransformerWrapper
+from v_transformers.vtransformers import Decoder, TransformerWrapper
 from v_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
 
@@ -43,7 +43,32 @@ def pretrain(args):
     # get data
 
     data_train = fetch_data_as_torch(train_path, 'train_tokens')
+    quantiles_train = fetch_data_as_torch(train_path, 'train_quantiles')
     data_val = fetch_data_as_torch(val_path, 'val_tokens')
+    quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
+
+    # load data for pretraining based on arguments
+
+    #train_dataset = ClsSamplerDataset(data_train, args.seq_len, device)
+    #val_dataset = ClsSamplerDataset(data_val, args.seq_len, device)
+
+    train_dataset = PreSamplerDataset(data_train, args.seq_len, device, quantiles=quantiles_train)
+    val_dataset = PreSamplerDataset(data_val, args.seq_len, device, quantiles=quantiles_val)
+
+    print("BREAK1")
+
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
+
+    print("BREAK2")
+
+    #  for quick test run
+
+    if bool(args.test_run):
+        train_loader = [X for i, X in enumerate(train_loader) if i < 2]
+        val_loader = [X for i, X in enumerate(val_loader) if i < 2]
+
+    print("BREAK3")
 
     # instantiate GPT-like decoder architecture
 
@@ -64,20 +89,6 @@ def pretrain(args):
 
     pre_model = AutoregressiveWrapper(model)
     pre_model.to(device)
-
-    # load data for pretraining based on arguments
-
-    train_dataset = ClsSamplerDataset(data_train, args.seq_len, device)
-    val_dataset = ClsSamplerDataset(data_val, args.seq_len, device)
-
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
-
-    #  for quick test run
-
-    if bool(args.test_run):
-        train_loader = [X for i, X in enumerate(train_loader) if i < 2]
-        val_loader = [X for i, X in enumerate(val_loader) if i < 2]
 
     optimizer = torch.optim.Adam(pre_model.parameters(), lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.scheduler_decay)

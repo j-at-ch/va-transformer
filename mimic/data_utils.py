@@ -36,6 +36,33 @@ class ClsSamplerDataset(Dataset):
         return len(self.data)
 
 
+class PreSamplerDataset(Dataset):
+    def __init__(self, tokens, seq_len, device, quantiles=None):
+        super().__init__()
+        self.tokens = tokens
+        self.quantiles = quantiles
+        self.device = device
+        self.seq_len = seq_len
+        self.lookup = dict(zip(np.arange(len(self.tokens)), self.tokens.keys()))
+
+    def __getitem__(self, key):
+        index = self.lookup[key]
+        item_len = self.tokens[index].size(0)
+        rand_start = torch.randint(0, item_len - self.seq_len, (1,)) if item_len > self.seq_len else 0
+        len_from_seq = min(item_len, self.seq_len)
+        sample = torch.zeros(self.seq_len)
+        sample[:len_from_seq] = self.tokens[index][rand_start: rand_start + len_from_seq]
+
+        if self.quantiles is not None:
+            quantiles = torch.zeros(self.seq_len)
+            quantiles[:len_from_seq] = self.quantiles[index][rand_start: rand_start + len_from_seq]
+            return sample.long().to(self.device), quantiles.long().to(self.device)
+        return sample.long().to(self.device)
+
+    def __len__(self):
+        return len(self.tokens)
+
+
 def cycle(loader):
     while True:
         for data in loader:

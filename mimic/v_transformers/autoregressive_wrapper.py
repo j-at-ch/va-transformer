@@ -40,11 +40,12 @@ entmax = entmax_bisect
 
 
 class AutoregressiveWrapper(nn.Module):
-    def __init__(self, net, ignore_index=-100, pad_value=0):
+    def __init__(self, net, use_quantiles=True, ignore_index=-100, pad_value=0):
         super().__init__()
         self.pad_value = pad_value
         self.ignore_index = ignore_index
         self.net = net
+        self.use_quantiles = use_quantiles
         self.max_seq_len = net.max_seq_len
 
     @torch.no_grad()
@@ -96,8 +97,13 @@ class AutoregressiveWrapper(nn.Module):
         return out
 
     def forward(self, x, **kwargs):
-        xi = x[:, :-1]
-        xo = x[:, 1:]
+        if self.use_quantiles:
+            xi = x[0][:, :-1]
+            qi = x[1][:, :-1]
+            xo = x[0][:, 1:]
+        else:
+            xi = x[:, :-1]
+            xo = x[:, 1:]
 
         # help auto-solve a frequent area of confusion around input masks in auto-regressive
         # if user supplies a mask that is only off by one from the source sequence, resolve it for them
@@ -106,6 +112,6 @@ class AutoregressiveWrapper(nn.Module):
             mask = mask[:, :-1]
             kwargs['mask'] = mask
 
-        out = self.net(xi, **kwargs)
+        out = self.net(xi, qi, **kwargs)
         loss = F.cross_entropy(out.transpose(1, 2), xo, ignore_index=self.ignore_index)  # NOTE: reduction="mean"
         return loss
