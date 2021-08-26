@@ -206,8 +206,14 @@ def preprocess_labs(args):
                 dtype=np.int64
             )
             times_rel[i] = times[i] - ts_to_posix(admittime)
-            values[i] = temp['VALUENUM']
-            quantiles[i] = temp['QUANTILE']
+            values[i] = np.fromiter(
+                temp['VALUENUM'],
+                dtype=np.float
+            )
+            quantiles[i] = np.fromiter(
+                temp['QUANTILE'],
+                dtype=np.int32
+            )
 
             # NOTE: can refactor target extraction easily to derive from augmented_admissions.csv
             targets[i] = {
