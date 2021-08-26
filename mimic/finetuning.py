@@ -2,7 +2,7 @@ import pandas as pd
 from pprint import pprint
 from torch.utils.tensorboard import SummaryWriter
 
-from z_transformers.transformers import TransformerWrapper, Decoder
+from v_transformers.transformers import TransformerWrapper, Decoder
 
 import methods
 from data_utils import *
@@ -103,7 +103,9 @@ def finetune(args):
             depth=args.attn_depth,
             heads=args.attn_heads,
             attn_dropout=args.attn_dropout,
-            ff_dropout=args.ff_dropout)
+            ff_dropout=args.ff_dropout,
+            use_rezero=args.use_rezero
+        ),
     )
 
     fit_model = FinetuningWrapper(model, num_classes=2,

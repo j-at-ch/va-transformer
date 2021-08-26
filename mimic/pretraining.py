@@ -7,8 +7,8 @@ from torch.utils.tensorboard import SummaryWriter
 import methods
 from data_utils import *
 from arguments import Arguments
-from z_transformers.transformers import Decoder, TransformerWrapper
-from z_transformers.autoregressive_wrapper import AutoregressiveWrapper
+from v_transformers.transformers import Decoder, TransformerWrapper
+from v_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
 
 def pretrain(args):
@@ -53,7 +53,8 @@ def pretrain(args):
             depth=args.attn_depth,
             heads=args.attn_heads,
             attn_dropout=args.attn_dropout,
-            ff_dropout=args.ff_dropout
+            ff_dropout=args.ff_dropout,
+            use_rezero=args.use_rezero
         )
     )
 
