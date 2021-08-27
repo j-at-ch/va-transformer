@@ -26,7 +26,7 @@ class Arguments:
 
         # pretraining constants
 
-        self.parser.add_argument('--num_epochs', type=int, default=3)
+        self.parser.add_argument('--num_epochs', type=int, default=10)
         self.parser.add_argument('--batch_size_tr', type=int, default=100)
         self.parser.add_argument('--batch_size_val', type=int, default=100)
         self.parser.add_argument('--checkpoint_after', type=int, default=100)

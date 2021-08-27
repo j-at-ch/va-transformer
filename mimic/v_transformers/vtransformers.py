@@ -335,7 +335,8 @@ class Attention(nn.Module):
         self.causal = causal
         self.mask = mask
 
-        qk_dim = v_dim = dim_head * heads  # stacking heads together
+        qk_dim = v_dim = heads * dim_head  # stacking heads together
+        g_dim = heads * 1  # DEV
 
         # collaborative heads
         self.collab_heads = collab_heads
@@ -348,7 +349,7 @@ class Attention(nn.Module):
         self.to_v = nn.Linear(dim, v_dim, bias=False)
 
         # DEV: quantiles guide
-        self.to_g = nn.Linear(1, 1, bias=False)
+        self.to_g = nn.Linear(1, g_dim, bias=False)
 
         self.dropout = nn.Dropout(dropout)
 
@@ -399,6 +400,7 @@ class Attention(nn.Module):
         device, has_context = x.device, exists(context)
         kv_input = default(context, x)
 
+        g_input = torch.unsqueeze(quantiles.to(torch.float), -1)
         q_input = x  # queries always computed from x
         k_input = kv_input  # keys and values computed from context in cross-attention, otherwise from x
         v_input = kv_input
@@ -458,6 +460,11 @@ class Attention(nn.Module):
 
         pre_softmax_attn = dots.clone()
 
+        # DEV: here is where we introduce quantiles:
+        g = self.to_g(g_input)
+        g = rearrange(g, 'b n (h d) -> b h n d', h=h)
+        dots = einsum('b h i k, b h j k -> b h i j', dots, g)
+
         if talking_heads:
             dots = einsum('b h i j, h k -> b k i j', dots, self.pre_softmax_proj).contiguous()
 
@@ -482,13 +489,6 @@ class Attention(nn.Module):
             mask = dots < vk
             dots.masked_fill_(mask, mask_value)
             del mask
-
-        # DEV: here is where we introduce quantiles: BUG IS HERE. need that quantiles has inner dim=1 to match to_g
-        print(quantiles.shape)
-        print(self.to_g)
-        g = self.to_g(quantiles)
-        print(g)
-        dots = einsum('b h i j, j -> b h i j', dots, g)
 
         attn = self.attn_fn(dots, dim=-1)  # either entmax or softmax
         post_softmax_attn = attn.clone()

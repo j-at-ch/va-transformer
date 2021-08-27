@@ -25,7 +25,7 @@ class TrainingMethods:
             cum_loss += batch_loss
 
         epoch_loss = cum_loss / len(train_loader)
-        self.writer.add_scalar('loss/train', epoch_loss, epoch)
+        self.writer.add_scalar('epoch_loss/train', epoch_loss, epoch)
         print(f'epoch avg train loss: {epoch_loss}')
         return epoch_loss
 
@@ -39,7 +39,7 @@ class TrainingMethods:
             cum_loss += loss.item()
 
         epoch_loss = cum_loss / len(val_loader)
-        self.writer.add_scalar('loss/val', epoch_loss, epoch)
+        self.writer.add_scalar('epoch_loss/val', epoch_loss, epoch)
         print(f'epoch avg val loss: {epoch_loss}')
         return epoch_loss
 
@@ -59,6 +59,13 @@ class TrainingMethods:
                                   global_step=step,
                                   tag='token_embeddings')
 
+    @torch.no_grad()
+    def write_g_histograms(self, step, attn_depth):
+        self.model.eval()
+        to_g_weights = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.weight.detach()\
+                                  for i in range(attn_depth)],
+                                 dim=1)
+        self.writer.add_histogram('to_g_weights', to_g_weights, step)
 
 class FinetuningMethods:  # NOTE: FineTuning and Training are largely equal except for the '*' in self.model and predict
     def __init__(self, model, writer):
@@ -81,7 +88,7 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are largely equal exce
             cum_loss += batch_loss
 
         epoch_loss = cum_loss / len(train_loader)
-        self.writer.add_scalar('loss/train', epoch_loss, epoch)
+        self.writer.add_scalar('epoch_loss/train', epoch_loss, epoch)
         print(f'epoch avg train loss: {epoch_loss}')
         return epoch_loss
 
@@ -95,7 +102,7 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are largely equal exce
             cum_loss += loss.item()
 
         epoch_loss = cum_loss / len(val_loader)
-        self.writer.add_scalar('loss/val', epoch_loss, epoch)
+        self.writer.add_scalar('epoch_loss/val', epoch_loss, epoch)
         print(f'epoch avg val loss: {epoch_loss}')
         return epoch_loss
 

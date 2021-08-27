@@ -55,20 +55,14 @@ def pretrain(args):
     train_dataset = PreSamplerDataset(data_train, args.seq_len, device, quantiles=quantiles_train)
     val_dataset = PreSamplerDataset(data_val, args.seq_len, device, quantiles=quantiles_val)
 
-    print("BREAK1")
-
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
-
-    print("BREAK2")
 
     #  for quick test run
 
     if bool(args.test_run):
         train_loader = [X for i, X in enumerate(train_loader) if i < 2]
         val_loader = [X for i, X in enumerate(val_loader) if i < 2]
-
-    print("BREAK3")
 
     # instantiate GPT-like decoder architecture
 
@@ -125,6 +119,8 @@ def pretrain(args):
 
             print("Checkpoint saved!\n")
             best_val_loss = val_loss
+
+        training.write_g_histograms(epoch, args.attn_depth)
 
         print(f'epoch {epoch} completed!')
         print('flushing writer...')
