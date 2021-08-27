@@ -24,9 +24,13 @@ class Arguments:
         self.parser.add_argument('--logs_root', type=str)
         self.parser.set_defaults(logs_root='/home/james/Documents/Charters/labs_dataset4/logs')
 
+        # use quantile-guided
+
+        self.parser.add_argument('--value_guided', type=str, choices=['plain', 'vg1'])
+
         # pretraining constants
 
-        self.parser.add_argument('--num_epochs', type=int, default=10)
+        self.parser.add_argument('--num_epochs', type=int, default=50)
         self.parser.add_argument('--batch_size_tr', type=int, default=100)
         self.parser.add_argument('--batch_size_val', type=int, default=100)
         self.parser.add_argument('--checkpoint_after', type=int, default=100)
@@ -37,8 +41,8 @@ class Arguments:
         # attention specification
 
         self.parser.add_argument('--attn_dim', type=int, default=100)
-        self.parser.add_argument('--attn_depth', type=int, default=3)
-        self.parser.add_argument('--attn_heads', type=int, default=4)
+        self.parser.add_argument('--attn_depth', type=int, default=6)
+        self.parser.add_argument('--attn_heads', type=int, default=8)
         self.parser.add_argument('--attn_dropout', type=float, default=0.)
         self.parser.add_argument('--ff_dropout', type=float, default=0.)
         self.parser.add_argument('--use_rezero', type=int, default=0)

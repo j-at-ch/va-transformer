@@ -8,7 +8,6 @@ from torch.utils.tensorboard import SummaryWriter
 import methods
 from data_utils import *
 from arguments import Arguments
-#from v_transformers.transformers import Decoder, TransformerWrapper
 from v_transformers.vtransformers import Decoder, TransformerWrapper
 from v_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
@@ -40,12 +39,19 @@ def pretrain(args):
     d_items_df = pd.read_csv(d_items_path, index_col='ITEMID', dtype={'ITEMID': str})
     labeller = Labellers(mappings_dict, d_items_df)
 
-    # get data
+    # get tokens
 
     data_train = fetch_data_as_torch(train_path, 'train_tokens')
-    quantiles_train = fetch_data_as_torch(train_path, 'train_quantiles')
     data_val = fetch_data_as_torch(val_path, 'val_tokens')
-    quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
+
+    # get quantiles
+
+    if args.value_guided == 'plain':
+        quantiles_train = None
+        quantiles_val = None
+    else:
+        quantiles_train = fetch_data_as_torch(train_path, 'train_quantiles')
+        quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
 
     # load data for pretraining based on arguments
 
@@ -58,7 +64,7 @@ def pretrain(args):
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
 
-    #  for quick test run
+    #  for rapid test run
 
     if bool(args.test_run):
         train_loader = [X for i, X in enumerate(train_loader) if i < 2]
@@ -75,13 +81,14 @@ def pretrain(args):
             heads=args.attn_heads,
             attn_dropout=args.attn_dropout,
             ff_dropout=args.ff_dropout,
+            value_guided=args.value_guided,
             use_rezero=bool(args.use_rezero)
         )
     )
 
     # wrap for autoregressive
 
-    pre_model = AutoregressiveWrapper(model)
+    pre_model = AutoregressiveWrapper(model, value_guided=args.value_guided)
     pre_model.to(device)
 
     optimizer = torch.optim.Adam(pre_model.parameters(), lr=args.learning_rate)
@@ -120,7 +127,7 @@ def pretrain(args):
             print("Checkpoint saved!\n")
             best_val_loss = val_loss
 
-        training.write_g_histograms(epoch, args.attn_depth)
+        #training.write_g_histograms(epoch, args.attn_depth)  # DEV
 
         print(f'epoch {epoch} completed!')
         print('flushing writer...')

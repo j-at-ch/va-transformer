@@ -193,7 +193,7 @@ class RotaryEmbedding(nn.Module):
 
     def forward(self, max_seq_len, device):
         t = torch.arange(max_seq_len, device=device).type_as(self.inv_freq)
-        freqs = torch.einsum('i , j -> i j', t, self.inv_freq)
+        freqs = torch.einsum('i, j -> i j', t, self.inv_freq)
         emb = torch.cat((freqs, freqs), dim=-1)
         return rearrange(emb, 'n d -> () () n d')
 
@@ -317,6 +317,7 @@ class Attention(nn.Module):
             dim,
             dim_head=DEFAULT_DIM_HEAD,
             heads=8,
+            value_guided='plain',
             causal=False,
             mask=None,
             talking_heads=False,
@@ -334,9 +335,9 @@ class Attention(nn.Module):
         self.heads = heads
         self.causal = causal
         self.mask = mask
+        self.value_guided = value_guided
 
         qk_dim = v_dim = heads * dim_head  # stacking heads together
-        g_dim = heads * 1  # DEV
 
         # collaborative heads
         self.collab_heads = collab_heads
@@ -349,7 +350,9 @@ class Attention(nn.Module):
         self.to_v = nn.Linear(dim, v_dim, bias=False)
 
         # DEV: quantiles guide
-        self.to_g = nn.Linear(1, g_dim, bias=False)
+        if self.value_guided != 'plain':
+            g_dim = heads * 1
+            self.to_g = nn.Linear(1, g_dim, bias=False)
 
         self.dropout = nn.Dropout(dropout)
 
@@ -385,7 +388,7 @@ class Attention(nn.Module):
     def forward(
             self,
             x,
-            quantiles,  # DEV: shape (b, n, 1)
+            quantiles=None,  # DEV: shape (b, n, 1)
             context=None,
             mask=None,
             context_mask=None,
@@ -400,7 +403,6 @@ class Attention(nn.Module):
         device, has_context = x.device, exists(context)
         kv_input = default(context, x)
 
-        g_input = torch.unsqueeze(quantiles.to(torch.float), -1)
         q_input = x  # queries always computed from x
         k_input = kv_input  # keys and values computed from context in cross-attention, otherwise from x
         v_input = kv_input
@@ -460,10 +462,11 @@ class Attention(nn.Module):
 
         pre_softmax_attn = dots.clone()
 
-        # DEV: here is where we introduce quantiles:
-        g = self.to_g(g_input)
-        g = rearrange(g, 'b n (h d) -> b h n d', h=h)
-        dots = einsum('b h i k, b h j k -> b h i j', dots, g)
+        if self.value_guided != 'plain':  # DEV
+            g_input = torch.unsqueeze(quantiles.to(torch.float), -1)
+            g = self.to_g(g_input)
+            g = rearrange(g, 'b n (h d) -> b h n d', h=h)
+            dots = einsum('b h i k, b h j k -> b h i j', dots, g)
 
         if talking_heads:
             dots = einsum('b h i j, h k -> b k i j', dots, self.pre_softmax_proj).contiguous()
@@ -490,7 +493,7 @@ class Attention(nn.Module):
             dots.masked_fill_(mask, mask_value)
             del mask
 
-        attn = self.attn_fn(dots, dim=-1)  # either entmax or softmax
+        attn = self.attn_fn(dots, dim=-1)  # specify attention non-linearity
         post_softmax_attn = attn.clone()
 
         attn = self.dropout(attn)
@@ -519,6 +522,7 @@ class AttentionLayers(nn.Module):
             dim,
             depth,
             heads=8,
+            value_guided='plain',
             causal=False,
             cross_attend=False,
             only_cross=False,
@@ -610,7 +614,7 @@ class AttentionLayers(nn.Module):
 
         for layer_type in self.layer_types:
             if layer_type == 'a':
-                layer = Attention(dim, heads=heads, causal=causal, **attn_kwargs)
+                layer = Attention(dim, value_guided=value_guided, heads=heads, causal=causal, **attn_kwargs)
             elif layer_type == 'c':
                 layer = Attention(dim, heads=heads, **attn_kwargs)
             elif layer_type == 'f':
@@ -635,7 +639,7 @@ class AttentionLayers(nn.Module):
 
     def forward(
             self,
-            x, quantiles,
+            x, quantiles=None,  # DEV
             context=None,
             mask=None,
             context_mask=None,
@@ -669,7 +673,7 @@ class AttentionLayers(nn.Module):
                 x = norm(x)
 
             if layer_type == 'a':
-                out, inter = block(x, quantiles, mask=mask, sinusoidal_emb=self.pia_pos_emb, rel_pos=self.rel_pos,
+                out, inter = block(x, quantiles=quantiles, mask=mask, sinusoidal_emb=self.pia_pos_emb, rel_pos=self.rel_pos,
                                    rotary_pos_emb=rotary_pos_emb, prev_attn=prev_attn, mem=layer_mem)
             elif layer_type == 'c':
                 out, inter = block(x, context=context, mask=mask, context_mask=context_mask, prev_attn=prev_cross_attn)
@@ -769,7 +773,7 @@ class TransformerWrapper(nn.Module):
 
     def forward(
             self,
-            x, quantiles,  # DEV
+            x, quantiles=None,  # DEV
             return_embeddings=False,
             mask=None,
             return_mems=False,
@@ -792,7 +796,7 @@ class TransformerWrapper(nn.Module):
             if exists(mask):
                 mask = F.pad(mask, (num_mem, 0), value=True)
 
-        x, intermediates = self.attn_layers(x, quantiles, mask=mask, mems=mems, return_hiddens=True, **kwargs)  # DEV
+        x, intermediates = self.attn_layers(x, quantiles=quantiles, mask=mask, mems=mems, return_hiddens=True, **kwargs)  # DEV
         x = self.norm(x)
 
         mem, x = x[:, :num_mem], x[:, num_mem:]
