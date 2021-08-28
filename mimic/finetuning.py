@@ -2,7 +2,7 @@ import pandas as pd
 from pprint import pprint
 from torch.utils.tensorboard import SummaryWriter
 
-from v_transformers.transformers import TransformerWrapper, Decoder
+from v_transformers.vtransformers import TransformerWrapper, Decoder
 
 import methods
 from data_utils import *
@@ -58,6 +58,15 @@ def finetune(args):
     data_train = fetch_data_as_torch(train_path, 'train_tokens')
     data_val = fetch_data_as_torch(val_path, 'val_tokens')
 
+    # get quantiles
+
+    if args.value_guided == 'plain':
+        quantiles_train = None
+        quantiles_val = None
+    else:
+        quantiles_train = fetch_data_as_torch(train_path, 'train_quantiles')
+        quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
+
     ft_train_dataset = ClsSamplerDataset(data_train, args.seq_len, device, labels=train_targets)
     ft_val_dataset = ClsSamplerDataset(data_val, args.seq_len, device, labels=val_targets)
 
@@ -99,6 +108,7 @@ def finetune(args):
             dim=args.attn_dim,
             depth=args.attn_depth,
             heads=args.attn_heads,
+            value_guided=args.value_guided,
             attn_dropout=args.attn_dropout,
             ff_dropout=args.ff_dropout,
             use_rezero=bool(args.use_rezero)

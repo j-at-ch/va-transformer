@@ -37,10 +37,11 @@ class ClsSamplerDataset(Dataset):
 
 
 class PreSamplerDataset(Dataset):
-    def __init__(self, tokens, seq_len, device, quantiles=None):
+    def __init__(self, tokens, seq_len, device, quantiles=None, labels=None):
         super().__init__()
         self.tokens = tokens
         self.quantiles = quantiles
+        self.labels = labels
         self.device = device
         self.seq_len = seq_len
         self.lookup = dict(zip(np.arange(len(self.tokens)), self.tokens.keys()))
@@ -52,12 +53,23 @@ class PreSamplerDataset(Dataset):
         len_from_seq = min(item_len, self.seq_len)
         sample = torch.zeros(self.seq_len)
         sample[:len_from_seq] = self.tokens[index][rand_start: rand_start + len_from_seq]
+        sample.long().to(self.device)
 
         if self.quantiles is not None:
             quantiles = torch.zeros(self.seq_len)
             quantiles[:len_from_seq] = self.quantiles[index][rand_start: rand_start + len_from_seq]
-            return sample.long().to(self.device), quantiles.long().to(self.device)
-        return sample.long().to(self.device)
+            quantiles.long().to(self.device)
+
+        if self.labels is not None:
+            label = torch.tensor(self.labels[index])
+            label.long().to(self.device)
+
+        if (self.quantiles is None) & (self.labels is None):
+            return sample
+        elif (self.quantiles is not None) & (self.labels is None):
+            return sample, quantiles
+        elif (self.quantiles is not None) & (self.labels is not None):
+            return sample, quantiles, label
 
     def __len__(self):
         return len(self.tokens)
