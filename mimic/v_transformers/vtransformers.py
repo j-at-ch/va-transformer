@@ -349,13 +349,19 @@ class Attention(nn.Module):
         self.to_k = nn.Linear(dim, qk_dim, bias=False)
         self.to_v = nn.Linear(dim, v_dim, bias=False)
 
-        # DEV: quantiles guide
+        # DEV
         if self.value_guided == 'vg1':
             g_dim = heads * 1
             self.to_g = nn.Linear(1, g_dim, bias=False)
         elif self.value_guided == 'vg1.1':
             g_dim = heads * 1
             self.to_g = nn.Linear(1, g_dim, bias=True)
+        elif self.value_guided == 'vg1.2':
+            g_dim = heads * 1
+            self.to_g = nn.Linear(6, g_dim, bias=False)  # input is one-hot of a 6-value categorical.
+        elif self.value_guided == 'vg1.3':
+            g_dim = heads * 1
+            self.to_g = nn.Linear(6, g_dim, bias=True)  # input is one-hot of a 6-value categorical.
 
         self.dropout = nn.Dropout(dropout)
 
@@ -391,7 +397,7 @@ class Attention(nn.Module):
     def forward(
             self,
             x,
-            quantiles=None,  # DEV: shape (b, n, 1)
+            quantiles=None,  # DEV
             context=None,
             mask=None,
             context_mask=None,
@@ -465,10 +471,20 @@ class Attention(nn.Module):
 
         pre_softmax_attn = dots.clone()
 
-        if self.value_guided != 'plain':  # DEV
-            g_input = torch.unsqueeze(quantiles.to(torch.float), -1)
+        # DEV
+        if self.value_guided in ['vg1', 'vg1.1']:
+            g_input = torch.unsqueeze(quantiles.to(torch.float), -1)  # need to add dimension to quantiles for to_g
             g = self.to_g(g_input)
             g = rearrange(g, 'b n (h d) -> b h n d', h=h)
+            dots = einsum('b h i k, b h j k -> b h i j', dots, g)
+        elif self.value_guided in ['vg1.2']:
+            g_input = torch.unsqueeze(quantiles, -1)  # need to add dimension to quantiles for to_g
+            g_input = F.one_hot(g_input + 1)  # need +1 to make sentinel values (coded -1) non-negative.
+            g_input = g_input.to(torch.float)
+            g = self.to_g(g_input)
+            #g = torch.squeeze(g)
+            #g = rearrange(g, 'b n (h d) -> b h n d', h=h)
+            g = rearrange(g, 'b n d h -> b h n d', h=h)  # TODO: double check
             dots = einsum('b h i k, b h j k -> b h i j', dots, g)
 
         if talking_heads:
@@ -799,7 +815,9 @@ class TransformerWrapper(nn.Module):
             if exists(mask):
                 mask = F.pad(mask, (num_mem, 0), value=True)
 
-        x, intermediates = self.attn_layers(x, quantiles=quantiles, mask=mask, mems=mems, return_hiddens=True, **kwargs)  # DEV
+        x, intermediates = self.attn_layers(x, quantiles=quantiles,
+                                            mask=mask, mems=mems,
+                                            return_hiddens=True, **kwargs)  # DEV
         x = self.norm(x)
 
         mem, x = x[:, :num_mem], x[:, num_mem:]

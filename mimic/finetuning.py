@@ -163,6 +163,11 @@ def finetune(args):
 
         scheduler.step()
 
+        # tracking value_guided parameters
+
+        if args.value_guided in ['vg1', 'vg1.1']:
+            training.write_g_histograms(epoch)  # TODO add method to methods.FinetuningMethods
+
         # tracking model classification metrics for val set
 
         ________ = training.predict(ft_train_loader, epoch, device, prefix="train")
