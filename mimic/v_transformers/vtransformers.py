@@ -350,9 +350,12 @@ class Attention(nn.Module):
         self.to_v = nn.Linear(dim, v_dim, bias=False)
 
         # DEV: quantiles guide
-        if self.value_guided != 'plain':
+        if self.value_guided == 'vg1':
             g_dim = heads * 1
             self.to_g = nn.Linear(1, g_dim, bias=False)
+        elif self.value_guided == 'vg1.1':
+            g_dim = heads * 1
+            self.to_g = nn.Linear(1, g_dim, bias=True)
 
         self.dropout = nn.Dropout(dropout)
 

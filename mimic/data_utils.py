@@ -53,16 +53,16 @@ class PreSamplerDataset(Dataset):
         len_from_seq = min(item_len, self.seq_len)
         sample = torch.zeros(self.seq_len)
         sample[:len_from_seq] = self.tokens[index][rand_start: rand_start + len_from_seq]
-        sample.long().to(self.device)
+        sample = sample.long().to(self.device)
 
         if self.quantiles is not None:
             quantiles = torch.zeros(self.seq_len)
             quantiles[:len_from_seq] = self.quantiles[index][rand_start: rand_start + len_from_seq]
-            quantiles.long().to(self.device)
+            quantiles = quantiles.long().to(self.device)
 
         if self.labels is not None:
             label = torch.tensor(self.labels[index])
-            label.long().to(self.device)
+            label = label.long().to(self.device)
 
         if (self.quantiles is None) & (self.labels is None):
             return sample

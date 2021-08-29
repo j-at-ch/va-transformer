@@ -26,7 +26,7 @@ class Arguments:
 
         # use quantile-guided
 
-        self.parser.add_argument('--value_guided', type=str, choices=['plain', 'vg1'])
+        self.parser.add_argument('--value_guided', type=str, choices=['plain', 'vg1', 'vg1.1'])
 
         # pretraining constants
 

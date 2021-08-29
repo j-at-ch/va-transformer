@@ -86,6 +86,8 @@ def pretrain(args):
         )
     )
 
+    print("model specification::", model, sep="\n")
+
     # wrap for autoregressive
 
     pre_model = AutoregressiveWrapper(model, value_guided=args.value_guided)
@@ -127,7 +129,7 @@ def pretrain(args):
             print("Checkpoint saved!\n")
             best_val_loss = val_loss
 
-        #training.write_g_histograms(epoch, args.attn_depth)  # DEV
+        #training.write_g_histograms(epoch, args.attn_depth)  # DEV ONLY.
 
         print(f'epoch {epoch} completed!')
         print('flushing writer...')
