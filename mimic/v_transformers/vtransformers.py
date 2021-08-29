@@ -571,7 +571,7 @@ class AttentionLayers(nn.Module):
                                             max_distance=rel_pos_max_distance) if rel_pos_bias else None
 
         self.pre_norm = pre_norm
-
+        self.value_guided = value_guided
         self.residual_attn = residual_attn
         self.cross_residual_attn = cross_residual_attn
         self.cross_attend = cross_attend

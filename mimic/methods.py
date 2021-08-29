@@ -10,6 +10,7 @@ class TrainingMethods:
         clip_value = 0.5
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip_value)
         self.writer = writer
+        self.depth = model.net.attn_layers.depth
 
     def train(self, train_loader, optimizer, epoch):
         self.model.train()
@@ -60,12 +61,19 @@ class TrainingMethods:
                                   tag='token_embeddings')
 
     @torch.no_grad()
-    def write_g_histograms(self, step, attn_depth):
+    def write_g_histograms(self, step):
         self.model.eval()
-        to_g_weights = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.weight.detach()\
-                                  for i in range(attn_depth)],
-                                 dim=1)
+        to_g_weights = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.weight.detach() \
+                                  for i in range(self.depth)], dim=1)
         self.writer.add_histogram('to_g_weights', to_g_weights, step)
+
+        if self.model.net.attn_layers.value_guided == 'vg1.1':
+            to_g_biases = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.bias.detach() \
+                                     for i in range(self.depth)], dim=-1)
+            self.writer.add_histogram('to_g_biases', to_g_biases, step)
+        else:
+            pass
+
 
 class FinetuningMethods:  # NOTE: FineTuning and Training are largely equal except for the '*' in self.model and predict
     def __init__(self, model, writer):

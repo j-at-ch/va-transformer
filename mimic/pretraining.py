@@ -129,7 +129,8 @@ def pretrain(args):
             print("Checkpoint saved!\n")
             best_val_loss = val_loss
 
-        #training.write_g_histograms(epoch, args.attn_depth)  # DEV ONLY.
+        if args.value_guided in ['vg1', 'vg1.1']:  # DEV ONLY.
+            training.write_g_histograms(epoch)
 
         print(f'epoch {epoch} completed!')
         print('flushing writer...')
