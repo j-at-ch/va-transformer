@@ -4,7 +4,7 @@ import copy
 import torch.nn.functional as F
 
 
-class FinetuningWrapper(nn.Module):
+class FinetuningWrapper(nn.Module):  # TODO: if loading from pretrained, then we don't want to have to specify params.
     def __init__(self, net, num_classes, seq_len,
                  state_dict=None, weight=None,
                  load_from_pretrained=False,
@@ -43,7 +43,7 @@ class FinetuningWrapper(nn.Module):
             x = x[0]
             out = self.net(x, quantiles=quantiles, return_embeddings=True, **kwargs)
         out = torch.flatten(out, start_dim=1)
-        #Z = torch.flatten(Z[:, 0, :], start_dim=1)  # TODO: make this more easily customisable
+        #Z = torch.flatten(Z[:, 0, :], start_dim=1)
         logits = self.net.clf1(out)
         loss = F.cross_entropy(logits, targets, weight=self.weight)  # note: weighted mean, normalised by tot weight.
         return logits if predict else loss

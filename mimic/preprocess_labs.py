@@ -121,7 +121,7 @@ def preprocess_labs(args):
         51128: {"#/uL": 1, "#/CU MM": 1},  # unclear #/CU MM WBC Ascites - distr looks roughly same.
     }
 
-    def unitscale(itemid, valueuom):  # TODO: induces major bottleneck - solve.
+    def unitscale(itemid, valueuom):  # TODO: implement more efficient solution.
         if (itemid in uom_scales) & (valueuom != 'nan'):
             scale_val_by = uom_scales[itemid][valueuom]
         else:
