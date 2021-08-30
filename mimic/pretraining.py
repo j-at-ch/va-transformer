@@ -113,7 +113,7 @@ def pretrain(args):
         if val_loss < best_val_loss:
             print("Saving checkpoint...")
             torch.save({
-                'train_epoch': epoch,
+                'epoch': epoch,
                 'model_state_dict': pre_model.state_dict(),
                 'args': vars(args),
                 'seq_len': args.seq_len,
@@ -129,7 +129,7 @@ def pretrain(args):
             print("Checkpoint saved!\n")
             best_val_loss = val_loss
 
-        if args.value_guided in ['vg1', 'vg1.1']:  # DEV ONLY.
+        if args.value_guided != 'plain':
             training.write_g_histograms(epoch)
 
         print(f'epoch {epoch} completed!')

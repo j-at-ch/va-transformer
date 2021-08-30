@@ -472,12 +472,14 @@ class Attention(nn.Module):
         pre_softmax_attn = dots.clone()
 
         # DEV
-        if self.value_guided in ['vg1', 'vg1.1']:
+        if self.value_guided == 'plain':
+            pass
+        elif self.value_guided in ['vg1', 'vg1.1']:
             g_input = torch.unsqueeze(quantiles.to(torch.float), -1)  # need to add dimension to quantiles for to_g
             g = self.to_g(g_input)
             g = rearrange(g, 'b n (h d) -> b h n d', h=h)
             dots = einsum('b h i k, b h j k -> b h i j', dots, g)
-        elif self.value_guided in ['vg1.2']:
+        elif self.value_guided in ['vg1.2', 'vg1.3']:
             g_input = torch.unsqueeze(quantiles, -1)  # need to add dimension to quantiles for to_g
             g_input = F.one_hot(g_input + 1)  # need +1 to make sentinel values (coded -1) non-negative.
             g_input = g_input.to(torch.float)
@@ -486,6 +488,8 @@ class Attention(nn.Module):
             #g = rearrange(g, 'b n (h d) -> b h n d', h=h)
             g = rearrange(g, 'b n d h -> b h n d', h=h)  # TODO: double check
             dots = einsum('b h i k, b h j k -> b h i j', dots, g)
+        else:
+            raise AssertionError('value-guided mechanism has not been implemented!')
 
         if talking_heads:
             dots = einsum('b h i j, h k -> b k i j', dots, self.pre_softmax_proj).contiguous()
