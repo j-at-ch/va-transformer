@@ -61,15 +61,17 @@ class VgSamplerDataset(Dataset):
             quantiles = quantiles.long().to(self.device)
 
         if self.labels is not None:
-            label = torch.tensor(self.labels[index])
-            label = label.long().to(self.device)
+            labels = torch.tensor(self.labels[index])
+            labels = labels.long().to(self.device)
 
         if (self.quantiles is None) & (self.labels is None):
             return sample
         elif (self.quantiles is not None) & (self.labels is None):
             return sample, quantiles  # TODO: check PEP for return shape consistency
-        elif (self.quantiles is not None) & (self.labels is not None):
-            return sample, quantiles, label
+        elif (self.quantiles is None) & (self.labels is not None):
+            return sample, labels
+        else:
+            return sample, quantiles, labels
 
     def __len__(self):
         return len(self.tokens)

@@ -2,17 +2,17 @@ import pandas as pd
 from pprint import pprint
 from torch.utils.tensorboard import SummaryWriter
 
-from v_transformers.vtransformers import TransformerWrapper, Decoder
-
 import methods
 from data_utils import *
 from arguments import Arguments
 from models import FinetuningWrapper
+from v_transformers.vtransformers import TransformerWrapper, Decoder
 
 
 def finetune(args):
     print('*' * 17, 'chart-transformer summoned for finetuning with the following settings:', sep='\n')
     pprint(vars(args), indent=2)
+    print('*' * 17)
 
     # paths
 
@@ -25,7 +25,7 @@ def finetune(args):
 
     train_lbl_path = os.path.join(args.data_root, "train_targets.pkl")
     val_lbl_path = os.path.join(args.data_root, "val_targets.pkl")
-    params_path = os.path.join(args.model_root, args.pretuned_model)
+    params_path = os.path.join(args.model_root, args.pretrained_model)
 
     # device
 
@@ -53,7 +53,7 @@ def finetune(args):
         val_targets = {k: v[args.label_set] for k, v in X['val_targets'].items()}
         del X
 
-    # generate datasets and loaders
+    # get tokens
 
     data_train = fetch_data_as_torch(train_path, 'train_tokens')
     data_val = fetch_data_as_torch(val_path, 'val_tokens')
@@ -67,24 +67,31 @@ def finetune(args):
         quantiles_train = fetch_data_as_torch(train_path, 'train_quantiles')
         quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
 
-    ft_train_dataset = ClsSamplerDataset(data_train, args.seq_len, device, labels=train_targets)
-    ft_val_dataset = ClsSamplerDataset(data_val, args.seq_len, device, labels=val_targets)
+    #ft_train_dataset = ClsSamplerDataset(data_train, args.seq_len, device, labels=train_targets)
+    #ft_val_dataset = ClsSamplerDataset(data_val, args.seq_len, device, labels=val_targets)
+    #ft_train_loader = DataLoader(ft_train_dataset, batch_size=args.ft_batch_size, shuffle=True)
+    #ft_val_loader = DataLoader(ft_val_dataset, batch_size=args.ft_batch_size, shuffle=True)
 
-    ft_train_loader = DataLoader(ft_train_dataset, batch_size=args.ft_batch_size, shuffle=True)
-    ft_val_loader = DataLoader(ft_val_dataset, batch_size=args.ft_batch_size, shuffle=True)
+    train_dataset = VgSamplerDataset(data_train, args.seq_len, device, quantiles=quantiles_train, labels=train_targets)
+    val_dataset = VgSamplerDataset(data_val, args.seq_len, device, quantiles=quantiles_val, labels=val_targets)
+
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
 
     #  for quick test run
 
     if bool(args.test_run):
-        ft_train_loader = [X for i, X in enumerate(ft_train_loader) if i < 2]
-        ft_val_loader = [X for i, X in enumerate(ft_val_loader) if i < 2]
+        train_loader = [X for i, X in enumerate(train_loader) if i < 2]
+        val_loader = [X for i, X in enumerate(val_loader) if i < 2]
 
-    # propensities
+    print('*'*100)
 
-    def propensity(di):
-        return sum(di.values()) / len(di)
+    # unconditional label propensities
 
-    p = propensity(train_targets)
+    def propensity_from(targets_dict):
+        return sum(targets_dict.values()) / len(targets_dict)
+
+    p = propensity_from(train_targets)
     print(f"Train set positive class propensity is {p}")
 
     if bool(args.weighted_loss):
@@ -94,8 +101,8 @@ def finetune(args):
 
     # fetch model params
 
-    X = torch.load(params_path, map_location=device)
-    states = X['model_state_dict']
+    pretrained_ckpt = torch.load(params_path, map_location=device)
+    states = pretrained_ckpt['model_state_dict']
 
     # base_states = {k[len('net.'):] if k[:len('net.')] == 'net.' else k: v for k, v in states.items()}
 
@@ -108,19 +115,26 @@ def finetune(args):
             dim=args.attn_dim,
             depth=args.attn_depth,
             heads=args.attn_heads,
-            value_guided=args.value_guided,
             attn_dropout=args.attn_dropout,
             ff_dropout=args.ff_dropout,
-            use_rezero=bool(args.use_rezero)
+            value_guided=args.value_guided,
+            use_rezero=bool(args.use_rezero),
+            rotary_pos_emb=bool(args.rotary_pos_emb)
         )
     )
 
-    fit_model = FinetuningWrapper(model, num_classes=2,
-                                  seq_len=args.seq_len,
+    # wrap model for finetuning
+
+    fit_model = FinetuningWrapper(model,
+                                  num_classes=2,
+                                  seq_len=args.seq_len,  # doesn't model know this?
                                   state_dict=states,
-                                  load_from_pretuning=True,
-                                  weight=weights)
+                                  load_from_pretrained=True,
+                                  weight=weights,
+                                  value_guided=args.value_guided)
     fit_model.to(device)
+
+    print("model specification:", fit_model.net, sep="\n")
 
     # initialise optimiser
 
@@ -138,8 +152,8 @@ def finetune(args):
 
     best_val_loss = np.inf
     for epoch in range(args.num_epochs):
-        ________ = training.train(ft_train_loader, optimizer, epoch)
-        val_loss = training.evaluate(ft_val_loader, epoch)
+        ________ = training.train(train_loader, optimizer, epoch)
+        val_loss = training.evaluate(val_loader, epoch)
 
         # whether to checkpoint model
 
@@ -165,13 +179,13 @@ def finetune(args):
 
         # tracking value_guided parameters
 
-        if args.value_guided in ['vg1', 'vg1.1']:
+        if args.value_guided != 'plain':
             training.write_g_histograms(epoch)  # TODO add method to methods.FinetuningMethods
 
         # tracking model classification metrics for val set
 
-        ________ = training.predict(ft_train_loader, epoch, device, prefix="train")
-        ________ = training.predict(ft_val_loader, epoch, device, prefix="val")
+        ________ = training.predict(train_loader, epoch, device, prefix="train")
+        ________ = training.predict(val_loader, epoch, device, prefix="val")
 
         # flushing writer
 

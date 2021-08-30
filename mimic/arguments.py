@@ -65,7 +65,7 @@ class Arguments:
         if self.mode == 'finetuning':
             self.parser.add_argument('--ft_batch_size', type=int, default=100)
             self.parser.add_argument('--label_set', type=str, required=True)
-            self.parser.add_argument('--pretuned_model', type=str, required=True)
+            self.parser.add_argument('--pretrained_model', type=str, required=True)
             self.parser.add_argument('--weighted_loss', type=int, default=1)
 
     def parse(self, verbose=False):
@@ -88,10 +88,6 @@ class PreprocessingArguments:
         self.parser.set_defaults(mimic_root='/home/james/Documents/Charters/mimic-iii-clinical-database-1.4')
         self.parser.add_argument('--save_root', type=str)
         self.parser.set_defaults(save_root='/home/james/Documents/Charters/preprocessing_output')
-
-        # general arguments
-
-        ####
 
     def parse(self, verbose=False):
         self.initialise()

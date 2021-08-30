@@ -81,13 +81,16 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are largely equal exce
         clip_value = 0.5
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip_value)
         self.writer = writer
+        self.depth = model.net.attn_layers.depth
 
     def train(self, train_loader, optimizer, epoch):
         self.model.train()
         cum_loss = 0
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
                               mininterval=0.5, desc=f'epoch {epoch} training'):
-            loss = self.model(*X)
+            #tokens, quantiles, labels = X
+            #loss = self.model(tokens, quantiles, labels)
+            loss = self.model(X)
             loss.backward()
             batch_loss = loss.item()
             optimizer.step()
@@ -106,7 +109,7 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are largely equal exce
         cum_loss = 0
         for i, X in tqdm.tqdm(enumerate(val_loader), total=len(val_loader),
                               mininterval=0.5, desc=f'epoch {epoch} evaluation'):
-            loss = self.model(*X)
+            loss = self.model(X)
             cum_loss += loss.item()
 
         epoch_loss = cum_loss / len(val_loader)
@@ -119,9 +122,10 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are largely equal exce
         self.model.eval()
         y_score = torch.tensor([]).to(device)
         y_true = torch.tensor([]).to(device)
-        for i, (x, y) in enumerate(data_loader):
-            y_true = torch.cat((y_true, y))
-            logits = self.model(x, y, predict=True)
+        for i, X in enumerate(data_loader):
+            labels = X[-1]
+            y_true = torch.cat((y_true, labels))
+            logits = self.model(X, predict=True)
             y_score = torch.cat((y_score, F.softmax(logits, dim=1)))
         y_true = y_true.cpu()
         y_score = y_score.cpu()
@@ -153,3 +157,17 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are largely equal exce
                                   metadata=metadata,
                                   global_step=step,
                                   tag='token_embeddings')
+
+    @torch.no_grad()
+    def write_g_histograms(self, step):
+        self.model.eval()
+        to_g_weights = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.weight.detach() \
+                                  for i in range(self.depth)], dim=1)
+        self.writer.add_histogram('to_g_weights', to_g_weights, step)
+
+        if self.model.net.attn_layers.value_guided in ['vg1.1', 'vg1.3']:
+            to_g_biases = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.bias.detach() \
+                                     for i in range(self.depth)], dim=-1)
+            self.writer.add_histogram('to_g_biases', to_g_biases, step)
+        else:
+            pass
