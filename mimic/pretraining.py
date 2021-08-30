@@ -113,7 +113,6 @@ def pretrain(args):
                 'epoch': epoch,
                 'model_state_dict': pre_model.state_dict(),
                 'args': vars(args),
-                'seq_len': args.seq_len,
                 'optim_state_dict': optimizer.state_dict(),
                 'val_loss': val_loss
             }, ckpt_path)
