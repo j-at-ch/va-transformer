@@ -3,8 +3,6 @@ import pandas as pd
 from pprint import pprint
 from torch.utils.tensorboard import SummaryWriter
 
-# repo imports
-
 import methods
 from data_utils import *
 from arguments import Arguments
@@ -13,8 +11,9 @@ from v_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
 
 def pretrain(args):
-    print('*'*17, 'chart-transformer summoned for training with the following settings:', sep='\n')
+    print('*' * 17, 'chart-transformer summoned for training with the following settings:', sep='\n')
     pprint(vars(args), indent=2)
+    print('*' * 17)
 
     # paths
 
@@ -55,11 +54,8 @@ def pretrain(args):
 
     # load data for pretraining based on arguments
 
-    #train_dataset = ClsSamplerDataset(data_train, args.seq_len, device)
-    #val_dataset = ClsSamplerDataset(data_val, args.seq_len, device)
-
-    train_dataset = PreSamplerDataset(data_train, args.seq_len, device, quantiles=quantiles_train)
-    val_dataset = PreSamplerDataset(data_val, args.seq_len, device, quantiles=quantiles_val)
+    train_dataset = VgSamplerDataset(data_train, args.seq_len, device, quantiles=quantiles_train)
+    val_dataset = VgSamplerDataset(data_val, args.seq_len, device, quantiles=quantiles_val)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
@@ -82,16 +78,17 @@ def pretrain(args):
             attn_dropout=args.attn_dropout,
             ff_dropout=args.ff_dropout,
             value_guided=args.value_guided,
-            use_rezero=bool(args.use_rezero)
+            use_rezero=bool(args.use_rezero),
+            rotary_pos_emb=bool(args.rotary_pos_emb)
         )
     )
 
-    print("model specification::", model, sep="\n")
-
-    # wrap for autoregressive
+    # wrap model for pretraining
 
     pre_model = AutoregressiveWrapper(model, value_guided=args.value_guided)
     pre_model.to(device)
+
+    print("model specification:", pre_model.net, sep="\n")
 
     optimizer = torch.optim.Adam(pre_model.parameters(), lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.scheduler_decay)

@@ -46,6 +46,7 @@ class Arguments:
         self.parser.add_argument('--attn_dropout', type=float, default=0.)
         self.parser.add_argument('--ff_dropout', type=float, default=0.)
         self.parser.add_argument('--use_rezero', type=int, default=0)
+        self.parser.add_argument('--rotary_pos_emb', type=int, default=0)
 
         # general arguments
 

@@ -36,7 +36,7 @@ class ClsSamplerDataset(Dataset):
         return len(self.data)
 
 
-class PreSamplerDataset(Dataset):
+class VgSamplerDataset(Dataset):
     def __init__(self, tokens, seq_len, device, quantiles=None, labels=None):
         super().__init__()
         self.tokens = tokens
@@ -67,7 +67,7 @@ class PreSamplerDataset(Dataset):
         if (self.quantiles is None) & (self.labels is None):
             return sample
         elif (self.quantiles is not None) & (self.labels is None):
-            return sample, quantiles
+            return sample, quantiles  # TODO: check PEP for return shape consistency
         elif (self.quantiles is not None) & (self.labels is not None):
             return sample, quantiles, label
 
