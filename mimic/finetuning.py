@@ -1,5 +1,6 @@
 import pandas as pd
 from pprint import pprint
+from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 import methods
@@ -124,6 +125,7 @@ def finetune(args):
                                   state_dict=states,
                                   load_from_pretrained=True,
                                   weight=weights,
+                                  clf_reduce=args.clf_reduce,
                                   value_guided=args.value_guided)
     fit_model.to(device)
 
@@ -173,7 +175,7 @@ def finetune(args):
         # tracking value_guided parameters
 
         if args.value_guided != 'plain':
-            training.write_g_histograms(epoch)  # TODO add method to methods.FinetuningMethods
+            training.write_g_histograms(epoch)
 
         # tracking model classification metrics for val set
 

@@ -63,19 +63,17 @@ class TrainingMethods:
     @torch.no_grad()
     def write_g_histograms(self, step):
         self.model.eval()
-        to_g_weights = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.weight.detach() \
+        to_g_weights = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.weight.detach()
                                   for i in range(self.depth)], dim=1)
         self.writer.add_histogram('to_g_weights', to_g_weights, step)
 
         if self.model.net.attn_layers.value_guided in ['vg1.1', 'vg1.3']:
-            to_g_biases = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.bias.detach() \
+            to_g_biases = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.bias.detach()
                                      for i in range(self.depth)], dim=-1)
             self.writer.add_histogram('to_g_biases', to_g_biases, step)
-        else:
-            pass
 
 
-class FinetuningMethods:  # NOTE: FineTuning and Training are largely equal except for the '*' in self.model and predict
+class FinetuningMethods:
     def __init__(self, model, writer):
         self.model = model
         clip_value = 0.5
@@ -89,7 +87,7 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are largely equal exce
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
                               mininterval=0.5, desc=f'epoch {epoch} training'):
             loss = self.model(X)
-            loss.backward()  # TODO: experiment - should this be accumulated only
+            loss.backward()  # TODO: experiment with multi-batch grad accumulation
             batch_loss = loss.item()
             optimizer.step()
             optimizer.zero_grad()
@@ -120,7 +118,9 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are largely equal exce
         self.model.eval()
         y_score = torch.tensor([]).to(device)
         y_true = torch.tensor([]).to(device)
-        for i, X in enumerate(data_loader):
+        for i, X in tqdm.tqdm(enumerate(data_loader), total=len(data_loader),
+                              mininterval=0.5, desc=f'epoch {epoch} prediction'
+                              ):
             labels = X[-1]
             y_true = torch.cat((y_true, labels))
             logits = self.model(X, predict=True)
@@ -137,7 +137,6 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are largely equal exce
         self.writer.add_scalar(prefix + '/roc_auc', roc_auc, epoch)
         self.writer.add_pr_curve(prefix + '/pr_curve', y_true, y_score[:, 1], epoch)
         print(f'epoch {prefix}/roc_auc = {roc_auc}, {prefix}/bal_acc = {bal_acc}, {prefix}/acc = {acc}')
-
         return y_score, y_true
 
     @torch.no_grad()
@@ -159,13 +158,11 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are largely equal exce
     @torch.no_grad()
     def write_g_histograms(self, step):
         self.model.eval()
-        to_g_weights = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.weight.detach() \
+        to_g_weights = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.weight.detach()
                                   for i in range(self.depth)], dim=1)
         self.writer.add_histogram('to_g_weights', to_g_weights, step)
 
         if self.model.net.attn_layers.value_guided in ['vg1.1', 'vg1.3']:
-            to_g_biases = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.bias.detach() \
+            to_g_biases = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.bias.detach()
                                      for i in range(self.depth)], dim=-1)
             self.writer.add_histogram('to_g_biases', to_g_biases, step)
-        else:
-            pass
