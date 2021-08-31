@@ -1,6 +1,7 @@
 import sys
 import pandas as pd
 from pprint import pprint
+from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 import methods
@@ -104,7 +105,7 @@ def pretrain(args):
 
     best_val_loss = np.inf
     for epoch in range(args.num_epochs):
-        ________ = training.train(train_loader, optimizer, epoch)
+        training.train(train_loader, optimizer, epoch)
         val_loss = training.evaluate(val_loader, epoch)
 
         if val_loss < best_val_loss:

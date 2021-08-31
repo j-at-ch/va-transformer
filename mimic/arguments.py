@@ -67,6 +67,7 @@ class Arguments:
             self.parser.add_argument('--label_set', type=str, required=True)
             self.parser.add_argument('--pretrained_model', type=str, required=True)
             self.parser.add_argument('--weighted_loss', type=int, default=1)
+            self.parser.add_argument('--clf_reduce', type=str, default='flatten')
 
     def parse(self, verbose=False):
         self.initialise()

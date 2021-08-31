@@ -3,7 +3,7 @@ import pickle
 import torch
 import os
 
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
 
 
 class ClsSamplerDataset(Dataset):
@@ -37,7 +37,14 @@ class ClsSamplerDataset(Dataset):
 
 
 class VgSamplerDataset(Dataset):
-    def __init__(self, tokens, seq_len, device, quantiles=None, labels=None):
+    def __init__(self,
+                 tokens,
+                 seq_len,
+                 device,
+                 quantiles=None,
+                 labels=None,
+                 token_pad_value=0,
+                 quantile_pad_value=6):
         super().__init__()
         self.tokens = tokens
         self.quantiles = quantiles
@@ -45,18 +52,20 @@ class VgSamplerDataset(Dataset):
         self.device = device
         self.seq_len = seq_len
         self.lookup = dict(zip(np.arange(len(self.tokens)), self.tokens.keys()))
+        self.token_pad_value = token_pad_value
+        self.quantile_pad_value = quantile_pad_value
 
     def __getitem__(self, key):
         index = self.lookup[key]
         item_len = self.tokens[index].size(0)
         rand_start = torch.randint(0, item_len - self.seq_len, (1,)) if item_len > self.seq_len else 0
         len_from_seq = min(item_len, self.seq_len)
-        sample = torch.zeros(self.seq_len)
+        sample = self.token_pad_value * torch.ones(self.seq_len)
         sample[:len_from_seq] = self.tokens[index][rand_start: rand_start + len_from_seq]
         sample = sample.long().to(self.device)
 
         if self.quantiles is not None:
-            quantiles = torch.zeros(self.seq_len)
+            quantiles = self.quantile_pad_value * torch.ones(self.seq_len)
             quantiles[:len_from_seq] = self.quantiles[index][rand_start: rand_start + len_from_seq]
             quantiles = quantiles.long().to(self.device)
 
@@ -67,7 +76,7 @@ class VgSamplerDataset(Dataset):
         if (self.quantiles is None) & (self.labels is None):
             return sample
         elif (self.quantiles is not None) & (self.labels is None):
-            return sample, quantiles  # TODO: check PEP for return shape consistency
+            return sample, quantiles
         elif (self.quantiles is None) & (self.labels is not None):
             return sample, labels
         else:
