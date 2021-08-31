@@ -34,13 +34,10 @@ class FinetuningWrapper(nn.Module):  # TODO: if loading from pretrained, then we
 
     def forward(self, x, predict=False, **kwargs):
         if self.value_guided == 'plain':
-            targets = x[1]
-            x = x[0]
+            x, targets = x
             out = self.net(x, return_embeddings=True, **kwargs)
         else:
-            targets = x[2]
-            quantiles = x[1]
-            x = x[0]
+            x, quantiles, targets = x
             out = self.net(x, quantiles=quantiles, return_embeddings=True, **kwargs)
         out = torch.flatten(out, start_dim=1)
         #Z = torch.flatten(Z[:, 0, :], start_dim=1)

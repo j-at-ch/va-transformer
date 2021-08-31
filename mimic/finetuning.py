@@ -84,8 +84,6 @@ def finetune(args):
         train_loader = [X for i, X in enumerate(train_loader) if i < 2]
         val_loader = [X for i, X in enumerate(val_loader) if i < 2]
 
-    print('*'*100)
-
     # unconditional label propensities
 
     def propensity_from(targets_dict):
@@ -152,7 +150,7 @@ def finetune(args):
 
     best_val_loss = np.inf
     for epoch in range(args.num_epochs):
-        ________ = training.train(train_loader, optimizer, epoch)
+        training.train(train_loader, optimizer, epoch)
         val_loss = training.evaluate(val_loader, epoch)
 
         # whether to checkpoint model
@@ -160,7 +158,7 @@ def finetune(args):
         if val_loss < best_val_loss:
             print("Saving checkpoint...")
             torch.save({
-                'train_epoch': epoch,
+                'epoch': epoch,
                 'val_loss': val_loss,
                 'args': vars(args),
                 'model_state_dict': fit_model.state_dict(),
@@ -184,8 +182,8 @@ def finetune(args):
 
         # tracking model classification metrics for val set
 
-        ________ = training.predict(train_loader, epoch, device, prefix="train")
-        ________ = training.predict(val_loader, epoch, device, prefix="val")
+        training.predict(train_loader, epoch, device, prefix="train")
+        training.predict(val_loader, epoch, device, prefix="val")
 
         # flushing writer
 
