@@ -67,11 +67,6 @@ def finetune(args):
         quantiles_train = fetch_data_as_torch(train_path, 'train_quantiles')
         quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
 
-    #ft_train_dataset = ClsSamplerDataset(data_train, args.seq_len, device, labels=train_targets)
-    #ft_val_dataset = ClsSamplerDataset(data_val, args.seq_len, device, labels=val_targets)
-    #ft_train_loader = DataLoader(ft_train_dataset, batch_size=args.ft_batch_size, shuffle=True)
-    #ft_val_loader = DataLoader(ft_val_dataset, batch_size=args.ft_batch_size, shuffle=True)
-
     train_dataset = VgSamplerDataset(data_train, args.seq_len, device, quantiles=quantiles_train, labels=train_targets)
     val_dataset = VgSamplerDataset(data_val, args.seq_len, device, quantiles=quantiles_val, labels=val_targets)
 
@@ -187,7 +182,7 @@ def finetune(args):
 
         # flushing writer
 
-        print(f'epoch {epoch} completed!')
+        print(f'epoch {epoch} completed!', '\n')
         print('flushing writer...')
         writer.flush()
 

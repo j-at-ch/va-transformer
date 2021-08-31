@@ -89,7 +89,7 @@ class FinetuningMethods:  # NOTE: FineTuning and Training are largely equal exce
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
                               mininterval=0.5, desc=f'epoch {epoch} training'):
             loss = self.model(X)
-            loss.backward()
+            loss.backward()  # TODO: experiment - should this be accumulated only
             batch_loss = loss.item()
             optimizer.step()
             optimizer.zero_grad()
