@@ -67,7 +67,7 @@ class TrainingMethods:
                                   for i in range(self.depth)], dim=1)
         self.writer.add_histogram('to_g_weights', to_g_weights, step)
 
-        if self.model.net.attn_layers.value_guided in ['vg1.1', 'vg1.3']:
+        if self.model.net.attn_layers.value_guided in ['vg1.1', 'vg1.3', 'vg1.4']:
             to_g_biases = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.bias.detach()
                                      for i in range(self.depth)], dim=-1)
             self.writer.add_histogram('to_g_biases', to_g_biases, step)
@@ -162,7 +162,7 @@ class FinetuningMethods:
                                   for i in range(self.depth)], dim=1)
         self.writer.add_histogram('to_g_weights', to_g_weights, step)
 
-        if self.model.net.attn_layers.value_guided in ['vg1.1', 'vg1.3']:
+        if self.model.net.attn_layers.value_guided in ['vg1.1', 'vg1.3', 'vg1.4']:
             to_g_biases = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.bias.detach()
                                      for i in range(self.depth)], dim=-1)
             self.writer.add_histogram('to_g_biases', to_g_biases, step)

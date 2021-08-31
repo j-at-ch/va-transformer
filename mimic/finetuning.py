@@ -68,8 +68,12 @@ def finetune(args):
         quantiles_train = fetch_data_as_torch(train_path, 'train_quantiles')
         quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
 
-    train_dataset = VgSamplerDataset(data_train, args.seq_len, device, quantiles=quantiles_train, labels=train_targets)
-    val_dataset = VgSamplerDataset(data_val, args.seq_len, device, quantiles=quantiles_val, labels=val_targets)
+    train_dataset = VgSamplerDataset(data_train, args.seq_len, device,
+                                     quantiles=quantiles_train, labels=train_targets,
+                                     quantile_pad_value=args.quantile_pad_value)
+    val_dataset = VgSamplerDataset(data_val, args.seq_len, device,
+                                   quantiles=quantiles_val, labels=val_targets,
+                                   quantile_pad_value=args.quantile_pad_value)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)

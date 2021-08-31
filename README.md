@@ -97,3 +97,12 @@ you can add pip to your conda venv. Then install entmax into venv directly via p
 `conda install --file requirements.txt`
 
 `anaconda3/envs/<chart-env>/bin/pip install entmax`
+
+
+### Models
+
+vg1
+vg1.1
+vg1.2
+vg1.3
+vg1.4 only difference from vg1.3 is --quantile_pad_token set to 5 so that it is separate from others. 

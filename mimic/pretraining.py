@@ -55,8 +55,10 @@ def pretrain(args):
 
     # load data for pretraining based on arguments
 
-    train_dataset = VgSamplerDataset(data_train, args.seq_len, device, quantiles=quantiles_train)
-    val_dataset = VgSamplerDataset(data_val, args.seq_len, device, quantiles=quantiles_val)
+    train_dataset = VgSamplerDataset(data_train, args.seq_len, device,
+                                     quantiles=quantiles_train, quantile_pad_value=args.quantile_pad_value)
+    val_dataset = VgSamplerDataset(data_val, args.seq_len, device,
+                                   quantiles=quantiles_val, quantile_pad_value=args.quantile_pad_value)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)

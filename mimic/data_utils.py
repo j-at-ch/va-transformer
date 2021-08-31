@@ -44,7 +44,7 @@ class VgSamplerDataset(Dataset):
                  quantiles=None,
                  labels=None,
                  token_pad_value=0,
-                 quantile_pad_value=6):
+                 quantile_pad_value=-1):
         super().__init__()
         self.tokens = tokens
         self.quantiles = quantiles
