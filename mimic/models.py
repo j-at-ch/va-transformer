@@ -36,7 +36,7 @@ class FinetuningWrapper(nn.Module):  # TODO: if loading from pretrained, then we
         elif clf_reduce == 'sum':
             num_features = net.to_logits.in_features
         else:
-            raise
+            raise Exception(f"clf_reduce option {clf_reduce} is not implemented!")
         del self.net.to_logits
 
         self.clf = nn.Linear(num_features, num_classes, bias=True)

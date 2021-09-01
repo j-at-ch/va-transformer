@@ -1,6 +1,7 @@
 # The code below relies heavily on the great work from lucidrains in the x_transformers repo:
 #       https://github.com/lucidrains/x-transformers/blob/main/x_transformers
 
+import sys
 import math
 import torch
 from torch import nn, einsum
@@ -316,8 +317,9 @@ class Attention(nn.Module):
             self,
             dim,
             dim_head=DEFAULT_DIM_HEAD,
+            dim_guides=10,  # dev
             heads=8,
-            value_guided='plain',
+            value_guided='plain',  # dev
             causal=False,
             mask=None,
             talking_heads=False,
@@ -335,7 +337,8 @@ class Attention(nn.Module):
         self.heads = heads
         self.causal = causal
         self.mask = mask
-        self.value_guided = value_guided
+        self.value_guided = value_guided  # dev
+        self.guide_scale = dim_guides ** -0.5  # dev
 
         qk_dim = v_dim = heads * dim_head  # stacking heads together
 
@@ -349,7 +352,7 @@ class Attention(nn.Module):
         self.to_k = nn.Linear(dim, qk_dim, bias=False)
         self.to_v = nn.Linear(dim, v_dim, bias=False)
 
-        # DEV
+        # dev value-guided heads
         if self.value_guided == 'vg1':
             g_dim = heads * 1
             self.to_g = nn.Linear(1, g_dim, bias=False)
@@ -364,7 +367,14 @@ class Attention(nn.Module):
             self.to_g = nn.Linear(6, g_dim, bias=True)  # input is one-hot of a 6-value categorical.
         elif self.value_guided == 'vg1.4':
             g_dim = heads * 1
-            self.to_g = nn.Linear(7, g_dim, bias=True)
+            self.to_g = nn.Linear(7, g_dim, bias=True)  # input is one-hot of a 7-value categorical.
+        elif self.value_guided == 'vg2':  # assumes quantile input is one-hot of a 7 value categorical.
+            g_dim = heads * dim_guides
+            self.to_gk = nn.Linear(7, g_dim, bias=False)
+            self.to_gq = nn.Linear(7, g_dim, bias=False)
+            self.to_g_out = nn.Linear(g_dim, 7)
+        else:
+            pass
 
         self.dropout = nn.Dropout(dropout)
 
@@ -400,7 +410,7 @@ class Attention(nn.Module):
     def forward(
             self,
             x,
-            quantiles=None,  # DEV
+            quantiles=None,  # dev value-guided
             context=None,
             mask=None,
             context_mask=None,
@@ -474,21 +484,26 @@ class Attention(nn.Module):
 
         pre_softmax_attn = dots.clone()
 
-        # DEV
+        # dev value_guided
         if self.value_guided == 'plain':
             pass
         elif self.value_guided in ['vg1', 'vg1.1']:
-            g_input = torch.unsqueeze(quantiles.to(torch.float), -1)  # need to add dimension to quantiles for to_g
+            g_input = quantiles
             g = self.to_g(g_input)
             g = rearrange(g, 'b n (h d) -> b h n d', h=h)
             dots = einsum('b h i k, b h j k -> b h i j', dots, g)
         elif self.value_guided in ['vg1.2', 'vg1.3', 'vg1.4']:
-            g_input = torch.unsqueeze(quantiles, -1)  # need to add dimension to quantiles for to_g
-            g_input = F.one_hot(g_input + 1)  # need +1 to make sentinel values (coded -1) non-negative.
-            g_input = g_input.to(torch.float)
+            g_input = quantiles
             g = self.to_g(g_input)
-            g = rearrange(g, 'b n d h -> b h n d', h=h)  # TODO: double check
+            g = rearrange(g, 'b n d h -> b h n d', h=h)
             dots = einsum('b h i k, b h j k -> b h i j', dots, g)
+        elif self.value_guided in ['vg2']:
+            gk_input = gq_input = quantiles
+            gk = self.to_gk(gk_input)
+            gq = self.to_gq(gq_input)
+            gq, gk = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), (gq, gk))
+            guide_dots = einsum('b h i d, b h j d -> b h i j', gq, gk) * self.guide_scale
+            dots = dots * guide_dots
         else:
             raise AssertionError('value-guided mechanism has not been implemented!')
 
@@ -508,6 +523,8 @@ class Attention(nn.Module):
             mask = rearrange(r, 'i -> () () i ()') < rearrange(r, 'j -> () () () j')
             mask = F.pad(mask, (j - i, 0), value=False)  # fit mask to correct shape. only necc if q.shape != k.shape
             dots.masked_fill_(mask, mask_value)
+            if self.value_guided in ['vg2']:
+                guide_dots.masked_fill_(mask, mask_value)  # dev
             del mask
 
         if exists(self.sparse_topk) and self.sparse_topk < dots.shape[-1]:
@@ -522,9 +539,14 @@ class Attention(nn.Module):
 
         attn = self.dropout(attn)
 
+        if self.value_guided in ['vg2']:
+            g_attn = self.attn_fn(guide_dots, dim=-1)  # specify attention non-linearity
+            g_attn = self.dropout(g_attn)
+
         if talking_heads:
             attn = einsum('b h i j, h k -> b k i j', attn, self.post_softmax_proj).contiguous()
 
+        print(attn.shape, v.shape)
         out = einsum('b h i j, b h j d -> b h i d', attn, v)  # use attn weights with values
         out = rearrange(out, 'b h n d -> b n (h d)')  # collapse output of all heads and dim again.
 
@@ -537,10 +559,15 @@ class Attention(nn.Module):
             post_softmax_attn=post_softmax_attn
         )
 
+        if self.value_guided in ['vg2']:  # TODO currently here!!
+            g_out = einsum('b h i j, h b j d -> b h i d', g_attn, quantiles.repeat(h, 1, 1, 1))
+            g_out = rearrange(g_out, 'b h n d -> b n (h d)')
+            return self.to_out(out), intermediates, self.to_g_out(g_out)
+
         return self.to_out(out), intermediates
 
 
-class AttentionLayers(nn.Module):
+class AttentionLayers(nn.Module):  # TODO:
     def __init__(
             self,
             dim,
@@ -697,8 +724,14 @@ class AttentionLayers(nn.Module):
                 x = norm(x)
 
             if layer_type == 'a':
-                out, inter = block(x, quantiles=quantiles, mask=mask, sinusoidal_emb=self.pia_pos_emb, rel_pos=self.rel_pos,
-                                   rotary_pos_emb=rotary_pos_emb, prev_attn=prev_attn, mem=layer_mem)
+                out, inter = block(x,
+                                   quantiles=quantiles,
+                                   mask=mask,
+                                   sinusoidal_emb=self.pia_pos_emb,
+                                   rel_pos=self.rel_pos,
+                                   rotary_pos_emb=rotary_pos_emb,
+                                   prev_attn=prev_attn,
+                                   mem=layer_mem)
             elif layer_type == 'c':
                 out, inter = block(x, context=context, mask=mask, context_mask=context_mask, prev_attn=prev_cross_attn)
             elif layer_type == 'f':
@@ -767,6 +800,7 @@ class TransformerWrapper(nn.Module):
 
         self.max_seq_len = max_seq_len
         self.max_mem_len = max_mem_len
+        self.value_guided = attn_layers.value_guided
 
         self.token_emb = nn.Embedding(num_tokens, emb_dim)
         self.pos_emb = AbsolutePositionalEmbedding(emb_dim, max_seq_len) \
@@ -796,7 +830,8 @@ class TransformerWrapper(nn.Module):
 
     def forward(
             self,
-            x, quantiles=None,  # DEV
+            x,
+            quantiles=None,  # dev value-guided
             return_embeddings=False,
             mask=None,
             return_mems=False,
@@ -808,8 +843,18 @@ class TransformerWrapper(nn.Module):
         x = self.token_emb(x)
         x = x + self.pos_emb(x)
         x = self.emb_dropout(x)
-
         x = self.project_emb(x)
+
+        # dev value-guided
+        if self.value_guided in ['vg1', 'vg1.1']:
+            quantiles = torch.unsqueeze(quantiles.to(torch.float), -1)  # need to add dimension to quantiles for to_g
+        elif self.value_guided in ['vg1.2', 'vg1.3', 'vg1.4']:
+            quantiles = torch.unsqueeze(quantiles, -1)  # need to add dimension to quantiles for to_g
+            quantiles = F.one_hot(quantiles + 1)  # need +1 to make sentinel values (coded -1) non-negative.
+            quantiles = quantiles.to(torch.float)
+        elif self.value_guided in ['vg2']:
+            quantiles = F.one_hot(quantiles + 1)  # need +1 to make sentinel values (coded -1) non-negative.
+            quantiles = quantiles.to(torch.float)
 
         if num_mem > 0:
             mem = repeat(self.memory_tokens, 'n d -> b n d', b=b)
@@ -819,9 +864,12 @@ class TransformerWrapper(nn.Module):
             if exists(mask):
                 mask = F.pad(mask, (num_mem, 0), value=True)
 
-        x, intermediates = self.attn_layers(x, quantiles=quantiles,
-                                            mask=mask, mems=mems,
-                                            return_hiddens=True, **kwargs)  # DEV
+        x, intermediates = self.attn_layers(x,
+                                            quantiles=quantiles,  # dev value-guided
+                                            mask=mask,
+                                            mems=mems,
+                                            return_hiddens=True,
+                                            **kwargs)
         x = self.norm(x)
 
         mem, x = x[:, :num_mem], x[:, num_mem:]
@@ -837,5 +885,7 @@ class TransformerWrapper(nn.Module):
         if return_attn:
             attn_maps = list(map(lambda t: t.post_softmax_attn, intermediates.attn_intermediates))
             return out, attn_maps
+
+        # dev: include `if value_guided: ` return out, quantiles
 
         return out

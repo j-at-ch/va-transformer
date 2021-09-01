@@ -27,7 +27,9 @@ class Arguments:
         # use quantile-guided
 
         self.parser.add_argument('--value_guided', type=str,
-                                 choices=['plain', 'vg1', 'vg1.1', 'vg1.2', 'vg1.3', 'vg1.4'])
+                                 choices=['plain',
+                                          'vg1', 'vg1.1', 'vg1.2', 'vg1.3', 'vg1.4',
+                                          'vg2'])
 
         # pretraining constants
 
@@ -51,7 +53,7 @@ class Arguments:
 
         # general arguments
 
-        self.parser.add_argument('--model_name', type=str, default='test_experiment')
+        self.parser.add_argument('--model_name', type=str, default=f'{self.mode}_test')
         self.parser.add_argument('--writer_flush_secs', type=int, default=120)
         self.parser.add_argument('--write_best_val_embeddings', type=int, default=0)
         self.parser.add_argument('--write_initial_embeddings', type=int, default=0)
@@ -98,3 +100,25 @@ class PreprocessingArguments:
         self.arguments = self.parser.parse_args()
         if verbose: pprint(vars(self.arguments), indent=4)
         return self.arguments
+
+
+class BaselineArguments:
+    def __init__(self):
+        self.parser = argparse.ArgumentParser(description='preprocessor')
+        self.arguments = None
+
+    def initialise(self):
+
+        # data roots
+
+        self.parser.add_argument('--mimic_root', type=str)
+        self.parser.set_defaults(mimic_root='/home/james/Documents/Charters/mimic-iii-clinical-database-1.4')
+        self.parser.add_argument('--save_root', type=str)
+        self.parser.set_defaults(save_root='/home/james/Documents/Charters/preprocessing_output')
+
+    def parse(self, verbose=False):
+        self.initialise()
+        self.arguments = self.parser.parse_args()
+        if verbose: pprint(vars(self.arguments), indent=4)
+        return self.arguments
+
