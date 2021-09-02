@@ -128,7 +128,7 @@ def pretrain(args):
             print("Checkpoint saved!\n")
             best_val_loss = val_loss
 
-        if args.value_guided != 'plain':
+        if args.value_guided[0:4] in ['vg1.']:
             training.write_g_histograms(epoch)
 
         print(f'epoch {epoch} completed!')

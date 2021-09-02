@@ -370,9 +370,10 @@ class Attention(nn.Module):
             self.to_g = nn.Linear(7, g_dim, bias=True)  # input is one-hot of a 7-value categorical.
         elif self.value_guided == 'vg2':  # assumes quantile input is one-hot of a 7 value categorical.
             g_dim = heads * dim_guides
+            go_dim = heads * 7
             self.to_gk = nn.Linear(7, g_dim, bias=False)
             self.to_gq = nn.Linear(7, g_dim, bias=False)
-            self.to_g_out = nn.Linear(g_dim, 7)
+            self.to_g_out = nn.Linear(go_dim, 7)
         else:
             pass
 
@@ -503,7 +504,7 @@ class Attention(nn.Module):
             gq = self.to_gq(gq_input)
             gq, gk = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), (gq, gk))
             guide_dots = einsum('b h i d, b h j d -> b h i j', gq, gk) * self.guide_scale
-            dots = dots * guide_dots
+            #dots = torch.einsum('b h i j, b h i j -> b h i j', dots, guide_dots)  # TODO: gradient issue here!
         else:
             raise AssertionError('value-guided mechanism has not been implemented!')
 
@@ -546,7 +547,6 @@ class Attention(nn.Module):
         if talking_heads:
             attn = einsum('b h i j, h k -> b k i j', attn, self.post_softmax_proj).contiguous()
 
-        print(attn.shape, v.shape)
         out = einsum('b h i j, b h j d -> b h i d', attn, v)  # use attn weights with values
         out = rearrange(out, 'b h n d -> b n (h d)')  # collapse output of all heads and dim again.
 
@@ -559,15 +559,16 @@ class Attention(nn.Module):
             post_softmax_attn=post_softmax_attn
         )
 
-        if self.value_guided in ['vg2']:  # TODO currently here!!
-            g_out = einsum('b h i j, h b j d -> b h i d', g_attn, quantiles.repeat(h, 1, 1, 1))
+        if self.value_guided in ['vg2']:
+            quantiles = torch.unsqueeze(quantiles, 1).repeat(1, h, 1, 1)
+            g_out = einsum('b h i j, b h j d -> b h i d', g_attn, quantiles)
             g_out = rearrange(g_out, 'b h n d -> b n (h d)')
             return self.to_out(out), intermediates, self.to_g_out(g_out)
 
         return self.to_out(out), intermediates
 
 
-class AttentionLayers(nn.Module):  # TODO:
+class AttentionLayers(nn.Module):  # TODO: currently here!!
     def __init__(
             self,
             dim,
@@ -690,7 +691,8 @@ class AttentionLayers(nn.Module):  # TODO:
 
     def forward(
             self,
-            x, quantiles=None,  # DEV
+            x,
+            quantiles=None,  # dev
             context=None,
             mask=None,
             context_mask=None,
@@ -711,8 +713,8 @@ class AttentionLayers(nn.Module):  # TODO:
             max_rotary_emb_length = max(list(map(lambda m: (m.shape[1] if exists(m) else 0) + x.shape[1], mems)))
             rotary_pos_emb = self.rotary_pos_emb(max_rotary_emb_length, x.device)
 
-        for ind, (layer_type, (norm, block, residual_fn)) in enumerate(zip(self.layer_types, self.layers)):
-            is_last = ind == (len(self.layers) - 1)
+        for i, (layer_type, (norm, block, residual_fn)) in enumerate(zip(self.layer_types, self.layers)):
+            is_last = i == (len(self.layers) - 1)
 
             if layer_type == 'a':
                 hiddens.append(x)
@@ -723,21 +725,39 @@ class AttentionLayers(nn.Module):  # TODO:
             if self.pre_norm:
                 x = norm(x)
 
-            if layer_type == 'a':
-                out, inter = block(x,
-                                   quantiles=quantiles,
-                                   mask=mask,
-                                   sinusoidal_emb=self.pia_pos_emb,
-                                   rel_pos=self.rel_pos,
-                                   rotary_pos_emb=rotary_pos_emb,
-                                   prev_attn=prev_attn,
-                                   mem=layer_mem)
+            if self.value_guided == 'vg2':
+                g_residual = quantiles
+                #if self.pre_norm:
+                #    quantiles = partial(nn.LayerNorm, 7)()(quantiles)  # dev: how to correctly pass gradients here?
+                #    #quantiles = self.q_norm_fn()(quantiles)
+
+            if layer_type == 'a':  # dev extra clause
+                if self.value_guided == 'vg2':
+                    out, inter, g_out = block(x,
+                                              quantiles=quantiles,
+                                              mask=mask,
+                                              sinusoidal_emb=self.pia_pos_emb,
+                                              rel_pos=self.rel_pos,
+                                              rotary_pos_emb=rotary_pos_emb,
+                                              prev_attn=prev_attn,
+                                              mem=layer_mem)
+                else:
+                    out, inter = block(x,
+                                       quantiles=quantiles,
+                                       mask=mask,
+                                       sinusoidal_emb=self.pia_pos_emb,
+                                       rel_pos=self.rel_pos,
+                                       rotary_pos_emb=rotary_pos_emb,
+                                       prev_attn=prev_attn,
+                                       mem=layer_mem)
             elif layer_type == 'c':
                 out, inter = block(x, context=context, mask=mask, context_mask=context_mask, prev_attn=prev_cross_attn)
             elif layer_type == 'f':
                 out = block(x)
 
             x = residual_fn(out, residual)
+            if self.value_guided == 'vg2':
+                quantiles = residual_fn(g_out, g_residual)
 
             if layer_type in ('a', 'c'):
                 intermediates.append(inter)
@@ -750,12 +770,20 @@ class AttentionLayers(nn.Module):  # TODO:
             if not self.pre_norm and not is_last:
                 x = norm(x)
 
+        if self.value_guided == 'vg2':  # dev: compound return
+            if return_hiddens:
+                intermediates = LayerIntermediates(
+                    hiddens=hiddens,
+                    attn_intermediates=intermediates
+                )
+                return x, intermediates, quantiles
+            return x, quantiles
+
         if return_hiddens:
             intermediates = LayerIntermediates(
                 hiddens=hiddens,
                 attn_intermediates=intermediates
             )
-
             return x, intermediates
 
         return x
@@ -810,10 +838,12 @@ class TransformerWrapper(nn.Module):
         self.project_emb = nn.Linear(emb_dim, dim) if emb_dim != dim else nn.Identity()
         self.attn_layers = attn_layers
         self.norm = nn.LayerNorm(dim)
+        self.qnorm = nn.LayerNorm(7)
 
         self.init_()
 
         self.to_logits = nn.Linear(dim, num_tokens) if not tie_embedding else lambda t: t @ self.token_emb.weight.t()
+        self.to_qlogits = nn.Linear(7, 7)
 
         # memory tokens (like [cls]) from Memory Transformers paper
         num_memory_tokens = default(num_memory_tokens, 0)
@@ -864,12 +894,21 @@ class TransformerWrapper(nn.Module):
             if exists(mask):
                 mask = F.pad(mask, (num_mem, 0), value=True)
 
-        x, intermediates = self.attn_layers(x,
-                                            quantiles=quantiles,  # dev value-guided
-                                            mask=mask,
-                                            mems=mems,
-                                            return_hiddens=True,
-                                            **kwargs)
+        if self.value_guided == 'vg2':
+            x, intermediates, quantiles = self.attn_layers(x,
+                                                           quantiles=quantiles,  # dev value-guided
+                                                           mask=mask,
+                                                           mems=mems,
+                                                           return_hiddens=True,
+                                                           **kwargs)
+        else:
+            x, intermediates = self.attn_layers(x,
+                                                quantiles=quantiles,  # dev value-guided
+                                                mask=mask,
+                                                mems=mems,
+                                                return_hiddens=True,
+                                                **kwargs)
+
         x = self.norm(x)
 
         mem, x = x[:, :num_mem], x[:, num_mem:]
@@ -886,6 +925,9 @@ class TransformerWrapper(nn.Module):
             attn_maps = list(map(lambda t: t.post_softmax_attn, intermediates.attn_intermediates))
             return out, attn_maps
 
-        # dev: include `if value_guided: ` return out, quantiles
+        if self.value_guided == 'vg2':
+            quantiles = self.qnorm(quantiles)
+            quantiles_out = self.to_qlogits(quantiles) if not return_embeddings else quantiles
+            return out, quantiles_out
 
         return out
