@@ -504,7 +504,7 @@ class Attention(nn.Module):
             gq = self.to_gq(gq_input)
             gq, gk = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), (gq, gk))
             guide_dots = einsum('b h i d, b h j d -> b h i j', gq, gk) * self.guide_scale
-            #dots = torch.einsum('b h i j, b h i j -> b h i j', dots, guide_dots)  # TODO: gradient issue here!
+            dots = torch.einsum('b h i j, b h i j -> b h i j', dots, guide_dots.clone())  # TODO: is this the CORRECT solution to the grad problem?
         else:
             raise AssertionError('value-guided mechanism has not been implemented!')
 
@@ -568,7 +568,7 @@ class Attention(nn.Module):
         return self.to_out(out), intermediates
 
 
-class AttentionLayers(nn.Module):  # TODO: currently here!!
+class AttentionLayers(nn.Module):
     def __init__(
             self,
             dim,
@@ -727,9 +727,8 @@ class AttentionLayers(nn.Module):  # TODO: currently here!!
 
             if self.value_guided == 'vg2':
                 g_residual = quantiles
-                #if self.pre_norm:
-                #    quantiles = partial(nn.LayerNorm, 7)()(quantiles)  # dev: how to correctly pass gradients here?
-                #    #quantiles = self.q_norm_fn()(quantiles)
+                if self.pre_norm:
+                    quantiles = F.layer_norm(quantiles, quantiles.shape)
 
             if layer_type == 'a':  # dev extra clause
                 if self.value_guided == 'vg2':
