@@ -29,7 +29,7 @@ class Arguments:
         self.parser.add_argument('--value_guided', type=str,
                                  choices=['plain',
                                           'vg1', 'vg1.1', 'vg1.2', 'vg1.3', 'vg1.4',
-                                          'vg2'])
+                                          'vg2', 'vg2.1'])
 
         # pretraining constants
 
@@ -63,7 +63,7 @@ class Arguments:
         self.parser.add_argument('--scheduler_decay', type=float, default=1)
         self.parser.add_argument('--test_run', type=int, default=0)
         self.parser.add_argument('--token_pad_value', type=int, default=0)
-        self.parser.add_argument('--quantile_pad_value', type=int, default=-1)
+        self.parser.add_argument('--quantile_pad_value', type=int, default=5)
         self.parser.add_argument('--ignore_index', type=int, default=-100)
         self.parser.add_argument('--ignore_quantile_index', type=int, default=-100)
 

@@ -14,8 +14,7 @@ class TrainingMethods:
 
     def train(self, train_loader, optimizer, epoch):
         self.model.train()
-        cum_loss = 0
-        cum_token_loss = 0
+        cum_loss = cum_token_loss = cum_quantile_loss = 0
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
                               mininterval=0.5, desc=f'epoch {epoch} training'):
             if self.model.value_guided[0:3] == 'vg2':
@@ -23,9 +22,8 @@ class TrainingMethods:
                 loss = token_loss + quantile_loss
                 batch_loss, token_loss, quantile_loss = loss.item(), token_loss.item(), quantile_loss.item()
                 self.writer.add_scalar('batch_loss/train', batch_loss, epoch * len(train_loader) + i)
-                self.writer.add_scalar('token_loss/train', token_loss, epoch * len(train_loader) + i)
-                self.writer.add_scalar('quantile_loss/train', quantile_loss, epoch * len(train_loader) + i)
                 cum_token_loss += token_loss
+                cum_quantile_loss += quantile_loss
             else:
                 loss = self.model(X)
                 batch_loss = loss.item()
@@ -38,9 +36,11 @@ class TrainingMethods:
 
         epoch_loss = cum_loss / len(train_loader)
         epoch_token_loss = cum_token_loss / len(train_loader)
-        self.writer.add_scalar('epoch_token_loss/train', epoch_token_loss, epoch)
+        epoch_quantile_loss = cum_quantile_loss / len(train_loader)
         self.writer.add_scalar('epoch_loss/train', epoch_loss, epoch)
-        print(f'epoch avg train loss: {epoch_loss}')
+        self.writer.add_scalar('epoch_token_loss/train', epoch_token_loss, epoch)
+        self.writer.add_scalar('epoch_quantile_loss/train', epoch_quantile_loss, epoch)
+        print(f'epoch avg train loss: {epoch_loss}, token/quantile loss: {epoch_token_loss}/{epoch_quantile_loss}')
         return epoch_loss
 
     @torch.no_grad()

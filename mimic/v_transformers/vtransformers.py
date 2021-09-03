@@ -368,8 +368,8 @@ class Attention(nn.Module):
         elif self.value_guided == 'vg1.4':
             g_dim = heads * 1
             self.to_g = nn.Linear(7, g_dim, bias=True)  # input is one-hot of a 7-value categorical.
-        elif self.value_guided[0:3] == 'vg2':  # assumes quantile input is one-hot of a 7 value categorical.
-            g_dim = heads * dim_guides
+        elif self.value_guided[0:3] == 'vg2':  # assumes quantile input is one-hot of a 7 value categorical
+            g_dim = heads * dim_guides  # todo: neaten
             go_dim = heads * 7
             self.to_gk = nn.Linear(7, g_dim, bias=False)
             self.to_gq = nn.Linear(7, g_dim, bias=False)
@@ -498,13 +498,22 @@ class Attention(nn.Module):
             g = self.to_g(g_input)
             g = rearrange(g, 'b n d h -> b h n d', h=h)
             dots = einsum('b h i k, b h j k -> b h i j', dots, g)
-        elif self.value_guided[0:3] == 'vg2':
+        elif self.value_guided == 'vg2':
             gk_input = gq_input = quantiles
             gk = self.to_gk(gk_input)
             gq = self.to_gq(gq_input)
             gq, gk = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), (gq, gk))
             guide_dots = einsum('b h i d, b h j d -> b h i j', gq, gk) * self.guide_scale
-            dots = torch.einsum('b h i j, b h i j -> b h i j', dots, guide_dots.clone())  # TODO: is this the CORRECT solution to the grad problem?
+            dots = torch.einsum('b h i j, b h i j -> b h i j', dots, guide_dots.clone())
+        elif self.value_guided == 'vg2.1':
+            gk_input = gq_input = quantiles
+            gk = self.to_gk(gk_input)
+            gq = self.to_gq(gq_input)
+            gq, gk = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), (gq, gk))
+            guide_dots = einsum('b h i d, b h j d -> b h i j', gq, gk) * self.guide_scale
+            dots_clone, guide_dots_clone = dots.clone(), guide_dots.clone()
+            dots = torch.einsum('b h i j, b h i j -> b h i j', dots, guide_dots_clone)
+            guide_dots = torch.einsum('b h i j, b h i j -> b h i j', dots_clone, guide_dots)
         else:
             raise AssertionError('value-guided mechanism has not been implemented!')
 
@@ -725,7 +734,7 @@ class AttentionLayers(nn.Module):
             if self.pre_norm:
                 x = norm(x)
 
-            if self.value_guided == 'vg2':
+            if self.value_guided[0:3] == 'vg2':
                 g_residual = quantiles
                 if self.pre_norm:
                     quantiles = F.layer_norm(quantiles, quantiles.shape)
