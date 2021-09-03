@@ -88,7 +88,10 @@ def pretrain(args):
 
     # wrap model for pretraining
 
-    pre_model = AutoregressiveWrapper(model, value_guided=args.value_guided)
+    pre_model = AutoregressiveWrapper(model,
+                                      value_guided=args.value_guided,
+                                      ignore_index=args.ignore_token,
+                                      ignore_quantile_index=args.ignore_quantile_index)
     pre_model.to(device)
 
     print("model specification:", pre_model.net, sep="\n")

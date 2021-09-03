@@ -40,10 +40,11 @@ entmax = entmax_bisect
 
 
 class AutoregressiveWrapper(nn.Module):
-    def __init__(self, net, value_guided=False, ignore_index=-100, pad_value=0):
+    def __init__(self, net, value_guided=False, ignore_index=-100, pad_value=0, ignore_quantile_index=None):
         super().__init__()
         self.pad_value = pad_value
         self.ignore_index = ignore_index
+        self.ignore_quantile_index = ignore_quantile_index
         self.net = net
         self.value_guided = value_guided
         self.max_seq_len = net.max_seq_len
@@ -118,10 +119,10 @@ class AutoregressiveWrapper(nn.Module):
             xi = x[0][:, :-1]
             qi = x[1][:, :-1]
             xo = x[0][:, 1:]
-            qo = x[1][:, 1:] + 1
+            qo = x[1][:, 1:] + 1  # todo: fix this @ the basic level.
             out, quantiles_out = self.net(xi, quantiles=qi, **kwargs)
             token_loss = F.cross_entropy(out.transpose(1, 2), xo, ignore_index=self.ignore_index)
-            quantile_loss = F.cross_entropy(quantiles_out.transpose(1, 2), qo, ignore_index=self.ignore_index)
+            quantile_loss = F.cross_entropy(quantiles_out.transpose(1, 2), qo, ignore_index=self.ignore_quantile_index)
             return token_loss, quantile_loss
 
         loss = F.cross_entropy(out.transpose(1, 2), xo, ignore_index=self.ignore_index)  # NOTE: reduction="mean"
