@@ -368,7 +368,7 @@ class Attention(nn.Module):
         elif self.value_guided == 'vg1.4':
             g_dim = heads * 1
             self.to_g = nn.Linear(7, g_dim, bias=True)  # input is one-hot of a 7-value categorical.
-        elif self.value_guided == 'vg2':  # assumes quantile input is one-hot of a 7 value categorical.
+        elif self.value_guided[0:3] == 'vg2':  # assumes quantile input is one-hot of a 7 value categorical.
             g_dim = heads * dim_guides
             go_dim = heads * 7
             self.to_gk = nn.Linear(7, g_dim, bias=False)
@@ -498,7 +498,7 @@ class Attention(nn.Module):
             g = self.to_g(g_input)
             g = rearrange(g, 'b n d h -> b h n d', h=h)
             dots = einsum('b h i k, b h j k -> b h i j', dots, g)
-        elif self.value_guided in ['vg2']:
+        elif self.value_guided[0:3] == 'vg2':
             gk_input = gq_input = quantiles
             gk = self.to_gk(gk_input)
             gq = self.to_gq(gq_input)
@@ -524,7 +524,7 @@ class Attention(nn.Module):
             mask = rearrange(r, 'i -> () () i ()') < rearrange(r, 'j -> () () () j')
             mask = F.pad(mask, (j - i, 0), value=False)  # fit mask to correct shape. only necc if q.shape != k.shape
             dots.masked_fill_(mask, mask_value)
-            if self.value_guided in ['vg2']:
+            if self.value_guided[0:3] == 'vg2':
                 guide_dots.masked_fill_(mask, mask_value)  # dev
             del mask
 
@@ -540,7 +540,7 @@ class Attention(nn.Module):
 
         attn = self.dropout(attn)
 
-        if self.value_guided in ['vg2']:
+        if self.value_guided[0:3] == 'vg2':
             g_attn = self.attn_fn(guide_dots, dim=-1)  # specify attention non-linearity
             g_attn = self.dropout(g_attn)
 
@@ -559,7 +559,7 @@ class Attention(nn.Module):
             post_softmax_attn=post_softmax_attn
         )
 
-        if self.value_guided in ['vg2']:
+        if self.value_guided[0:3] == 'vg2':
             quantiles = torch.unsqueeze(quantiles, 1).repeat(1, h, 1, 1)
             g_out = einsum('b h i j, b h j d -> b h i d', g_attn, quantiles)
             g_out = rearrange(g_out, 'b h n d -> b n (h d)')
@@ -731,7 +731,7 @@ class AttentionLayers(nn.Module):
                     quantiles = F.layer_norm(quantiles, quantiles.shape)
 
             if layer_type == 'a':  # dev extra clause
-                if self.value_guided == 'vg2':
+                if self.value_guided[0:3] == 'vg2':
                     out, inter, g_out = block(x,
                                               quantiles=quantiles,
                                               mask=mask,
@@ -755,7 +755,7 @@ class AttentionLayers(nn.Module):
                 out = block(x)
 
             x = residual_fn(out, residual)
-            if self.value_guided == 'vg2':
+            if self.value_guided[0:3] == 'vg2':
                 quantiles = residual_fn(g_out, g_residual)
 
             if layer_type in ('a', 'c'):
@@ -769,7 +769,7 @@ class AttentionLayers(nn.Module):
             if not self.pre_norm and not is_last:
                 x = norm(x)
 
-        if self.value_guided == 'vg2':  # dev: compound return
+        if self.value_guided[0:3] == 'vg2':  # dev: compound return
             if return_hiddens:
                 intermediates = LayerIntermediates(
                     hiddens=hiddens,
@@ -881,7 +881,7 @@ class TransformerWrapper(nn.Module):
             quantiles = torch.unsqueeze(quantiles, -1)  # need to add dimension to quantiles for to_g
             quantiles = F.one_hot(quantiles + 1)  # need +1 to make sentinel values (coded -1) non-negative.
             quantiles = quantiles.to(torch.float)
-        elif self.value_guided in ['vg2']:
+        elif self.value_guided[0:3] == 'vg2':
             quantiles = F.one_hot(quantiles + 1)  # need +1 to make sentinel values (coded -1) non-negative.
             quantiles = quantiles.to(torch.float)
 
@@ -893,7 +893,7 @@ class TransformerWrapper(nn.Module):
             if exists(mask):
                 mask = F.pad(mask, (num_mem, 0), value=True)
 
-        if self.value_guided == 'vg2':
+        if self.value_guided[0:3] == 'vg2':
             x, intermediates, quantiles = self.attn_layers(x,
                                                            quantiles=quantiles,  # dev value-guided
                                                            mask=mask,
@@ -924,7 +924,7 @@ class TransformerWrapper(nn.Module):
             attn_maps = list(map(lambda t: t.post_softmax_attn, intermediates.attn_intermediates))
             return out, attn_maps
 
-        if self.value_guided == 'vg2':
+        if self.value_guided[0:3] == 'vg2':
             quantiles = self.qnorm(quantiles)
             quantiles_out = self.to_qlogits(quantiles) if not return_embeddings else quantiles
             return out, quantiles_out

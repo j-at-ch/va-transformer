@@ -18,7 +18,7 @@ class TrainingMethods:
         cum_token_loss = 0
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
                               mininterval=0.5, desc=f'epoch {epoch} training'):
-            if self.model.value_guided == 'vg2':
+            if self.model.value_guided[0:3] == 'vg2':
                 token_loss, quantile_loss = self.model(X)
                 loss = token_loss + quantile_loss
                 batch_loss, token_loss, quantile_loss = loss.item(), token_loss.item(), quantile_loss.item()
@@ -49,7 +49,7 @@ class TrainingMethods:
         cum_loss = cum_token_loss = cum_quantile_loss = 0
         for i, X in tqdm.tqdm(enumerate(val_loader), total=len(val_loader),
                               mininterval=0.5, desc=f'epoch {epoch} evaluation'):
-            if self.model.value_guided == 'vg2':
+            if self.model.value_guided[0:3] == 'vg2':
                 token_loss, quantile_loss = self.model(X)
                 loss = token_loss + quantile_loss
                 cum_loss += loss.item()
@@ -111,7 +111,7 @@ class FinetuningMethods:
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
                               mininterval=0.5, desc=f'epoch {epoch} training'):
             loss = self.model(X)
-            loss.backward()  # TODO: experiment with multi-batch grad accumulation
+            loss.backward()  # TODO: experiment with multi-batch grad accumulation for smoother imbal'd finetuning.
             batch_loss = loss.item()
             optimizer.step()
             optimizer.zero_grad()

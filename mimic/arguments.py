@@ -64,8 +64,8 @@ class Arguments:
         self.parser.add_argument('--test_run', type=int, default=0)
         self.parser.add_argument('--token_pad_value', type=int, default=0)
         self.parser.add_argument('--quantile_pad_value', type=int, default=-1)
-        self.parser.add_argument('--ignore_index', type=int)
-        self.parser.add_argument('--ignore_quantile_index', type=int)
+        self.parser.add_argument('--ignore_index', type=int, default=-100)
+        self.parser.add_argument('--ignore_quantile_index', type=int, default=-100)
 
         # finetuning arguments
 
@@ -123,4 +123,3 @@ class BaselineArguments:
         self.arguments = self.parser.parse_args()
         if verbose: pprint(vars(self.arguments), indent=4)
         return self.arguments
-
