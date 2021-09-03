@@ -90,7 +90,7 @@ def pretrain(args):
 
     pre_model = AutoregressiveWrapper(model,
                                       value_guided=args.value_guided,
-                                      ignore_index=args.ignore_token,
+                                      ignore_index=args.ignore_index,
                                       ignore_quantile_index=args.ignore_quantile_index)
     pre_model.to(device)
 
