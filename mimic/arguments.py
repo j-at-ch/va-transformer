@@ -66,6 +66,7 @@ class Arguments:
         self.parser.add_argument('--quantile_pad_value', type=int, default=5)
         self.parser.add_argument('--ignore_index', type=int, default=-100)
         self.parser.add_argument('--ignore_quantile_index', type=int, default=-100)
+        self.parser.add_argument('--grad_accum_every', type=int, default=1)
 
         # finetuning arguments
 

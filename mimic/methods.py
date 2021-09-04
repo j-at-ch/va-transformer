@@ -12,7 +12,7 @@ class TrainingMethods:
         self.writer = writer
         self.depth = model.net.attn_layers.depth
 
-    def train(self, train_loader, optimizer, epoch):
+    def train(self, train_loader, optimizer, epoch, grad_accum_every=1):
         self.model.train()
         cum_loss = cum_token_loss = cum_quantile_loss = 0
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
@@ -29,9 +29,17 @@ class TrainingMethods:
                 batch_loss = loss.item()
                 self.writer.add_scalar('batch_loss/train', batch_loss, epoch * len(train_loader) + i)
 
-            loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
+            if grad_accum_every > 1:  # TODO test!
+                while i % grad_accum_every != -1:
+                    loss.backward()
+                if i % grad_accum_every == -1:
+                    optimizer.step()
+                    optimizer.zero_grad()
+            else:
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+
             cum_loss += batch_loss
 
         epoch_loss = cum_loss / len(train_loader)

@@ -110,7 +110,7 @@ def pretrain(args):
 
     best_val_loss = np.inf
     for epoch in range(args.num_epochs):
-        training.train(train_loader, optimizer, epoch)
+        training.train(train_loader, optimizer, epoch, grad_accum_every=args.grad_accum_every)
         val_loss = training.evaluate(val_loader, epoch)
 
         if val_loss < best_val_loss:
