@@ -6,8 +6,8 @@ from torch.utils.tensorboard import SummaryWriter
 import methods
 from data_utils import *
 from arguments import Arguments
-from models import FinetuningWrapper
 from v_transformers.vtransformers import TransformerWrapper, Decoder
+from v_transformers.finetuning_wrapper import FinetuningWrapper
 
 
 def finetune(args):
@@ -135,6 +135,8 @@ def finetune(args):
 
     print("model specification:", fit_model.net, sep="\n")
 
+    print("clf specification:", fit_model.clf, "embedding reduction:", fit_model.clf_reduce, sep="\n")
+
     # initialise optimiser
 
     optimizer = torch.optim.Adam(fit_model.parameters(), lr=args.learning_rate)
@@ -178,7 +180,7 @@ def finetune(args):
 
         # tracking value_guided parameters
 
-        if args.value_guided != 'plain':
+        if args.value_guided[0:4] in ['vg1.']:
             training.write_g_histograms(epoch)
 
         # tracking model classification metrics for val set

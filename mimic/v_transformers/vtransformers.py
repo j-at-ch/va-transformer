@@ -317,7 +317,8 @@ class Attention(nn.Module):
             self,
             dim,
             dim_head=DEFAULT_DIM_HEAD,
-            dim_guides=10,  # dev
+            dim_guide=7,
+            dim_guide_heads=10,  # dev
             heads=8,
             value_guided='plain',  # dev
             causal=False,
@@ -338,7 +339,7 @@ class Attention(nn.Module):
         self.causal = causal
         self.mask = mask
         self.value_guided = value_guided  # dev
-        self.guide_scale = dim_guides ** -0.5  # dev
+        self.guide_scale = dim_guide_heads ** -0.5  # dev
 
         qk_dim = v_dim = heads * dim_head  # stacking heads together
 
@@ -367,13 +368,13 @@ class Attention(nn.Module):
             self.to_g = nn.Linear(6, g_dim, bias=True)  # input is one-hot of a 6-value categorical.
         elif self.value_guided == 'vg1.4':
             g_dim = heads * 1
-            self.to_g = nn.Linear(7, g_dim, bias=True)  # input is one-hot of a 7-value categorical.
+            self.to_g = nn.Linear(dim_guide, g_dim, bias=True)  # input is one-hot of a 7-value categorical.
         elif self.value_guided[0:3] == 'vg2':  # assumes quantile input is one-hot of a 7 value categorical
-            g_dim = heads * dim_guides  # todo: neaten
-            go_dim = heads * 7
-            self.to_gk = nn.Linear(7, g_dim, bias=False)
-            self.to_gq = nn.Linear(7, g_dim, bias=False)
-            self.to_g_out = nn.Linear(go_dim, 7)
+            g_dim = heads * dim_guide_heads  # todo: add in project layer for quantiles!
+            go_dim = heads * dim_guide
+            self.to_gk = nn.Linear(dim_guide, g_dim, bias=False)
+            self.to_gq = nn.Linear(dim_guide, g_dim, bias=False)
+            self.to_g_out = nn.Linear(go_dim, dim_guide)
         else:
             pass
 
@@ -585,6 +586,7 @@ class AttentionLayers(nn.Module):
             depth,
             heads=8,
             value_guided='plain',
+            dim_guide=7,
             causal=False,
             cross_attend=False,
             only_cross=False,
@@ -614,6 +616,7 @@ class AttentionLayers(nn.Module):
         dim_head = attn_kwargs.get('dim_head', DEFAULT_DIM_HEAD)
 
         self.dim = dim
+        self.dim_guide = dim_guide
         self.depth = depth
         self.layers = nn.ModuleList([])
 
@@ -833,6 +836,8 @@ class TransformerWrapper(nn.Module):
         assert isinstance(attn_layers, AttentionLayers), 'attention layers must be one of Encoder or Decoder'
 
         dim = attn_layers.dim
+        dim_guide = attn_layers.dim_guide
+        print(dim_guide)
         emb_dim = default(emb_dim, dim)
 
         self.max_seq_len = max_seq_len
@@ -847,12 +852,12 @@ class TransformerWrapper(nn.Module):
         self.project_emb = nn.Linear(emb_dim, dim) if emb_dim != dim else nn.Identity()
         self.attn_layers = attn_layers
         self.norm = nn.LayerNorm(dim)
-        self.qnorm = nn.LayerNorm(7)
+        self.qnorm = nn.LayerNorm(dim_guide)
 
         self.init_()
 
         self.to_logits = nn.Linear(dim, num_tokens) if not tie_embedding else lambda t: t @ self.token_emb.weight.t()
-        self.to_qlogits = nn.Linear(7, 7)
+        self.to_qlogits = nn.Linear(dim_guide, dim_guide)
 
         # memory tokens (like [cls]) from Memory Transformers paper
         num_memory_tokens = default(num_memory_tokens, 0)
