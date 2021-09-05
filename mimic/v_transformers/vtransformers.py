@@ -486,6 +486,7 @@ class Attention(nn.Module):
         pre_softmax_attn = dots.clone()
 
         # dev value_guided
+
         if self.value_guided == 'plain':
             pass
         elif self.value_guided in ['vg1', 'vg1.1']:
@@ -884,6 +885,7 @@ class TransformerWrapper(nn.Module):
         x = self.project_emb(x)
 
         # dev value-guided
+
         if self.value_guided in ['vg1', 'vg1.1']:
             quantiles = torch.unsqueeze(quantiles.to(torch.float), -1)  # need to add dimension to quantiles for to_g
         elif self.value_guided in ['vg1.2', 'vg1.3', 'vg1.4']:

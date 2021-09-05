@@ -30,9 +30,9 @@ class TrainingMethods:
                 self.writer.add_scalar('batch_loss/train', batch_loss, epoch * len(train_loader) + i)
 
             if grad_accum_every > 1:  # TODO test!
-                while i % grad_accum_every != -1:
+                if i % grad_accum_every <= (grad_accum_every - 1):
                     loss.backward()
-                if i % grad_accum_every == -1:
+                if i % grad_accum_every == (grad_accum_every - 1):
                     optimizer.step()
                     optimizer.zero_grad()
             else:
