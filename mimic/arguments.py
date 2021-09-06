@@ -80,6 +80,7 @@ class Arguments:
             self.parser.add_argument('--weighted_loss', type=int, default=1)
             self.parser.add_argument('--clf_reduce', type=str, default='flatten')
             self.parser.add_argument('--freeze_base', type=int, default=0)
+            self.parser.add_argument('--clf_dropout', type=float, default=0.)
 
 
     def parse(self, verbose=False):

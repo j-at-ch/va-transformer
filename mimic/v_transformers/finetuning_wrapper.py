@@ -14,7 +14,8 @@ class FinetuningWrapper(nn.Module):
                  weight=None,
                  load_from='pretrained',
                  value_guided='plain',
-                 clf_reduce='flatten'
+                 clf_reduce='flatten',
+                 clf_dropout=0
                  ):
         super().__init__()
         self.num_classes = num_classes
@@ -25,6 +26,7 @@ class FinetuningWrapper(nn.Module):
         self.load_from = load_from
         self.value_guided = value_guided
         self.clf_reduce = clf_reduce
+        self.clf_dropout = clf_dropout
 
         # initialise net hparams from pretrained
 
@@ -52,13 +54,14 @@ class FinetuningWrapper(nn.Module):
             self.clf = nn.Sequential(
                 nn.Linear(num_guide_ft + num_features, hidden_dim, bias=True),
                 nn.ReLU(),
+                nn.Dropout(p=clf_dropout),
                 nn.Linear(hidden_dim, num_classes, bias=True)
             )
         else:
             self.clf = nn.Sequential(
                 nn.Linear(num_features, hidden_dim, bias=True),
                 nn.ReLU(),
-                nn.Dropout(p=0.2),
+                nn.Dropout(p=clf_dropout),
                 nn.Linear(hidden_dim, num_classes, bias=True)
             )
 

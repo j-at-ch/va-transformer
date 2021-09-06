@@ -132,6 +132,7 @@ def finetune(args):
                                   load_from=args.load_from,
                                   weight=weights,
                                   clf_reduce=args.clf_reduce,
+                                  clf_dropout=args.clf_dropout,
                                   value_guided=args.value_guided)
     fit_model.to(device)
 
@@ -342,11 +343,12 @@ def evaluate(args):
 
     fit_model = FinetuningWrapper(model,
                                   num_classes=2,
-                                  seq_len=args.seq_len,  # doesn't model know this?
+                                  seq_len=args.seq_len,
                                   state_dict=states,
                                   load_from=args.load_from,
                                   weight=weights,
                                   clf_reduce=args.clf_reduce,
+                                  clf_dropout=args.clf_dropout,
                                   value_guided=args.value_guided)
     fit_model.to(device)
 
