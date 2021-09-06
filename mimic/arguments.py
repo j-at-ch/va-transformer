@@ -67,15 +67,20 @@ class Arguments:
         self.parser.add_argument('--ignore_index', type=int, default=-100)
         self.parser.add_argument('--ignore_quantile_index', type=int, default=-100)
         self.parser.add_argument('--grad_accum_every', type=int, default=1)
+        self.parser.add_argument('--early_stopping_threshold', type=int, default=-1)
 
         # finetuning arguments
 
         if self.mode == 'finetuning':
+            self.parser.add_argument('--mode', type=str, default='training')
+            self.parser.add_argument('--load_from', type=str, default='pretrained')
             self.parser.add_argument('--ft_batch_size', type=int, default=100)
             self.parser.add_argument('--label_set', type=str, required=True)
             self.parser.add_argument('--pretrained_model', type=str, required=True)
             self.parser.add_argument('--weighted_loss', type=int, default=1)
             self.parser.add_argument('--clf_reduce', type=str, default='flatten')
+            self.parser.add_argument('--freeze_base', type=int, default=0)
+
 
     def parse(self, verbose=False):
         self.initialise()

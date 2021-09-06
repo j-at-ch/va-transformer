@@ -113,13 +113,24 @@ class FinetuningMethods:
         self.writer = writer
         self.depth = model.net.attn_layers.depth
 
-    def train(self, train_loader, optimizer, epoch):
+    def train(self, train_loader, optimizer, epoch, grad_accum_every=1):
         self.model.train()
         cum_loss = 0
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
                               mininterval=0.5, desc=f'epoch {epoch} training'):
             loss = self.model(X)
-            loss.backward()  # TODO: experiment with multi-batch grad accumulation for smoother imbal'd finetuning.
+
+            if grad_accum_every > 1:
+                if i % grad_accum_every <= (grad_accum_every - 1):
+                    loss.backward()
+                if i % grad_accum_every == (grad_accum_every - 1):
+                    optimizer.step()
+                    optimizer.zero_grad()
+            else:
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+
             batch_loss = loss.item()
             optimizer.step()
             optimizer.zero_grad()
@@ -164,12 +175,13 @@ class FinetuningMethods:
         bal_acc = balanced_accuracy_score(y_true, torch.argmax(y_score, dim=1))
         roc_auc = roc_auc_score(y_true, y_score[:, 1])
 
-        self.writer.add_scalar(prefix + '/acc', acc, epoch)
-        self.writer.add_scalar(prefix + '/bal_acc', bal_acc, epoch)
-        self.writer.add_scalar(prefix + '/roc_auc', roc_auc, epoch)
-        self.writer.add_pr_curve(prefix + '/pr_curve', y_true, y_score[:, 1], epoch)
+        if self.writer is not None:
+            self.writer.add_scalar(prefix + '/acc', acc, epoch)
+            self.writer.add_scalar(prefix + '/bal_acc', bal_acc, epoch)
+            self.writer.add_scalar(prefix + '/roc_auc', roc_auc, epoch)
+            self.writer.add_pr_curve(prefix + '/pr_curve', y_true, y_score[:, 1], epoch)
         print(f'epoch {prefix}/roc_auc = {roc_auc}, {prefix}/bal_acc = {bal_acc}, {prefix}/acc = {acc}')
-        return y_score, y_true
+        return y_score[:, 1], y_true, acc, bal_acc, roc_auc
 
     @torch.no_grad()
     def write_embeddings(self, step, mappings, labeller, seq_len, device):

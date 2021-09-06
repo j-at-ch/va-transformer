@@ -12,7 +12,7 @@ class FinetuningWrapper(nn.Module):
                  hidden_dim=100,
                  state_dict=None,
                  weight=None,
-                 load_from_pretrained=False,
+                 load_from='pretrained',
                  value_guided='plain',
                  clf_reduce='flatten'
                  ):
@@ -22,13 +22,13 @@ class FinetuningWrapper(nn.Module):
         self.net = copy.deepcopy(net)  # deepcopy is necessary here if we don't want to update the original also
         self.max_seq_len = net.max_seq_len
         self.seq_len = seq_len
-        self.load_from_pretrained = load_from_pretrained
+        self.load_from = load_from
         self.value_guided = value_guided
         self.clf_reduce = clf_reduce
 
         # initialise net hparams from pretrained
 
-        if self.load_from_pretrained and state_dict is not None:
+        if self.load_from == 'pretrained' and state_dict is not None:
             self.load_state_dict(state_dict)
 
         # define classifier head layers  # TODO make this more easily customisable
@@ -58,8 +58,14 @@ class FinetuningWrapper(nn.Module):
             self.clf = nn.Sequential(
                 nn.Linear(num_features, hidden_dim, bias=True),
                 nn.ReLU(),
+                nn.Dropout(p=0.2),
                 nn.Linear(hidden_dim, num_classes, bias=True)
             )
+
+        # if doing post-training analysis initialise net hparams from finetuned
+
+        if self.load_from == 'finetuned' and state_dict is not None:
+            self.load_state_dict(state_dict)
 
     def forward(self, x, predict=False, **kwargs):  # todo: how should I implement for quantiles_out?
         if self.value_guided == 'plain':
