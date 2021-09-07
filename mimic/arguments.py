@@ -81,7 +81,13 @@ class Arguments:
             self.parser.add_argument('--clf_reduce', type=str, default='flatten')
             self.parser.add_argument('--freeze_base', type=int, default=0)
             self.parser.add_argument('--clf_dropout', type=float, default=0.)
-
+            self.parser.add_argument('--hidden_dim', type=int, default=100)
+        elif self.mode == 'baselining':
+            self.parser.add_argument('--ft_batch_size', type=int, default=100)
+            self.parser.add_argument('--label_set', type=str, required=True)
+            self.parser.add_argument('--weighted_loss', type=int, default=1)
+            self.parser.add_argument('--clf_dropout', type=float, default=0.)
+            self.parser.add_argument('--hidden_dim', type=int, default=100)
 
     def parse(self, verbose=False):
         self.initialise()

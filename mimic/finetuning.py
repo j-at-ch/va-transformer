@@ -7,7 +7,7 @@ import methods
 from data_utils import *
 from arguments import Arguments
 from vg_transformers.vg_transformers import TransformerWrapper, Decoder
-from vg_transformers import FinetuningWrapper
+from vg_transformers.finetuning_wrapper import FinetuningWrapper
 
 
 def finetune(args):
@@ -345,6 +345,7 @@ def evaluate(args):
                                   state_dict=states,
                                   load_from=args.load_from,
                                   weight=weights,
+                                  hidden_dim=args.hidden_dim,
                                   clf_reduce=args.clf_reduce,
                                   clf_dropout=args.clf_dropout,
                                   value_guided=args.value_guided)
