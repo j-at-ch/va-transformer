@@ -1,4 +1,3 @@
-import sys
 import pandas as pd
 from pprint import pprint
 from torch.utils.data import DataLoader
@@ -7,8 +6,8 @@ from torch.utils.tensorboard import SummaryWriter
 import methods
 from data_utils import *
 from arguments import Arguments
-from v_transformers.vtransformers import Decoder, TransformerWrapper
-from v_transformers.autoregressive_wrapper import AutoregressiveWrapper
+from vg_transformers.vg_transformers import Decoder, TransformerWrapper
+from vg_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
 
 def pretrain(args):

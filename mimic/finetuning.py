@@ -1,5 +1,3 @@
-import sys
-
 import pandas as pd
 from pprint import pprint
 from torch.utils.data import DataLoader
@@ -8,8 +6,8 @@ from torch.utils.tensorboard import SummaryWriter
 import methods
 from data_utils import *
 from arguments import Arguments
-from v_transformers.vtransformers import TransformerWrapper, Decoder
-from v_transformers.finetuning_wrapper import FinetuningWrapper
+from vg_transformers.vg_transformers import TransformerWrapper, Decoder
+from vg_transformers import FinetuningWrapper
 
 
 def finetune(args):
