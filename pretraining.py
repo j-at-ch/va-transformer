@@ -108,6 +108,7 @@ def pretrain(args):
     # training loop
 
     best_val_loss = np.inf
+    early_stopping_counter = 0
     for epoch in range(args.num_epochs):
         training.train(train_loader, optimizer, epoch, grad_accum_every=args.grad_accum_every)
         val_loss = training.evaluate(val_loader, epoch)
@@ -129,10 +130,16 @@ def pretrain(args):
 
             print("Checkpoint saved!\n")
             best_val_loss = val_loss
+            early_stopping_counter = 0
+        else:
+            early_stopping_counter += 1
+
+        if early_stopping_counter == args.early_stopping_threshold:
+            print('early stopping threshold hit! ending training...')
+            break
 
         if args.value_guided[0:4] in ['vg1.']:
             training.write_g_histograms(epoch)
-
 
         print(f'epoch {epoch} completed!')
         print('flushing writer...')
