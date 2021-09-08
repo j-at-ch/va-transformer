@@ -4,12 +4,17 @@ import pandas as pd
 import pickle as pickle
 import tqdm
 
+from pprint import pprint
 from sklearn.model_selection import train_test_split
 
 from arguments import PreprocessingArguments
 
 
 def preprocess_labs(args):
+    print('*' * 17, 'preprocessing labs with the following settings:', sep='\n')
+    pprint(vars(args), indent=2)
+    print('*' * 17)
+
     # paths
 
     admissions_path = os.path.join(args.mimic_root, "ADMISSIONS.csv")
