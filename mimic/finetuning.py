@@ -345,7 +345,7 @@ def evaluate(args):
                                   state_dict=states,
                                   load_from=args.load_from,
                                   weight=weights,
-                                  hidden_dim=args.hidden_dim,
+                                  hidden_dim=args.clf_hidden_dim,
                                   clf_reduce=args.clf_reduce,
                                   clf_dropout=args.clf_dropout,
                                   value_guided=args.value_guided)

@@ -13,8 +13,6 @@ class Arguments:
 
         # data roots
 
-        self.parser.add_argument('--mimic_root', type=str)
-        self.parser.set_defaults(mimic_root='/home/james/Documents/Charters/mimic-iii-clinical-database-1.4')
         self.parser.add_argument('--data_root', type=str)
         self.parser.set_defaults(data_root='/home/james/Documents/Charters/labs_dataset4/data')
         self.parser.add_argument('--model_root', type=str)
@@ -29,17 +27,8 @@ class Arguments:
         self.parser.add_argument('--value_guided', type=str,
                                  choices=['plain',
                                           'vg1', 'vg1.1', 'vg1.2', 'vg1.3', 'vg1.4',
-                                          'vg2', 'vg2.1'])
-
-        # pretraining constants
-
-        self.parser.add_argument('--num_epochs', type=int, default=50)
-        self.parser.add_argument('--batch_size_tr', type=int, default=100)
-        self.parser.add_argument('--batch_size_val', type=int, default=100)
-        self.parser.add_argument('--checkpoint_after', type=int, default=100)
-        self.parser.add_argument('--generate_every', type=int, default=20)  # note: deprecated
-        self.parser.add_argument('--generate_length', type=int, default=200)  # note: deprecated
-        self.parser.add_argument('--seq_len', type=int, default=200)
+                                          'vg2', 'vg2.1'],
+                                 required=True if self.mode != 'baselining' else False)
 
         # attention specification
 
@@ -54,13 +43,20 @@ class Arguments:
         # general arguments
 
         self.parser.add_argument('--model_name', type=str, default=f'{self.mode}_test')
+        self.parser.add_argument('--num_epochs', type=int, default=50)
+        self.parser.add_argument('--batch_size_tr', type=int, default=100)
+        self.parser.add_argument('--batch_size_val', type=int, default=100)
+        self.parser.add_argument('--only_checkpoint_after', type=int, default=100)
+        # self.parser.add_argument('--generate_every', type=int, default=20)
+        # self.parser.add_argument('--generate_length', type=int, default=200)
+        self.parser.add_argument('--seq_len', type=int, default=200)
         self.parser.add_argument('--writer_flush_secs', type=int, default=120)
         self.parser.add_argument('--write_best_val_embeddings', type=int, default=0)
         self.parser.add_argument('--write_initial_embeddings', type=int, default=0)
         self.parser.add_argument('--write_final_embeddings', type=int, default=0)
         self.parser.add_argument('--device', type=str, default="cuda:0")
         self.parser.add_argument('--learning_rate', type=float, default=1e-4)
-        self.parser.add_argument('--scheduler_decay', type=float, default=1)
+        self.parser.add_argument('--scheduler_decay', type=float, default=1.)
         self.parser.add_argument('--test_run', type=int, default=0)
         self.parser.add_argument('--token_pad_value', type=int, default=0)
         self.parser.add_argument('--quantile_pad_value', type=int, default=5)
@@ -69,30 +65,27 @@ class Arguments:
         self.parser.add_argument('--grad_accum_every', type=int, default=1)
         self.parser.add_argument('--early_stopping_threshold', type=int, default=-1)
 
-        # finetuning arguments
+        # finetuning/baselining arguments
 
         if self.mode == 'finetuning':
             self.parser.add_argument('--mode', type=str, default='training')
-            self.parser.add_argument('--load_from', type=str, default='pretrained')
-            self.parser.add_argument('--ft_batch_size', type=int, default=100)
-            self.parser.add_argument('--label_set', type=str, required=True)
             self.parser.add_argument('--pretrained_model', type=str, required=True)
+            self.parser.add_argument('--load_from', type=str, default='pretrained')
+            self.parser.add_argument('--label_set', type=str, required=True)
             self.parser.add_argument('--weighted_loss', type=int, default=1)
-            self.parser.add_argument('--clf_reduce', type=str, default='flatten')
             self.parser.add_argument('--freeze_base', type=int, default=0)
+            self.parser.add_argument('--clf_reduce', type=str, default='flatten')
+            self.parser.add_argument('--clf_hidden_dim', type=int, default=100)
             self.parser.add_argument('--clf_dropout', type=float, default=0.)
-            self.parser.add_argument('--hidden_dim', type=int, default=100)
         elif self.mode == 'baselining':
-            self.parser.add_argument('--ft_batch_size', type=int, default=100)
             self.parser.add_argument('--label_set', type=str, required=True)
             self.parser.add_argument('--weighted_loss', type=int, default=1)
             self.parser.add_argument('--clf_dropout', type=float, default=0.)
-            self.parser.add_argument('--hidden_dim', type=int, default=100)
+            self.parser.add_argument('--clf_hidden_dim', type=int, default=100)
 
-    def parse(self, verbose=False):
+    def parse(self):
         self.initialise()
         self.arguments = self.parser.parse_args()
-        if verbose: pprint(vars(self.arguments), indent=4)
         return self.arguments
 
 
@@ -102,37 +95,12 @@ class PreprocessingArguments:
         self.arguments = None
 
     def initialise(self):
-
-        # data roots
-
         self.parser.add_argument('--mimic_root', type=str)
         self.parser.set_defaults(mimic_root='/home/james/Documents/Charters/mimic-iii-clinical-database-1.4')
         self.parser.add_argument('--save_root', type=str)
         self.parser.set_defaults(save_root='/home/james/Documents/Charters/preprocessing_output')
 
-    def parse(self, verbose=False):
+    def parse(self):
         self.initialise()
         self.arguments = self.parser.parse_args()
-        if verbose: pprint(vars(self.arguments), indent=4)
-        return self.arguments
-
-
-class BaselineArguments:
-    def __init__(self):
-        self.parser = argparse.ArgumentParser(description='preprocessor')
-        self.arguments = None
-
-    def initialise(self):
-
-        # data roots
-
-        self.parser.add_argument('--mimic_root', type=str)
-        self.parser.set_defaults(mimic_root='/home/james/Documents/Charters/mimic-iii-clinical-database-1.4')
-        self.parser.add_argument('--save_root', type=str)
-        self.parser.set_defaults(save_root='/home/james/Documents/Charters/preprocessing_output')
-
-    def parse(self, verbose=False):
-        self.initialise()
-        self.arguments = self.parser.parse_args()
-        if verbose: pprint(vars(self.arguments), indent=4)
         return self.arguments

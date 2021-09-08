@@ -138,7 +138,7 @@ def baseline(args):
 
     model = BaselineNN(num_classes=2,
                        seq_len=args.seq_len,
-                       hidden_dim=args.hidden_dim,
+                       hidden_dim=args.clf_hidden_dim,
                        weight=weights,
                        with_values=True,
                        clf_dropout=args.clf_dropout
