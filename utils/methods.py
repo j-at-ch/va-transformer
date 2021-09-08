@@ -29,7 +29,7 @@ class TrainingMethods:
                 batch_loss = loss.item()
                 self.writer.add_scalar('batch_loss/train', batch_loss, epoch * len(train_loader) + i)
 
-            if grad_accum_every > 1:  # TODO test!
+            if grad_accum_every > 1:
                 if i % grad_accum_every <= (grad_accum_every - 1):
                     loss.backward()
                 if i % grad_accum_every == (grad_accum_every - 1):

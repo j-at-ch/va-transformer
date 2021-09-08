@@ -1,6 +1,5 @@
 import os
 import argparse
-from pprint import pprint
 
 
 class Arguments:

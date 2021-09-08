@@ -5,18 +5,20 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-import methods
-from data_utils import *
-from arguments import Arguments
+from utils import methods
+from utils.data_utils import *
+from utils.arguments import Arguments
 
 
 def baseline(args):
+    print('*' * 17, 'summoning baseline models for classification with the following settings:', sep='\n')
+    pprint(vars(args), indent=2)
+    print('*' * 17)
+
     # paths
 
-    d_items_path = os.path.join(args.data_root, "D_LABITEMS.csv")
     train_path = os.path.join(args.data_root, "train_data.pkl")
     val_path = os.path.join(args.data_root, "val_data.pkl")
-    mapping_path = os.path.join(args.data_root, "mappings.pkl")
     ckpt_path = os.path.join(args.save_root, args.model_name + ".pt")
     logs_path = os.path.join(args.logs_root, args.model_name)
 
@@ -26,16 +28,6 @@ def baseline(args):
     # device
 
     device = torch.device(args.device)
-
-    # fetch mappings
-
-    mappings_dict = fetch_mappings(mapping_path)
-    mappings = Mappings(mappings_dict)
-
-    # labellers
-
-    d_items_df = pd.read_csv(d_items_path, index_col='ITEMID', dtype={'ITEMID': str})
-    labeller = Labellers(mappings_dict, d_items_df)
 
     # fetch labels
 

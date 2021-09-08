@@ -6,7 +6,7 @@ import tqdm
 from pprint import pprint
 from sklearn.model_selection import train_test_split
 
-from arguments import PreprocessingArguments
+from utils.arguments import PreprocessingArguments
 
 
 def preprocess(args):
