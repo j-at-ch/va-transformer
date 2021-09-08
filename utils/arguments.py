@@ -78,6 +78,7 @@ class Arguments:
             self.parser.add_argument('--clf_dropout', type=float, default=0.)
         elif self.mode == 'baselining':
             self.parser.add_argument('--label_set', type=str, required=True)
+            self.parser.add_argument('--values_as', type=str, default='one-hot', choices=['int', 'one-hot'])
             self.parser.add_argument('--weighted_loss', type=int, default=1)
             self.parser.add_argument('--clf_dropout', type=float, default=0.)
             self.parser.add_argument('--clf_hidden_dim', type=int, default=100)

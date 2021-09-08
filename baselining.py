@@ -21,6 +21,7 @@ def baseline(args):
     val_path = os.path.join(args.data_root, "val_data.pkl")
     ckpt_path = os.path.join(args.save_root, args.model_name + ".pt")
     logs_path = os.path.join(args.logs_root, args.model_name)
+    mapping_path = os.path.join(args.data_root, "mappings.pkl")
 
     train_lbl_path = os.path.join(args.data_root, "train_targets.pkl")
     val_lbl_path = os.path.join(args.data_root, "val_targets.pkl")
@@ -28,6 +29,13 @@ def baseline(args):
     # device
 
     device = torch.device(args.device)
+
+    # mappings
+
+    mappings_dict = fetch_mappings(mapping_path)
+    mappings = Mappings(mappings_dict)
+    num_tokens = mappings.num_tokens
+    num_quantiles = 7
 
     # fetch labels
 
@@ -48,12 +56,8 @@ def baseline(args):
 
     # get quantiles
 
-    if args.value_guided == 'plain':
-        quantiles_train = None
-        quantiles_val = None
-    else:
-        quantiles_train = fetch_data_as_torch(train_path, 'train_quantiles')
-        quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
+    quantiles_train = fetch_data_as_torch(train_path, 'train_quantiles')
+    quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
 
     train_dataset = VgSamplerDataset(data_train, args.seq_len, device,
                                      quantiles=quantiles_train, labels=train_targets,
@@ -84,30 +88,23 @@ def baseline(args):
     else:
         weights = None
 
-    # fetch model params
-
-    # pretrained_ckpt = torch.load(params_path, map_location=device)
-    # states = pretrained_ckpt['model_state_dict']
-
     # initialisation of model
 
     class BaselineNN(nn.Module):
         def __init__(self,
                      num_classes,
-                     seq_len,
+                     num_features,
                      hidden_dim=100,
                      weight=None,
                      with_values=True,
                      clf_dropout=0.
                      ):
             super().__init__()
-
             self.num_classes = num_classes
+            self.num_features = num_features
             self.weight = weight.to(torch.float) if weight is not None else weight
-            self.seq_len = seq_len
             self.with_values = with_values
             self.clf_dropout = clf_dropout
-            self.num_features = seq_len * 2 if with_values else seq_len
             self.clf = nn.Sequential(
                 nn.Linear(self.num_features, hidden_dim, bias=True),
                 nn.ReLU(),
@@ -118,6 +115,11 @@ def baseline(args):
         def forward(self, X, predict=False):
             if self.with_values:
                 X, quantiles, targets = X
+                if args.values_as == 'one-hot':
+                    X = F.one_hot(X, num_tokens)
+                    X = torch.flatten(X, start_dim=1)
+                    quantiles = F.one_hot(quantiles + 1, num_quantiles)
+                    quantiles = torch.flatten(quantiles, start_dim=1)
                 features = torch.cat([X, quantiles], dim=1).to(torch.float)
                 logits = self.clf(features)
             else:
@@ -128,8 +130,11 @@ def baseline(args):
             loss = F.cross_entropy(logits, targets, weight=self.weight)
             return logits if predict else loss
 
+    if args.values_as == 'one-hot':
+        num_features = args.seq_len * (num_tokens + num_quantiles)
+
     model = BaselineNN(num_classes=2,
-                       seq_len=args.seq_len,
+                       num_features=num_features,
                        hidden_dim=args.clf_hidden_dim,
                        weight=weights,
                        with_values=True,
