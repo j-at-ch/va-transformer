@@ -70,7 +70,7 @@ class FinetuningWrapper(nn.Module):
         if self.load_from == 'finetuned' and state_dict is not None:
             self.load_state_dict(state_dict)
 
-    def forward(self, x, predict=False, **kwargs):  # todo: how should I implement for quantiles_out?
+    def forward(self, x, predict=False, **kwargs):
         if self.value_guided == 'plain':
             x, targets = x
             out = self.net(x, return_embeddings=True, **kwargs)

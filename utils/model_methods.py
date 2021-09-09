@@ -12,14 +12,14 @@ class TrainingMethods:
         self.writer = writer
         self.depth = model.net.attn_layers.depth
 
-    def train(self, train_loader, optimizer, epoch, grad_accum_every=1):
+    def train(self, train_loader, optimizer, epoch, grad_accum_every=1, gamma=0.5):
         self.model.train()
         cum_loss = cum_token_loss = cum_quantile_loss = 0
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
                               mininterval=0.5, desc=f'epoch {epoch} training'):
             if self.model.value_guided[0:3] == 'vg2':
                 token_loss, quantile_loss = self.model(X)
-                loss = token_loss + quantile_loss
+                loss = gamma * token_loss + (1 - gamma) * quantile_loss
                 batch_loss, token_loss, quantile_loss = loss.item(), token_loss.item(), quantile_loss.item()
                 self.writer.add_scalar('batch_loss/train', batch_loss, epoch * len(train_loader) + i)
                 cum_token_loss += token_loss
@@ -52,14 +52,14 @@ class TrainingMethods:
         return epoch_loss
 
     @torch.no_grad()
-    def evaluate(self, val_loader, epoch):
+    def evaluate(self, val_loader, epoch, gamma=0.5):
         self.model.eval()
         cum_loss = cum_token_loss = cum_quantile_loss = 0
         for i, X in tqdm.tqdm(enumerate(val_loader), total=len(val_loader),
                               mininterval=0.5, desc=f'epoch {epoch} evaluation'):
             if self.model.value_guided[0:3] == 'vg2':
                 token_loss, quantile_loss = self.model(X)
-                loss = token_loss + quantile_loss
+                loss = gamma * token_loss + (1 - gamma) * quantile_loss
                 cum_loss += loss.item()
                 cum_token_loss += token_loss.item()
                 cum_quantile_loss += quantile_loss.item()

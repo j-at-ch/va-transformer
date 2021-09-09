@@ -112,8 +112,11 @@ def pretrain(args):
     best_val_loss = np.inf
     early_stopping_counter = 0
     for epoch in range(args.num_epochs):
-        training.train(train_loader, optimizer, epoch, grad_accum_every=args.grad_accum_every)
-        val_loss = training.evaluate(val_loader, epoch)
+        training.train(train_loader, optimizer, epoch,
+                       grad_accum_every=args.grad_accum_every,
+                       gamma=args.gamma)
+        val_loss = training.evaluate(val_loader, epoch,
+                                     gamma=args.gamma)
 
         if val_loss < best_val_loss:
             print("Saving checkpoint...")
@@ -167,6 +170,10 @@ if __name__ == "__main__":
         os.mkdir(arguments.save_root)
     if not os.path.exists(arguments.logs_root):
         os.mkdir(arguments.logs_root)
+
+    # check gamma makes sense
+
+    assert (arguments.gamma >= 0) and (arguments.gamma <= 1), "--gamma should satisfy 0 <= gamma <= 1."
 
     # run pretraining
 

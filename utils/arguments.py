@@ -63,6 +63,7 @@ class Arguments:
         self.parser.add_argument('--ignore_quantile_index', type=int, default=-100)
         self.parser.add_argument('--grad_accum_every', type=int, default=1)
         self.parser.add_argument('--early_stopping_threshold', type=int, default=-1)
+        self.parser.add_argument('--gamma', type=float, default=0.5)
 
         # finetuning/baselining arguments
 

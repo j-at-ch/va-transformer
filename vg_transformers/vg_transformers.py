@@ -782,7 +782,8 @@ class AttentionLayers(nn.Module):
             if not self.pre_norm and not is_last:
                 x = norm(x)
 
-        if self.value_guided[0:3] == 'vg2':  # dev: compound return
+        if self.value_guided[0:3] == 'vg2':
+            print(x.shape, quantiles.shape)
             if return_hiddens:
                 intermediates = LayerIntermediates(
                     hiddens=hiddens,
