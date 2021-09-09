@@ -783,7 +783,6 @@ class AttentionLayers(nn.Module):
                 x = norm(x)
 
         if self.value_guided[0:3] == 'vg2':
-            print(x.shape, quantiles.shape)
             if return_hiddens:
                 intermediates = LayerIntermediates(
                     hiddens=hiddens,

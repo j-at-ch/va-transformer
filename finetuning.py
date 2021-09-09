@@ -369,7 +369,7 @@ def evaluate(args):
     evaluating = model_methods.FinetuningMethods(fit_model, None)
     train_out = evaluating.predict(train_loader, 'eval', device, prefix="train")
     val_out = evaluating.predict(val_loader, 'eval', device, prefix="val")
-    pprint(train_out)
+    pprint(train_out)  # todo check wht these are here
     pprint(val_out)
 
 
