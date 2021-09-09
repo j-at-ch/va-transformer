@@ -97,7 +97,11 @@ class Mappings:
         self.itemid2token = mappings['itemid2token']
         self.token2itemid = mappings['token2itemid']
         self.token2trcount = mappings['token2trcount']
+        self.guide_name2guide_token = {
+            'CAT': 0, 'XLOW': 1, 'LOW': 2, 'MID': 3, 'HIGH': 4, 'XHIGH': 5, 'PAD': 6
+        }  # todo incorporate into preprocessing pipeline
         self.num_tokens = len(self.itemid2token)
+        self.num_guide_tokens = len(self.guide_name2guide_token)
 
     def decode_token(self, token):
         return str(self.token2itemid[token])

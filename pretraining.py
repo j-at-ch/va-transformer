@@ -1,9 +1,10 @@
 import pandas as pd
+import sys
 from pprint import pprint
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from utils import methods
+from utils import model_methods
 from utils.data_utils import *
 from utils.arguments import Arguments
 from vg_transformers.vg_transformers import Decoder, TransformerWrapper
@@ -72,6 +73,7 @@ def pretrain(args):
 
     model = TransformerWrapper(
         num_tokens=mappings.num_tokens,
+        num_guide_tokens=mappings.num_guide_tokens,
         max_seq_len=args.seq_len,
         attn_layers=Decoder(
             dim=args.attn_dim,
@@ -98,7 +100,7 @@ def pretrain(args):
     optimizer = torch.optim.Adam(pre_model.parameters(), lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.scheduler_decay)
     writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
-    training = methods.TrainingMethods(pre_model, writer)
+    training = model_methods.TrainingMethods(pre_model, writer)
 
     # write initial embeddings
 

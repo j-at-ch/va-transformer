@@ -1,3 +1,6 @@
+import sys
+
+import numpy as np
 import pandas as pd
 from pprint import pprint
 from torch import nn
@@ -5,7 +8,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from utils import methods
+from utils import model_methods
 from utils.data_utils import *
 from utils.arguments import Arguments
 
@@ -118,7 +121,7 @@ def baseline(args):
                 if args.values_as == 'one-hot':
                     X = F.one_hot(X, num_tokens)
                     X = torch.flatten(X, start_dim=1)
-                    quantiles = F.one_hot(quantiles + 1, num_quantiles)
+                    quantiles = F.one_hot(quantiles, num_quantiles)
                     quantiles = torch.flatten(quantiles, start_dim=1)
                 features = torch.cat([X, quantiles], dim=1).to(torch.float)
                 logits = self.clf(features)
@@ -153,7 +156,7 @@ def baseline(args):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.scheduler_decay)
     writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
-    training = methods.BaselineMethods(model, writer)
+    training = model_methods.BaselineMethods(model, writer)
 
     # training loop
 

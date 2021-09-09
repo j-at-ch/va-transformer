@@ -828,6 +828,7 @@ class TransformerWrapper(nn.Module):
             emb_dim=None,
             max_mem_len=0.,
             emb_dropout=0.,
+            num_guide_tokens=None,  # dev work
             num_memory_tokens=None,
             tie_embedding=False,
             use_pos_emb=True
@@ -842,6 +843,7 @@ class TransformerWrapper(nn.Module):
         self.max_seq_len = max_seq_len
         self.max_mem_len = max_mem_len
         self.value_guided = attn_layers.value_guided
+        self.num_guide_tokens = num_guide_tokens
 
         self.token_emb = nn.Embedding(num_tokens, emb_dim)
         self.pos_emb = AbsolutePositionalEmbedding(emb_dim, max_seq_len) \
@@ -856,7 +858,7 @@ class TransformerWrapper(nn.Module):
         self.init_()
 
         self.to_logits = nn.Linear(dim, num_tokens) if not tie_embedding else lambda t: t @ self.token_emb.weight.t()
-        self.to_qlogits = nn.Linear(dim_guide, dim_guide)
+        self.to_qlogits = nn.Linear(dim_guide, num_guide_tokens)
 
         # memory tokens (like [cls]) from Memory Transformers paper
         num_memory_tokens = default(num_memory_tokens, 0)
@@ -894,10 +896,10 @@ class TransformerWrapper(nn.Module):
             quantiles = torch.unsqueeze(quantiles.to(torch.float), -1)  # need to add dimension to quantiles for to_g
         elif self.value_guided in ['vg1.2', 'vg1.3', 'vg1.4']:
             quantiles = torch.unsqueeze(quantiles, -1)  # need to add dimension to quantiles for to_g
-            quantiles = F.one_hot(quantiles + 1)  # need +1 to make sentinel values (coded -1) non-negative.
+            quantiles = F.one_hot(quantiles, num_classes=self.num_guide_tokens)
             quantiles = quantiles.to(torch.float)
         elif self.value_guided[0:3] == 'vg2':
-            quantiles = F.one_hot(quantiles + 1)  # need +1 to make sentinel values (coded -1) non-negative.
+            quantiles = F.one_hot(quantiles, num_classes=self.num_guide_tokens)
             quantiles = quantiles.to(torch.float)
 
         if num_mem > 0:

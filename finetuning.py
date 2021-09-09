@@ -3,7 +3,7 @@ from pprint import pprint
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from utils import methods
+from utils import model_methods
 from utils.data_utils import *
 from utils.arguments import Arguments
 from vg_transformers.vg_transformers import TransformerWrapper, Decoder
@@ -154,7 +154,7 @@ def finetune(args):
     optimizer = torch.optim.Adam(fit_model.parameters(), lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.scheduler_decay)
     writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
-    training = methods.FinetuningMethods(fit_model, writer)
+    training = model_methods.FinetuningMethods(fit_model, writer)
 
     # write initial embeddings
 
@@ -366,7 +366,7 @@ def evaluate(args):
     else:
         print("Base transformer parameters remaining unfrozen...")
 
-    evaluating = methods.FinetuningMethods(fit_model, None)
+    evaluating = model_methods.FinetuningMethods(fit_model, None)
     train_out = evaluating.predict(train_loader, 'eval', device, prefix="train")
     val_out = evaluating.predict(val_loader, 'eval', device, prefix="val")
     pprint(train_out)
