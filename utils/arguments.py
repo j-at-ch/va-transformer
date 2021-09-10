@@ -34,6 +34,7 @@ class Arguments:
         self.parser.add_argument('--attn_dim', type=int, default=100)
         self.parser.add_argument('--attn_depth', type=int, default=6)
         self.parser.add_argument('--attn_heads', type=int, default=8)
+        self.parser.add_argument('--attn_dim_guide', type=int, default=10)
         self.parser.add_argument('--attn_dropout', type=float, default=0.)
         self.parser.add_argument('--ff_dropout', type=float, default=0.)
         self.parser.add_argument('--use_rezero', type=int, default=0)

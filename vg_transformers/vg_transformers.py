@@ -317,7 +317,7 @@ class Attention(nn.Module):
             self,
             dim,
             dim_head=DEFAULT_DIM_HEAD,
-            dim_guide=7,
+            dim_guide=None,
             dim_guide_heads=10,  # dev
             heads=8,
             value_guided='plain',  # dev
@@ -375,7 +375,7 @@ class Attention(nn.Module):
             self.to_gk = nn.Linear(dim_guide, g_dim, bias=False)
             self.to_gq = nn.Linear(dim_guide, g_dim, bias=False)
             self.to_gv = nn.Linear(dim_guide, g_dim, bias=False)  # dev 2.2
-            self.to_g_out = nn.Linear(go_dim, dim_guide)  # todo consider position switch.
+            self.to_g_out = nn.Linear(go_dim, dim_guide)
         else:
             pass
 
@@ -597,7 +597,7 @@ class AttentionLayers(nn.Module):
             depth,
             heads=8,
             value_guided='plain',
-            dim_guide=7,
+            dim_guide=10,
             causal=False,
             cross_attend=False,
             only_cross=False,
@@ -680,7 +680,7 @@ class AttentionLayers(nn.Module):
             par_head = par_block * par_attn
             layer_types = par_head + ('f',) * (par_depth - len(par_head))
         elif exists(sandwich_coef):
-            assert sandwich_coef > 0 and sandwich_coef <= depth, 'sandwich coefficient should be less than the depth'
+            assert 0 < sandwich_coef <= depth, 'sandwich coefficient should be less than the depth'
             layer_types = ('a',) * sandwich_coef + default_block * (depth - sandwich_coef) + ('f',) * sandwich_coef
         else:
             layer_types = default_block * depth
@@ -690,7 +690,12 @@ class AttentionLayers(nn.Module):
 
         for layer_type in self.layer_types:
             if layer_type == 'a':
-                layer = Attention(dim, value_guided=value_guided, heads=heads, causal=causal, **attn_kwargs)
+                layer = Attention(dim,
+                                  value_guided=value_guided,
+                                  dim_guide=dim_guide,
+                                  heads=heads,
+                                  causal=causal,
+                                  **attn_kwargs)
             elif layer_type == 'c':
                 layer = Attention(dim, heads=heads, **attn_kwargs)
             elif layer_type == 'f':
@@ -716,7 +721,7 @@ class AttentionLayers(nn.Module):
     def forward(
             self,
             x,
-            quantiles=None,  # dev
+            quantiles=None,
             context=None,
             mask=None,
             context_mask=None,
@@ -925,14 +930,14 @@ class TransformerWrapper(nn.Module):
 
         if self.value_guided[0:3] == 'vg2':
             x, intermediates, quantiles = self.attn_layers(x,
-                                                           quantiles=quantiles,  # dev value-guided
+                                                           quantiles=quantiles,
                                                            mask=mask,
                                                            mems=mems,
                                                            return_hiddens=True,
                                                            **kwargs)
         else:
             x, intermediates = self.attn_layers(x,
-                                                quantiles=quantiles,  # dev value-guided
+                                                quantiles=quantiles,
                                                 mask=mask,
                                                 mems=mems,
                                                 return_hiddens=True,

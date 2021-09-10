@@ -125,5 +125,5 @@ class AutoregressiveWrapper(nn.Module):
             quantile_loss = F.cross_entropy(quantiles_out.transpose(1, 2), qo, ignore_index=self.ignore_quantile_index)
             return token_loss, quantile_loss
 
-        loss = F.cross_entropy(out.transpose(1, 2), xo, ignore_index=self.ignore_index)  # NOTE: reduction="mean"
+        loss = F.cross_entropy(out.transpose(1, 2), xo, ignore_index=self.ignore_index)
         return loss

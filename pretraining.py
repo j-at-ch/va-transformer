@@ -82,6 +82,7 @@ def pretrain(args):
             attn_dropout=args.attn_dropout,
             ff_dropout=args.ff_dropout,
             value_guided=args.value_guided,
+            dim_guide=args.attn_dim_guide,
             use_rezero=bool(args.use_rezero),
             rotary_pos_emb=bool(args.rotary_pos_emb)
         )
