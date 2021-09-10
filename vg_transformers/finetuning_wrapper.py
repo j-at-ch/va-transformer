@@ -50,7 +50,7 @@ class FinetuningWrapper(nn.Module):
                 num_guide_ft = net.attn_layers.dim_guide
             else:
                 raise Exception(f"clf_reduce option {clf_reduce} is not implemented!")
-            del self.net.to_qlogits
+            del self.net.to_guide_logits
             self.clf = nn.Sequential(
                 nn.Linear(num_guide_ft + num_features, hidden_dim, bias=True),
                 nn.ReLU(),

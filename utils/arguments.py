@@ -26,7 +26,7 @@ class Arguments:
         self.parser.add_argument('--value_guided', type=str,
                                  choices=['plain',
                                           'vg1', 'vg1.1', 'vg1.2', 'vg1.3', 'vg1.4',
-                                          'vg2', 'vg2.1'],
+                                          'vg2', 'vg2.1', 'vg2.2'],
                                  required=True if self.mode != 'baselining' else False)
 
         # attention specification

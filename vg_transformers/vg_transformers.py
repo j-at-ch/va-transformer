@@ -369,12 +369,13 @@ class Attention(nn.Module):
         elif self.value_guided == 'vg1.4':
             g_dim = heads * 1
             self.to_g = nn.Linear(dim_guide, g_dim, bias=True)  # input is one-hot of a 7-value categorical.
-        elif self.value_guided[0:3] == 'vg2':  # assumes quantile input is one-hot of a 7 value categorical
-            g_dim = heads * dim_guide_heads  # todo: add in project layer for quantiles!
-            go_dim = heads * dim_guide
+        elif self.value_guided[0:3] == 'vg2':
+            g_dim = heads * dim_guide_heads
+            go_dim = heads * dim_guide if self.value_guided == 'vg2.1' else g_dim
             self.to_gk = nn.Linear(dim_guide, g_dim, bias=False)
             self.to_gq = nn.Linear(dim_guide, g_dim, bias=False)
-            self.to_g_out = nn.Linear(go_dim, dim_guide)
+            self.to_gv = nn.Linear(dim_guide, g_dim, bias=False)  # dev 2.2
+            self.to_g_out = nn.Linear(go_dim, dim_guide)  # todo consider position switch.
         else:
             pass
 
@@ -516,6 +517,16 @@ class Attention(nn.Module):
             dots_clone, guide_dots_clone = dots.clone(), guide_dots.clone()
             dots = torch.einsum('b h i j, b h i j -> b h i j', dots, guide_dots_clone)
             guide_dots = torch.einsum('b h i j, b h i j -> b h i j', dots_clone, guide_dots)
+        elif self.value_guided == 'vg2.2':
+            gk_input = gq_input = gv_input = quantiles
+            gk = self.to_gk(gk_input)
+            gq = self.to_gq(gq_input)
+            gv = self.to_gv(gv_input)
+            gq, gk, gv = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), (gq, gk, gv))
+            guide_dots = einsum('b h i d, b h j d -> b h i j', gq, gk) * self.guide_scale
+            dots_clone, guide_dots_clone = dots.clone(), guide_dots.clone()
+            dots = torch.einsum('b h i j, b h i j -> b h i j', dots, guide_dots_clone)  # break
+            guide_dots = torch.einsum('b h i j, b h i j -> b h i j', dots_clone, guide_dots)
         else:
             raise AssertionError('value-guided mechanism has not been implemented!')
 
@@ -571,8 +582,8 @@ class Attention(nn.Module):
         )
 
         if self.value_guided[0:3] == 'vg2':
-            quantiles = torch.unsqueeze(quantiles, 1).repeat(1, h, 1, 1)
-            g_out = einsum('b h i j, b h j d -> b h i d', g_attn, quantiles)
+            g_in = gv if self.value_guided == 'vg2.2' else torch.unsqueeze(quantiles, 1).repeat(1, h, 1, 1)
+            g_out = einsum('b h i j, b h j d -> b h i d', g_attn, g_in)
             g_out = rearrange(g_out, 'b h n d -> b n (h d)')
             return self.to_out(out), intermediates, self.to_g_out(g_out)
 
@@ -840,12 +851,14 @@ class TransformerWrapper(nn.Module):
         dim_guide = attn_layers.dim_guide
         emb_dim = default(emb_dim, dim)
 
-        self.max_seq_len = max_seq_len
-        self.max_mem_len = max_mem_len
         self.value_guided = attn_layers.value_guided
         self.num_guide_tokens = num_guide_tokens
 
+        self.max_seq_len = max_seq_len
+        self.max_mem_len = max_mem_len
+
         self.token_emb = nn.Embedding(num_tokens, emb_dim)
+        self.guide_emb = nn.Embedding(num_guide_tokens, dim_guide)
         self.pos_emb = AbsolutePositionalEmbedding(emb_dim, max_seq_len) \
             if (use_pos_emb and not attn_layers.has_pos_emb) else always(0)
         self.emb_dropout = nn.Dropout(emb_dropout)
@@ -853,12 +866,12 @@ class TransformerWrapper(nn.Module):
         self.project_emb = nn.Linear(emb_dim, dim) if emb_dim != dim else nn.Identity()
         self.attn_layers = attn_layers
         self.norm = nn.LayerNorm(dim)
-        self.qnorm = nn.LayerNorm(dim_guide)
+        self.guide_norm = nn.LayerNorm(dim_guide)
 
         self.init_()
 
         self.to_logits = nn.Linear(dim, num_tokens) if not tie_embedding else lambda t: t @ self.token_emb.weight.t()
-        self.to_qlogits = nn.Linear(dim_guide, num_guide_tokens)
+        self.to_guide_logits = nn.Linear(dim_guide, num_guide_tokens)
 
         # memory tokens (like [cls]) from Memory Transformers paper
         num_memory_tokens = default(num_memory_tokens, 0)
@@ -872,6 +885,7 @@ class TransformerWrapper(nn.Module):
 
     def init_(self):
         nn.init.normal_(self.token_emb.weight, std=0.02)
+        nn.init.normal_(self.guide_emb.weight, std=0.02)  # todo: nn.init.kaiming_normal_?
 
     def forward(
             self,
@@ -899,8 +913,7 @@ class TransformerWrapper(nn.Module):
             quantiles = F.one_hot(quantiles, num_classes=self.num_guide_tokens)
             quantiles = quantiles.to(torch.float)
         elif self.value_guided[0:3] == 'vg2':
-            quantiles = F.one_hot(quantiles, num_classes=self.num_guide_tokens)
-            quantiles = quantiles.to(torch.float)
+            quantiles = self.guide_emb(quantiles)
 
         if num_mem > 0:
             mem = repeat(self.memory_tokens, 'n d -> b n d', b=b)
@@ -942,8 +955,8 @@ class TransformerWrapper(nn.Module):
             return out, attn_maps
 
         if self.value_guided[0:3] == 'vg2':
-            quantiles = self.qnorm(quantiles)
-            quantiles_out = self.to_qlogits(quantiles) if not return_embeddings else quantiles
+            quantiles = self.guide_norm(quantiles)
+            quantiles_out = self.to_guide_logits(quantiles) if not return_embeddings else quantiles
             return out, quantiles_out
 
         return out
