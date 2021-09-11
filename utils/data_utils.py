@@ -93,7 +93,7 @@ def cycle(loader):
 
 
 class Mappings:
-    def __init__(self, mappings):
+    def __init__(self, mappings, pad_token=None, clf_token=None, eos_token=None):
         self.itemid2token = mappings['itemid2token']
         self.token2itemid = mappings['token2itemid']
         self.token2trcount = mappings['token2trcount']
@@ -102,6 +102,20 @@ class Mappings:
         }  # todo incorporate into preprocessing pipeline
         self.num_tokens = len(self.itemid2token)
         self.num_guide_tokens = len(self.guide_name2guide_token)
+        self.pad_token = pad_token
+        self.clf_token = clf_token
+        self.eos_token = eos_token
+
+        if pad_token is not None:
+            self.append_special_('[PAD]', pad_token)
+        if clf_token is not None:
+            self.append_special_('[CLF]', clf_token)
+        if eos_token is not None:
+            self.append_special_('[EOS]', eos_token)
+
+    def append_special_(self, name, token):
+        self.itemid2token[name] = token
+        self.token2itemid[token] = name
 
     def decode_token(self, token):
         return str(self.token2itemid[token])

@@ -32,7 +32,13 @@ def pretrain(args):
     # mappings
 
     mappings_dict = fetch_mappings(mapping_path)
-    mappings = Mappings(mappings_dict)
+    pad_token = 0
+    clf_token = len(mappings_dict['itemid2token'])
+    eos_token = clf_token + 1
+    mappings = Mappings(mappings_dict,
+                        pad_token=pad_token,
+                        clf_token=clf_token,
+                        eos_token=eos_token)
 
     # labellers
 
