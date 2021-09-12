@@ -58,13 +58,14 @@ class Arguments:
         self.parser.add_argument('--learning_rate', type=float, default=1e-4)
         self.parser.add_argument('--scheduler_decay', type=float, default=1.)
         self.parser.add_argument('--test_run', type=int, default=0)
-        self.parser.add_argument('--token_pad_value', type=int, default=0)
-        self.parser.add_argument('--quantile_pad_value', type=int, default=6)
+        self.parser.add_argument('--pad_token', type=int, default=0)
+        self.parser.add_argument('--pad_guide_token', type=int, default=0)
         self.parser.add_argument('--ignore_index', type=int, default=-100)
-        self.parser.add_argument('--ignore_quantile_index', type=int, default=-100)
+        self.parser.add_argument('--ignore_guide_index', type=int, default=-100)
         self.parser.add_argument('--grad_accum_every', type=int, default=1)
         self.parser.add_argument('--early_stopping_threshold', type=int, default=-1)
         self.parser.add_argument('--gamma', type=float, default=0.5)
+        self.parser.add_argument('--use_specials', type=int, default=0)
 
         # finetuning/baselining arguments
 

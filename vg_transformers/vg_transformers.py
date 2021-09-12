@@ -844,7 +844,7 @@ class TransformerWrapper(nn.Module):
             emb_dim=None,
             max_mem_len=0.,
             emb_dropout=0.,
-            num_guide_tokens=None,  # dev work
+            num_guide_tokens=None,
             num_memory_tokens=None,
             tie_embedding=False,
             use_pos_emb=True

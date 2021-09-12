@@ -21,7 +21,7 @@ def pretrain(args):
     d_items_path = os.path.join(args.data_root, "D_LABITEMS.csv")
     train_path = os.path.join(args.data_root, "train_data.pkl")
     val_path = os.path.join(args.data_root, "val_data.pkl")
-    mapping_path = os.path.join(args.data_root, "mappings.pkl")
+    mapping_path = os.path.join(args.data_root, "mappings.pkl")  # improvement: pkl a class instead of dict
     ckpt_path = os.path.join(args.save_root, args.model_name + ".pt")
     logs_path = os.path.join(args.logs_root, args.model_name)
 
@@ -32,13 +32,21 @@ def pretrain(args):
     # mappings
 
     mappings_dict = fetch_mappings(mapping_path)
-    pad_token = 0
-    clf_token = len(mappings_dict['itemid2token'])
-    eos_token = clf_token + 1
+
+    pad_token = pad_guide_token = 0
+    sos_token = sos_guide_token = eos_token = eos_guide_token = None
+    if bool(args.use_specials):
+        sos_token, sos_guide_token = len(mappings_dict['itemid2token']), 7
+        eos_token, eos_guide_token = sos_token + 1, 8
+
     mappings = Mappings(mappings_dict,
                         pad_token=pad_token,
-                        clf_token=clf_token,
-                        eos_token=eos_token)
+                        sos_token=sos_token,
+                        eos_token=eos_token,
+                        pad_guide_token=pad_guide_token,
+                        sos_guide_token=sos_guide_token,
+                        eos_guide_token=eos_guide_token
+                        )
 
     # labellers
 
@@ -61,10 +69,12 @@ def pretrain(args):
 
     # load data for pretraining based on arguments
 
-    train_dataset = VgSamplerDataset(data_train, args.seq_len, device,
-                                     quantiles=quantiles_train, quantile_pad_value=args.quantile_pad_value)
-    val_dataset = VgSamplerDataset(data_val, args.seq_len, device,
-                                   quantiles=quantiles_val, quantile_pad_value=args.quantile_pad_value)
+    train_dataset = VgSamplerDataset(data_train, args.seq_len, mappings, device,
+                                     quantiles=quantiles_train,
+                                     use_specials=bool(args.use_specials))
+    val_dataset = VgSamplerDataset(data_val, args.seq_len, mappings, device,
+                                   quantiles=quantiles_val,
+                                   use_specials=bool(args.use_specials))
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
@@ -99,7 +109,7 @@ def pretrain(args):
     pre_model = AutoregressiveWrapper(model,
                                       value_guided=args.value_guided,
                                       ignore_index=args.ignore_index,
-                                      ignore_quantile_index=args.ignore_quantile_index)
+                                      ignore_guide_index=args.ignore_guide_index)
     pre_model.to(device)
 
     print("model specification:", pre_model.net, sep="\n")

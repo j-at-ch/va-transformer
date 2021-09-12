@@ -40,32 +40,46 @@ class VgSamplerDataset(Dataset):
     def __init__(self,
                  tokens,
                  seq_len,
+                 mappings,
                  device,
                  quantiles=None,
                  labels=None,
-                 token_pad_value=0,
-                 quantile_pad_value=-1):
+                 use_specials=False
+                 ):
         super().__init__()
         self.tokens = tokens
+        self.seq_len = seq_len
+        self.mappings = mappings
+        self.device = device
         self.quantiles = quantiles
         self.labels = labels
-        self.device = device
-        self.seq_len = seq_len
+        self.use_specials = use_specials
         self.lookup = dict(zip(np.arange(len(self.tokens)), self.tokens.keys()))
-        self.token_pad_value = token_pad_value
-        self.quantile_pad_value = quantile_pad_value
+
+    @staticmethod
+    def add_specials_(seq, sos_token, eos_token):
+        return torch.cat((torch.tensor([sos_token]), seq, torch.tensor([eos_token])), 0)
 
     def __getitem__(self, key):
         index = self.lookup[key]
+        if self.use_specials:
+            self.tokens[index] = self.add_specials_(self.tokens[index],
+                                                    self.mappings.sos_token,
+                                                    self.mappings.eos_token)
+            if self.quantiles is not None:
+                self.quantiles[index] = self.add_specials_(self.quantiles[index],
+                                                           self.mappings.sos_guide_token,
+                                                           self.mappings.eos_guide_token)
+
         item_len = self.tokens[index].size(0)
         rand_start = torch.randint(0, item_len - self.seq_len, (1,)) if item_len > self.seq_len else 0
         len_from_seq = min(item_len, self.seq_len)
-        sample = self.token_pad_value * torch.ones(self.seq_len)
+        sample = self.mappings.pad_token * torch.ones(self.seq_len)
         sample[:len_from_seq] = self.tokens[index][rand_start: rand_start + len_from_seq]
         sample = sample.long().to(self.device)
 
         if self.quantiles is not None:
-            quantiles = self.quantile_pad_value * torch.ones(self.seq_len)
+            quantiles = self.mappings.pad_guide_token * torch.ones(self.seq_len)
             quantiles[:len_from_seq] = self.quantiles[index][rand_start: rand_start + len_from_seq]
             quantiles = quantiles.long().to(self.device)
 
@@ -93,39 +107,60 @@ def cycle(loader):
 
 
 class Mappings:
-    def __init__(self, mappings, pad_token=None, clf_token=None, eos_token=None):
+    def __init__(self,
+                 mappings,
+                 pad_token=None,
+                 sos_token=None,
+                 eos_token=None,
+                 pad_guide_token=None,
+                 sos_guide_token=None,
+                 eos_guide_token=None
+                 ):
         self.itemid2token = mappings['itemid2token']
         self.token2itemid = mappings['token2itemid']
         self.token2trcount = mappings['token2trcount']
-        self.guide_name2guide_token = {
-            'CAT': 0, 'XLOW': 1, 'LOW': 2, 'MID': 3, 'HIGH': 4, 'XHIGH': 5, 'PAD': 6
-        }  # todo incorporate into preprocessing pipeline
-        self.num_tokens = len(self.itemid2token)
-        self.num_guide_tokens = len(self.guide_name2guide_token)
+        self.gn2gt = {  # todo incorporate into preprocessing pipeline
+            'XLOW': 1, 'LOW': 2, 'MID': 3, 'HIGH': 4, 'XHIGH': 5, 'CAT': 6
+        }
+        self.gt2gn = {v: k for k, v in self.gn2gt.items()}
         self.pad_token = pad_token
-        self.clf_token = clf_token
+        self.sos_token = sos_token
         self.eos_token = eos_token
+        self.pad_guide_token = pad_guide_token
+        self.sos_guide_token = sos_guide_token
+        self.eos_guide_token = eos_guide_token
 
         if pad_token is not None:
-            self.append_special_('[PAD]', pad_token)
-        if clf_token is not None:
-            self.append_special_('[CLF]', clf_token)
+            self.append_special_(self.itemid2token, self.token2itemid, '[PAD]', pad_token)
+        if sos_token is not None:
+            self.append_special_(self.itemid2token, self.token2itemid, '[SOS]', sos_token)
         if eos_token is not None:
-            self.append_special_('[EOS]', eos_token)
+            self.append_special_(self.itemid2token, self.token2itemid, '[EOS]', eos_token)
 
-    def append_special_(self, name, token):
-        self.itemid2token[name] = token
-        self.token2itemid[token] = name
+        if pad_guide_token is not None:
+            self.append_special_(self.gn2gt, self.gt2gn, '[PAD]', pad_guide_token)
+        if sos_guide_token is not None:
+            self.append_special_(self.gn2gt, self.gt2gn, '[SOS]', sos_guide_token)
+        if eos_guide_token is not None:
+            self.append_special_(self.gn2gt, self.gt2gn, '[EOS]', eos_guide_token)
+
+        self.num_tokens = len(self.itemid2token)
+        self.num_guide_tokens = len(self.gn2gt)
+
+    @staticmethod
+    def append_special_(n2t, t2n, name, token):
+        n2t[name] = token
+        t2n[token] = name
+
+    def top_n_train_tokens(self, n):
+        d = sorted(self.token2trcount.items(), key=lambda item: item[1], reverse=True)
+        return dict(d[0:n])
 
     def decode_token(self, token):
         return str(self.token2itemid[token])
 
     def decode_tokens(self, tokens):
         return ' '.join(list(map(self.decode_token, tokens)))
-
-    def topNtokens_tr(self, N):
-        d = sorted(self.token2trcount.items(), key=lambda item: item[1], reverse=True)
-        return dict(d[0:N])
 
 
 class Labellers(Mappings):

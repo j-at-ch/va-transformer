@@ -70,10 +70,10 @@ def finetune(args):
 
     train_dataset = VgSamplerDataset(data_train, args.seq_len, device,
                                      quantiles=quantiles_train, labels=train_targets,
-                                     quantile_pad_value=args.quantile_pad_value)
+                                     pad_guide_token=args.pad_guide_token)
     val_dataset = VgSamplerDataset(data_val, args.seq_len, device,
                                    quantiles=quantiles_val, labels=val_targets,
-                                   quantile_pad_value=args.quantile_pad_value)
+                                   pad_guide_token=args.pad_guide_token)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
@@ -286,10 +286,10 @@ def evaluate(args):
 
     train_dataset = VgSamplerDataset(data_train, args.seq_len, device,
                                      quantiles=quantiles_train, labels=train_targets,
-                                     quantile_pad_value=args.quantile_pad_value)
+                                     pad_guide_token=args.pad_guide_token)
     val_dataset = VgSamplerDataset(data_val, args.seq_len, device,
                                    quantiles=quantiles_val, labels=val_targets,
-                                   quantile_pad_value=args.quantile_pad_value)
+                                   pad_guide_token=args.pad_guide_token)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
@@ -369,7 +369,7 @@ def evaluate(args):
     evaluating = model_methods.FinetuningMethods(fit_model, None)
     train_out = evaluating.predict(train_loader, 'eval', device, prefix="train")
     val_out = evaluating.predict(val_loader, 'eval', device, prefix="val")
-    pprint(train_out)  # todo check wht these are here
+    pprint(train_out)
     pprint(val_out)
 
 
