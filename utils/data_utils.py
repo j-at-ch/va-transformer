@@ -163,17 +163,20 @@ class Mappings:
         return ' '.join(list(map(self.decode_token, tokens)))
 
 
-class Labellers(Mappings):
+class Labellers:
     def __init__(self, mappings, d_items_df):
-        super().__init__(mappings)
         self.mappings = mappings
         self.d_items_df = d_items_df
 
     def token2label(self, token):
-        if token == 0:
+        if token == self.mappings.pad_token:
             return '[PAD]'
+        elif token == self.mappings.sos_token:
+            return '[SOS]'
+        elif token == self.mappings.eos_token:
+            return '[EOS]'
         else:
-            itemid = self.token2itemid[token]
+            itemid = self.mappings.token2itemid[token]
             x = self.d_items_df.loc[itemid, 'LABEL']
         return x
 

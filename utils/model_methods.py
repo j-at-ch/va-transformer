@@ -77,9 +77,8 @@ class TrainingMethods:
         return epoch_loss
 
     @torch.no_grad()
-    def write_embeddings(self, step, mappings, labeller, seq_len, device):
+    def write_embeddings(self, step, tokens, labeller, seq_len, device):
         self.model.eval()
-        tokens = list(mappings.top_n_train_tokens(N=2000).keys())
         x = torch.tensor(tokens, dtype=torch.int)
         z = torch.Tensor().to(device)
         for x_part in torch.split(x, seq_len):
@@ -186,7 +185,7 @@ class FinetuningMethods:
     @torch.no_grad()
     def write_embeddings(self, step, mappings, labeller, seq_len, device):
         self.model.eval()
-        tokens = list(mappings.top_n_train_tokens(N=2000).keys())
+        tokens = list(mappings.top_n_train_tokens(2000).keys())
         x = torch.tensor(tokens, dtype=torch.int)
         z = torch.Tensor().to(device)
         for x_part in torch.split(x, seq_len):
