@@ -122,10 +122,9 @@ def pretrain(args):
     # write initial embeddings
 
     tokens_to_write = list(mappings.token2itemid)
-    print(tokens_to_write)
 
     if bool(args.write_initial_embeddings):
-        training.write_embeddings(-1, tokens_to_write, labeller, args.seq_len, device)
+        training.write_token_emb(-1, tokens_to_write, labeller, args.seq_len, device)
 
     # training loop
 
@@ -151,7 +150,7 @@ def pretrain(args):
             # track checkpoint's embeddings
 
             if bool(args.write_best_val_embeddings):
-                training.write_embeddings(epoch, tokens_to_write, labeller, args.seq_len, device)
+                training.write_token_emb(epoch, tokens_to_write, labeller, args.seq_len, device)
 
             print("Checkpoint saved!\n")
             best_val_loss = val_loss
@@ -175,7 +174,7 @@ def pretrain(args):
     # write final embeddings
 
     if bool(args.write_final_embeddings):
-        training.write_embeddings(args.num_epochs, tokens_to_write, labeller, args.seq_len, device)
+        training.write_token_emb(args.num_epochs, tokens_to_write, labeller, args.seq_len, device)
 
     writer.close()
     print("training finished and writer closed!")

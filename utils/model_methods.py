@@ -77,7 +77,7 @@ class TrainingMethods:
         return epoch_loss
 
     @torch.no_grad()
-    def write_embeddings(self, step, tokens, labeller, seq_len, device):
+    def write_token_emb(self, step, tokens, labeller, seq_len, device):
         self.model.eval()
         x = torch.tensor(tokens, dtype=torch.int)
         z = torch.Tensor().to(device)
@@ -90,6 +90,12 @@ class TrainingMethods:
                                   metadata=metadata,
                                   global_step=step,
                                   tag='token_embeddings')
+
+    @torch.no_grad()  # dev: should this be an at-the-end eval method?
+    def write_output_emb(self, step, tokens, labeller, seq_len, device):
+        self.model.eval()
+        if labeller.mappings.eos_token is not None:
+            pass
 
     @torch.no_grad()
     def write_g_histograms(self, step):
