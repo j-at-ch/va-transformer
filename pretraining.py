@@ -74,10 +74,12 @@ def pretrain(args):
 
     train_dataset = VgSamplerDataset(data_train, args.seq_len, mappings, device,
                                      quantiles=quantiles_train,
-                                     use_specials=bool(args.use_specials))
+                                     use_specials=bool(args.use_specials),
+                                     align_sample_at=args.align_sample_at)
     val_dataset = VgSamplerDataset(data_val, args.seq_len, mappings, device,
                                    quantiles=quantiles_val,
-                                   use_specials=bool(args.use_specials))
+                                   use_specials=bool(args.use_specials),
+                                   align_sample_at=args.align_sample_at)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
@@ -164,9 +166,6 @@ def pretrain(args):
         if early_stopping_counter == args.early_stopping_threshold:
             print('early stopping threshold hit! ending training...')
             break
-
-        if args.value_guided[0:4] in ['vg1.']:
-            training.write_g_histograms(epoch)
 
         print(f'epoch {epoch} completed!')
         print('flushing writer...')

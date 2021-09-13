@@ -66,7 +66,8 @@ class Arguments:
         self.parser.add_argument('--early_stopping_threshold', type=int, default=-1)
         self.parser.add_argument('--gamma', type=float, default=0.5)
         self.parser.add_argument('--use_specials', type=int, default=1)
-        self.parser.add_argument('--align_sample_at', type=str, choices=['SOS', 'EOS', 'random'], default='random')
+        self.parser.add_argument('--align_sample_at', type=str, default='random/SOS',
+                                 choices=['SOS', 'EOS', 'random/SOS', 'random/EOS'])
 
         # finetuning/baselining arguments
 
@@ -77,7 +78,8 @@ class Arguments:
             self.parser.add_argument('--label_set', type=str, required=True)
             self.parser.add_argument('--weighted_loss', type=int, default=1)
             self.parser.add_argument('--freeze_base', type=int, default=0)
-            self.parser.add_argument('--clf_style', type=str, default='flatten')
+            self.parser.add_argument('--clf_style', type=str, default='flatten',
+                                     choices=['flatten', 'sum', 'on_SOS', 'on_EOS'])
             self.parser.add_argument('--clf_hidden_dim', type=int, default=100)
             self.parser.add_argument('--clf_dropout', type=float, default=0.)
             self.parser.add_argument('--predict_on_train', type=int, default=0)

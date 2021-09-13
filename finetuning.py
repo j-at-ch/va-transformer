@@ -1,4 +1,6 @@
 import os
+import sys
+
 import numpy as np
 import pandas as pd
 from pprint import pprint
@@ -87,10 +89,10 @@ def finetune(args):
         quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
 
     train_dataset = VgSamplerDataset(data_train, args.seq_len, mappings, device,
-                                           quantiles=quantiles_train, labels=train_targets,
-                                           use_specials=bool(args.use_specials),
-                                           align_sample_at=args.align_sample_at
-                                           )
+                                     quantiles=quantiles_train, labels=train_targets,
+                                     use_specials=bool(args.use_specials),
+                                     align_sample_at=args.align_sample_at
+                                     )
     val_dataset = VgSamplerDataset(data_val, args.seq_len, mappings, device,
                                    quantiles=quantiles_val, labels=val_targets,
                                    use_specials=bool(args.use_specials),
@@ -105,6 +107,11 @@ def finetune(args):
     if bool(args.test_run):
         train_loader = [X for i, X in enumerate(train_loader) if i < 2]
         val_loader = [X for i, X in enumerate(val_loader) if i < 2]
+
+    for i, X in enumerate(val_loader):
+        print(X)
+
+    sys.exit()
 
     # unconditional label propensities
 
@@ -227,11 +234,6 @@ def finetune(args):
             break
 
         scheduler.step()
-
-        # tracking value_guided parameters
-
-        if args.value_guided[0:4] in ['vg1.']:
-            training.write_g_histograms(epoch)
 
         # flushing writer
 

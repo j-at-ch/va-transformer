@@ -39,7 +39,7 @@ class VgSamplerDataset(Dataset):
                  quantiles=None,
                  labels=None,
                  use_specials=False,
-                 align_sample_at='random'
+                 align_sample_at='random/SOS'
                  ):
         super().__init__()
         self.tokens = tokens
@@ -80,17 +80,21 @@ class VgSamplerDataset(Dataset):
             end_index = item_len
             start_index = max(0, end_index - self.seq_len)
             sample[self.seq_len - obtainable_len:self.seq_len] = self.tokens[index][start_index: end_index]
-        else:
+        elif self.align_sample_at == 'random/SOS':
             start_index = torch.randint(0, item_len - self.seq_len, (1,)) if item_len > self.seq_len else 0
             end_index = start_index + obtainable_len
             sample[:obtainable_len] = self.tokens[index][start_index: end_index]
+        elif self.align_sample_at == 'random/EOS':
+            end_index = torch.randint(self.seq_len, item_len, (1,)) if item_len > self.seq_len else item_len
+            start_index = max(0, end_index - self.seq_len)
+            sample[self.seq_len - obtainable_len:self.seq_len] = self.tokens[index][start_index: end_index]
         sample = sample.long().to(self.device)
 
         # extract guides and labels if required
 
         if self.quantiles is not None:
             quantiles = self.mappings.pad_guide_token * torch.ones(self.seq_len)
-            if self.align_sample_at == 'EOS':
+            if self.align_sample_at in ['EOS', 'random/EOS']:
                 quantiles[self.seq_len - obtainable_len: self.seq_len] = self.quantiles[index][start_index: end_index]
             else:
                 quantiles[:obtainable_len] = self.quantiles[index][start_index: end_index]
