@@ -195,7 +195,8 @@ def finetune(args):
 
         # tracking model classification metrics
 
-        training.predict(train_loader, epoch, device, prefix="train")
+        if bool(args.predict_on_train):
+            training.predict(train_loader, epoch, device, prefix="train")
         _, _, acc, bal_acc, roc_auc = training.predict(val_loader, epoch, device, prefix="val")
 
         # whether to checkpoint model
