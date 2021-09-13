@@ -1,3 +1,5 @@
+import os
+import numpy as np
 import pandas as pd
 from pprint import pprint
 from torch.utils.data import DataLoader
@@ -6,6 +8,8 @@ from torch.utils.tensorboard import SummaryWriter
 from utils import model_methods
 from utils.data_utils import *
 from utils.arguments import Arguments
+from utils.mappings import Mappings, Labellers
+from utils.samplers import VgSamplerDataset
 from vg_transformers.vg_transformers import TransformerWrapper, Decoder
 from vg_transformers.finetuning_wrapper import FinetuningWrapper
 
@@ -35,12 +39,26 @@ def finetune(args):
     # fetch mappings
 
     mappings_dict = fetch_mappings(mapping_path)
-    mappings = Mappings(mappings_dict)
+
+    pad_token = pad_guide_token = 0
+    sos_token = sos_guide_token = eos_token = eos_guide_token = None
+    if bool(args.use_specials):
+        sos_token, sos_guide_token = len(mappings_dict['itemid2token']), 7
+        eos_token, eos_guide_token = sos_token + 1, 8
+
+    mappings = Mappings(mappings_dict,
+                        pad_token=pad_token,
+                        sos_token=sos_token,
+                        eos_token=eos_token,
+                        pad_guide_token=pad_guide_token,
+                        sos_guide_token=sos_guide_token,
+                        eos_guide_token=eos_guide_token
+                        )
 
     # labellers
 
     d_items_df = pd.read_csv(d_items_path, index_col='ITEMID', dtype={'ITEMID': str})
-    labeller = Labellers(mappings_dict, d_items_df)
+    labeller = Labellers(mappings, d_items_df)
 
     # fetch labels
 
@@ -68,12 +86,16 @@ def finetune(args):
         quantiles_train = fetch_data_as_torch(train_path, 'train_quantiles')
         quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
 
-    train_dataset = VgSamplerDataset(data_train, args.seq_len, device,
-                                     quantiles=quantiles_train, labels=train_targets,
-                                     pad_guide_token=args.pad_guide_token)
-    val_dataset = VgSamplerDataset(data_val, args.seq_len, device,
+    train_dataset = VgSamplerDataset(data_train, args.seq_len, mappings, device,
+                                           quantiles=quantiles_train, labels=train_targets,
+                                           use_specials=bool(args.use_specials),
+                                           align_sample_at=args.align_sample_at
+                                           )
+    val_dataset = VgSamplerDataset(data_val, args.seq_len, mappings, device,
                                    quantiles=quantiles_val, labels=val_targets,
-                                   pad_guide_token=args.pad_guide_token)
+                                   use_specials=bool(args.use_specials),
+                                   align_sample_at=args.align_sample_at
+                                   )
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
@@ -102,12 +124,11 @@ def finetune(args):
     pretrained_ckpt = torch.load(params_path, map_location=device)
     states = pretrained_ckpt['model_state_dict']
 
-    # base_states = {k[len('net.'):] if k[:len('net.')] == 'net.' else k: v for k, v in states.items()}
-
     # initialisation of model
 
     model = TransformerWrapper(
         num_tokens=mappings.num_tokens,
+        num_guide_tokens=mappings.num_guide_tokens,
         max_seq_len=args.seq_len,  # NOTE: max_seq_len necessary for the absolute positional embeddings.
         attn_layers=Decoder(
             dim=args.attn_dim,
@@ -129,7 +150,7 @@ def finetune(args):
                                   state_dict=states,
                                   load_from=args.load_from,
                                   weight=weights,
-                                  clf_reduce=args.clf_reduce,
+                                  clf_style=args.clf_style,
                                   clf_dropout=args.clf_dropout,
                                   value_guided=args.value_guided)
     fit_model.to(device)
@@ -137,9 +158,9 @@ def finetune(args):
     # for name, param in states.named_parameters():
     #    print(name, param.requires_grad)
 
-    print("model specification:", fit_model.net, sep="\n")
+    print("base transformer specification:", fit_model.net, sep="\n")
 
-    print("clf specification:", fit_model.clf, "embedding reduction:", fit_model.clf_reduce, sep="\n")
+    print("clf specification:", fit_model.clf, "clf style:", fit_model.clf_style, sep="\n")
 
     if bool(args.freeze_base):
         print("Freezing base transformer parameters...")
@@ -226,7 +247,7 @@ def finetune(args):
     print("training finished and writer closed!")
 
 
-def evaluate(args):
+def evaluate(args):  #
     print('*' * 17, 'finetuned chart-transformer summoned for evaluation with the following settings:', sep='\n')
     pprint(vars(args), indent=2)
     print('*' * 17)
@@ -285,11 +306,9 @@ def evaluate(args):
         quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
 
     train_dataset = VgSamplerDataset(data_train, args.seq_len, device,
-                                     quantiles=quantiles_train, labels=train_targets,
-                                     pad_guide_token=args.pad_guide_token)
+                                     quantiles=quantiles_train, labels=train_targets)
     val_dataset = VgSamplerDataset(data_val, args.seq_len, device,
-                                   quantiles=quantiles_val, labels=val_targets,
-                                   pad_guide_token=args.pad_guide_token)
+                                   quantiles=quantiles_val, labels=val_targets)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
@@ -346,7 +365,7 @@ def evaluate(args):
                                   load_from=args.load_from,
                                   weight=weights,
                                   hidden_dim=args.clf_hidden_dim,
-                                  clf_reduce=args.clf_reduce,
+                                  clf_style=args.clf_style,
                                   clf_dropout=args.clf_dropout,
                                   value_guided=args.value_guided)
     fit_model.to(device)
@@ -356,7 +375,7 @@ def evaluate(args):
 
     print("model specification:", fit_model.net, sep="\n")
 
-    print("clf specification:", fit_model.clf, "embedding reduction:", fit_model.clf_reduce, sep="\n")
+    print("clf specification:", fit_model.clf, "embedding reduction:", fit_model.clf_style, sep="\n")
 
     if bool(args.freeze_base):
         print("Freezing base transformer parameters...")
@@ -369,8 +388,6 @@ def evaluate(args):
     evaluating = model_methods.FinetuningMethods(fit_model, None)
     train_out = evaluating.predict(train_loader, 'eval', device, prefix="train")
     val_out = evaluating.predict(val_loader, 'eval', device, prefix="val")
-    pprint(train_out)
-    pprint(val_out)
 
 
 if __name__ == "__main__":

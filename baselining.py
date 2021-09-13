@@ -1,7 +1,4 @@
-import sys
-
 import numpy as np
-import pandas as pd
 from pprint import pprint
 from torch import nn
 import torch.nn.functional as F
@@ -11,6 +8,8 @@ from torch.utils.tensorboard import SummaryWriter
 from utils import model_methods
 from utils.data_utils import *
 from utils.arguments import Arguments
+from utils.mappings import Mappings
+from utils.samplers import VgSamplerDataset
 
 
 def baseline(args):
