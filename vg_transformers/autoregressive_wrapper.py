@@ -115,7 +115,6 @@ class AutoregressiveWrapper(nn.Module):
             xo = x[0][:, 1:]
             out = self.net(xi, quantiles=qi, **kwargs)
         elif self.value_guided[0:3] == 'vg2':
-            print("using vg2 loss")
             xi = x[0][:, :-1]
             qi = x[1][:, :-1]
             xo = x[0][:, 1:]
