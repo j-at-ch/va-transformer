@@ -108,11 +108,6 @@ def finetune(args):
         train_loader = [X for i, X in enumerate(train_loader) if i < 2]
         val_loader = [X for i, X in enumerate(val_loader) if i < 2]
 
-    for i, X in enumerate(val_loader):
-        print(X)
-
-    sys.exit()
-
     # unconditional label propensities
 
     def propensity_from(targets_dict):
@@ -250,7 +245,7 @@ def finetune(args):
     print("training finished and writer closed!")
 
 
-def evaluate(args):  #
+def evaluate(args):
     print('*' * 17, 'finetuned chart-transformer summoned for evaluation with the following settings:', sep='\n')
     pprint(vars(args), indent=2)
     print('*' * 17)

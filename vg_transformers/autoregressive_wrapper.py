@@ -98,7 +98,6 @@ class AutoregressiveWrapper(nn.Module):
         return out
 
     def forward(self, x, **kwargs):
-
         # help auto-solve a frequent area of confusion around input masks in auto-regressive
         # if user supplies a mask that is only off by one from the source sequence, resolve it for them
         mask = kwargs.get('mask', None)
@@ -116,6 +115,7 @@ class AutoregressiveWrapper(nn.Module):
             xo = x[0][:, 1:]
             out = self.net(xi, quantiles=qi, **kwargs)
         elif self.value_guided[0:3] == 'vg2':
+            print("using vg2 loss")
             xi = x[0][:, :-1]
             qi = x[1][:, :-1]
             xo = x[0][:, 1:]
