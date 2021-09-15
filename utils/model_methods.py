@@ -15,20 +15,20 @@ class TrainingMethods:
     def train(self, train_loader, optimizer, epoch, grad_accum_every=1, gamma=0.5):
         self.model.train()
         cum_loss = cum_token_loss = cum_quantile_loss = 0
-        print(cum_loss)
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
                               mininterval=0.5, desc=f'epoch {epoch} training'):
-            if self.model.value_guided[0:3] == 'vg2':
+            if self.model.value_guides is None:
+                loss = self.model(X)
+                token_loss = batch_loss = loss.item()
+                self.writer.add_scalar('batch_loss/train', batch_loss, epoch * len(train_loader) + i)
+                cum_token_loss += token_loss
+            else:
                 token_loss, quantile_loss = self.model(X)
                 loss = gamma * token_loss + (1 - gamma) * quantile_loss
                 batch_loss, token_loss, quantile_loss = loss.item(), token_loss.item(), quantile_loss.item()
                 self.writer.add_scalar('batch_loss/train', batch_loss, epoch * len(train_loader) + i)
                 cum_token_loss += token_loss
                 cum_quantile_loss += quantile_loss
-            else:
-                loss = self.model(X)
-                batch_loss = loss.item()
-                self.writer.add_scalar('batch_loss/train', batch_loss, epoch * len(train_loader) + i)
 
             if grad_accum_every > 1:
                 if i % grad_accum_every <= (grad_accum_every - 1):
@@ -50,8 +50,7 @@ class TrainingMethods:
         self.writer.add_scalar('epoch_token_loss/train', epoch_token_loss, epoch)
         self.writer.add_scalar('epoch_quantile_loss/train', epoch_quantile_loss, epoch)
         print(f'epoch avg train loss: {epoch_loss}',
-              f'token/quantile loss: {epoch_token_loss}/{epoch_quantile_loss}',
-              sep='\n')
+              f'token | quantile loss: {epoch_token_loss} | {epoch_quantile_loss}')
         return epoch_loss
 
     @torch.no_grad()
@@ -60,15 +59,15 @@ class TrainingMethods:
         cum_loss = cum_token_loss = cum_quantile_loss = 0
         for i, X in tqdm.tqdm(enumerate(val_loader), total=len(val_loader),
                               mininterval=0.5, desc=f'epoch {epoch} evaluation'):
-            if self.model.value_guided[0:3] == 'vg2':
+            if self.model.value_guides is None:
+                loss = self.model(X)
+                cum_loss += loss.item()
+            else:
                 token_loss, quantile_loss = self.model(X)
                 loss = gamma * token_loss + (1 - gamma) * quantile_loss
                 cum_loss += loss.item()
                 cum_token_loss += token_loss.item()
                 cum_quantile_loss += quantile_loss.item()
-            else:
-                loss = self.model(X)
-                cum_loss += loss.item()
 
         epoch_loss = cum_loss / len(val_loader)
         epoch_token_loss = cum_token_loss / len(val_loader)
@@ -106,11 +105,6 @@ class TrainingMethods:
         to_g_weights = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.weight.detach()
                                   for i in range(self.depth)], dim=1)
         self.writer.add_histogram('to_g_weights', to_g_weights, step)
-
-        if self.model.net.attn_layers.value_guided in ['vg1.1', 'vg1.3', 'vg1.4']:
-            to_g_biases = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.bias.detach()
-                                     for i in range(self.depth)], dim=-1)
-            self.writer.add_histogram('to_g_biases', to_g_biases, step)
 
 
 class FinetuningMethods:
@@ -213,11 +207,6 @@ class FinetuningMethods:
         to_g_weights = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.weight.detach()
                                   for i in range(self.depth)], dim=1)
         self.writer.add_histogram('to_g_weights', to_g_weights, step)
-
-        if self.model.net.attn_layers.value_guided in ['vg1.1', 'vg1.3', 'vg1.4']:
-            to_g_biases = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.bias.detach()
-                                     for i in range(self.depth)], dim=-1)
-            self.writer.add_histogram('to_g_biases', to_g_biases, step)
 
 
 class BaselineMethods:

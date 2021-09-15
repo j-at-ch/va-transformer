@@ -31,7 +31,7 @@ class FinetuningWrapper(nn.Module):
                  state_dict=None,
                  weight=None,
                  load_from='pretrained',
-                 value_guided='plain',
+                 value_guides=None,
                  clf_style='flatten',
                  clf_dropout=0.
                  ):
@@ -42,7 +42,7 @@ class FinetuningWrapper(nn.Module):
         self.max_seq_len = net.max_seq_len
         self.seq_len = seq_len
         self.load_from = load_from
-        self.value_guided = value_guided
+        self.value_guides = value_guides
         self.clf_style = clf_style
         self.clf_dropout = clf_dropout
 
@@ -61,7 +61,9 @@ class FinetuningWrapper(nn.Module):
             raise Exception(f"clf_reduce option {clf_style} is not implemented!")
         del self.net.to_logits
 
-        if self.value_guided[0:3] == 'vg2':
+        if self.value_guides is None:
+            self.clf = Classifier(num_features, hidden_dim, num_classes, clf_dropout)
+        else:
             if clf_style == 'flatten':
                 num_guide_ft = net.attn_layers.dim_guide * self.seq_len
             elif clf_style in ['on_SOS', 'on_EOS', 'sum']:
@@ -70,8 +72,6 @@ class FinetuningWrapper(nn.Module):
                 raise Exception(f"clf_reduce option {clf_style} is not implemented!")
             del self.net.to_guide_logits
             self.clf = Classifier(num_guide_ft + num_features, hidden_dim, num_classes, clf_dropout)
-        else:
-            self.clf = Classifier(num_features, hidden_dim, num_classes, clf_dropout)
 
         # if doing post-training analysis then initialise net hparams from finetuned model
 
@@ -79,13 +79,10 @@ class FinetuningWrapper(nn.Module):
             self.load_state_dict(state_dict)
 
     def forward(self, x, predict=False, **kwargs):
-        if self.value_guided == 'plain':
+        if self.value_guides is None:
             x, targets = x
             out = self.net(x, return_embeddings=True, **kwargs)
-        elif self.value_guided[0:3] == 'vg1':
-            x, quantiles, targets = x
-            out = self.net(x, quantiles=quantiles, return_embeddings=True, **kwargs)
-        elif self.value_guided[0:3] == 'vg2':
+        else:
             x, quantiles, targets = x
             out, quantiles_out = self.net(x, quantiles=quantiles, return_embeddings=True, **kwargs)
 
@@ -97,8 +94,10 @@ class FinetuningWrapper(nn.Module):
             out = out[:, 0, :]
         elif self.clf_style == 'on_EOS':
             out = out[:, -1, :]
+        else:
+            raise Exception(f"clf_reduce option {self.clf_style} is not implemented!")
 
-        if self.value_guided[0:3] == 'vg2':
+        if self.value_guides is not None:
             if self.clf_style == 'flatten':
                 quantiles_out = torch.flatten(quantiles_out, start_dim=1)  # first dim is batch
             elif self.clf_style == 'sum':

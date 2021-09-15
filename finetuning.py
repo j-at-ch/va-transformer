@@ -81,7 +81,7 @@ def finetune(args):
 
     # get quantiles
 
-    if args.value_guided == 'plain':
+    if args.value_guides is None:
         quantiles_train = None
         quantiles_val = None
     else:
@@ -138,7 +138,7 @@ def finetune(args):
             heads=args.attn_heads,
             attn_dropout=args.attn_dropout,
             ff_dropout=args.ff_dropout,
-            value_guided=args.value_guided,
+            value_guides=args.value_guides,
             use_rezero=bool(args.use_rezero),
             rotary_pos_emb=bool(args.rotary_pos_emb)
         )
@@ -154,7 +154,7 @@ def finetune(args):
                                   weight=weights,
                                   clf_style=args.clf_style,
                                   clf_dropout=args.clf_dropout,
-                                  value_guided=args.value_guided)
+                                  value_guides=args.value_guides)
     fit_model.to(device)
 
     # for name, param in states.named_parameters():
@@ -296,7 +296,7 @@ def evaluate(args):
 
     # get quantiles
 
-    if args.value_guided == 'plain':
+    if args.value_guides is None:
         quantiles_train = None
         quantiles_val = None
     else:
@@ -348,7 +348,7 @@ def evaluate(args):
             heads=args.attn_heads,
             attn_dropout=args.attn_dropout,
             ff_dropout=args.ff_dropout,
-            value_guided=args.value_guided,
+            value_guides=args.value_guides,
             use_rezero=bool(args.use_rezero),
             rotary_pos_emb=bool(args.rotary_pos_emb)
         )
@@ -365,7 +365,7 @@ def evaluate(args):
                                   hidden_dim=args.clf_hidden_dim,
                                   clf_style=args.clf_style,
                                   clf_dropout=args.clf_dropout,
-                                  value_guided=args.value_guided)
+                                  value_guides=args.value_guides)
     fit_model.to(device)
 
     # for name, param in states.named_parameters():
