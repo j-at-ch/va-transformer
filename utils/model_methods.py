@@ -15,6 +15,7 @@ class TrainingMethods:
     def train(self, train_loader, optimizer, epoch, grad_accum_every=1, gamma=0.5):
         self.model.train()
         cum_loss = cum_token_loss = cum_quantile_loss = 0
+        print(cum_loss)
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
                               mininterval=0.5, desc=f'epoch {epoch} training'):
             if self.model.value_guided[0:3] == 'vg2':
@@ -48,7 +49,9 @@ class TrainingMethods:
         self.writer.add_scalar('epoch_loss/train', epoch_loss, epoch)
         self.writer.add_scalar('epoch_token_loss/train', epoch_token_loss, epoch)
         self.writer.add_scalar('epoch_quantile_loss/train', epoch_quantile_loss, epoch)
-        print(f'epoch avg train loss: {epoch_loss}, token/quantile loss: {epoch_token_loss}/{epoch_quantile_loss}')
+        print(f'epoch avg train loss: {epoch_loss}',
+              f'token/quantile loss: {epoch_token_loss}/{epoch_quantile_loss}',
+              sep='\n')
         return epoch_loss
 
     @torch.no_grad()

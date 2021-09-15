@@ -114,8 +114,8 @@ class AutoregressiveWrapper(nn.Module):
             xo = x[0][:, 1:]
             qo = x[1][:, 1:]
             out, quantiles_out = self.net(xi, quantiles=qi, **kwargs)
-            return out, quantiles_out
-        return out
+            return torch.argmax(out, dim=-1), torch.argmax(quantiles_out, dim=-1)
+        return torch.argmax(out, dim=-1)
 
     def forward(self, x, **kwargs):
         # help auto-solve a frequent area of confusion around input masks in auto-regressive

@@ -317,10 +317,10 @@ class Attention(nn.Module):
             self,
             dim,
             dim_head=DEFAULT_DIM_HEAD,
-            dim_guide=None,
-            dim_guide_heads=10,  # dev
             heads=8,
             value_guided='plain',  # dev
+            dim_guide=None,
+            dim_guide_heads=10,  # dev
             causal=False,
             mask=None,
             talking_heads=False,

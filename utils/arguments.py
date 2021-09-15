@@ -59,15 +59,19 @@ class Arguments:
         self.parser.add_argument('--scheduler_decay', type=float, default=1.)
         self.parser.add_argument('--test_run', type=int, default=0)
         self.parser.add_argument('--pad_token', type=int, default=0)
-        self.parser.add_argument('--pad_guide_token', type=int, default=0)
+        self.parser.add_argument('--pad_guide_token', type=int, default=6)
         self.parser.add_argument('--ignore_index', type=int, default=-100)
         self.parser.add_argument('--ignore_guide_index', type=int, default=-100)
         self.parser.add_argument('--grad_accum_every', type=int, default=1)
         self.parser.add_argument('--early_stopping_threshold', type=int, default=-1)
         self.parser.add_argument('--gamma', type=float, default=0.5)
-        self.parser.add_argument('--use_specials', type=int, default=1)
+        self.parser.add_argument('--use_specials', type=int, default=0)
         self.parser.add_argument('--align_sample_at', type=str, default='random/SOS',
                                  choices=['SOS', 'EOS', 'random/SOS', 'random/EOS'])
+        if self.mode == 'pretraining':
+            self.parser.add_argument('--mode', type=str, default='train',
+                                     choices=['train', 'evaluate'])
+            self.parser.add_argument('--load_from_checkpoint_at', type=str, default=None)
 
         # finetuning/baselining arguments
 
