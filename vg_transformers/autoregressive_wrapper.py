@@ -97,6 +97,26 @@ class AutoregressiveWrapper(nn.Module):
         self.net.train(was_training)
         return out
 
+    @torch.no_grad()
+    def predict(self, x, **kwargs):
+        if self.value_guided == 'plain':
+            xi = x[:, :-1]
+            xo = x[:, 1:]
+            out = self.net(xi, **kwargs)
+        elif self.value_guided[0:3] == 'vg1':
+            xi = x[0][:, :-1]
+            qi = x[1][:, :-1]
+            xo = x[0][:, 1:]
+            out = self.net(xi, quantiles=qi, **kwargs)
+        elif self.value_guided[0:3] == 'vg2':
+            xi = x[0][:, :-1]
+            qi = x[1][:, :-1]
+            xo = x[0][:, 1:]
+            qo = x[1][:, 1:]
+            out, quantiles_out = self.net(xi, quantiles=qi, **kwargs)
+            return out, quantiles_out
+        return out
+
     def forward(self, x, **kwargs):
         # help auto-solve a frequent area of confusion around input masks in auto-regressive
         # if user supplies a mask that is only off by one from the source sequence, resolve it for them
