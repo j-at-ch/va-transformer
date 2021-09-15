@@ -40,13 +40,13 @@ entmax = entmax_bisect
 
 
 class AutoregressiveWrapper(nn.Module):
-    def __init__(self, net, value_guided=False, ignore_index=-100, pad_value=0, ignore_guide_index=None):
+    def __init__(self, net, value_guides=None, ignore_index=-100, pad_value=0, ignore_guide_index=None):
         super().__init__()
         self.pad_value = pad_value
         self.ignore_index = ignore_index
         self.ignore_guide_index = ignore_guide_index
         self.net = net
-        self.value_guided = value_guided
+        self.value_guides = value_guides
         self.max_seq_len = net.max_seq_len
 
     @torch.no_grad()
@@ -99,16 +99,11 @@ class AutoregressiveWrapper(nn.Module):
 
     @torch.no_grad()
     def predict(self, x, **kwargs):
-        if self.value_guided == 'plain':
+        if self.value_guides is None:
             xi = x[:, :-1]
             xo = x[:, 1:]
             out = self.net(xi, **kwargs)
-        elif self.value_guided[0:3] == 'vg1':
-            xi = x[0][:, :-1]
-            qi = x[1][:, :-1]
-            xo = x[0][:, 1:]
-            out = self.net(xi, quantiles=qi, **kwargs)
-        elif self.value_guided[0:3] == 'vg2':
+        else:
             xi = x[0][:, :-1]
             qi = x[1][:, :-1]
             xo = x[0][:, 1:]
@@ -125,16 +120,11 @@ class AutoregressiveWrapper(nn.Module):
             mask = mask[:, :-1]
             kwargs['mask'] = mask
 
-        if self.value_guided == 'plain':
+        if self.value_guides is None:
             xi = x[:, :-1]
             xo = x[:, 1:]
             out = self.net(xi, **kwargs)
-        elif self.value_guided[0:3] == 'vg1':
-            xi = x[0][:, :-1]
-            qi = x[1][:, :-1]
-            xo = x[0][:, 1:]
-            out = self.net(xi, quantiles=qi, **kwargs)
-        elif self.value_guided[0:3] == 'vg2':
+        else:
             xi = x[0][:, :-1]
             qi = x[1][:, :-1]
             xo = x[0][:, 1:]

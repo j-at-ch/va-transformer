@@ -21,13 +21,15 @@ class Arguments:
         self.parser.add_argument('--logs_root', type=str)
         self.parser.set_defaults(logs_root='/home/james/Documents/Charters/labs_dataset4/logs')
 
-        # use quantile-guided
+        # use value-guided and define appropriate type-checking
 
-        self.parser.add_argument('--value_guided', type=str,
-                                 choices=['plain',
-                                          'vg1', 'vg1.1', 'vg1.2', 'vg1.3', 'vg1.4',
-                                          'vg2', 'vg2.1', 'vg2.2'],
-                                 required=True if self.mode != 'baselining' else False)
+        def none_or_str(value):
+            if value == 'None':
+                return None
+            return value
+
+        self.parser.add_argument('--value_guides', type=none_or_str, default=None,
+                                 choices=[None, 'no-mixing', 'g-on-t', 't-on-g', 'g-and-t'])
 
         # attention specification
 

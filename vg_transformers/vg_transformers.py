@@ -318,9 +318,9 @@ class Attention(nn.Module):
             dim,
             dim_head=DEFAULT_DIM_HEAD,
             heads=8,
-            value_guided='plain',  # dev
+            value_guides=None,
             dim_guide=None,
-            dim_guide_heads=10,  # dev
+            dim_guide_heads=10,
             causal=False,
             mask=None,
             talking_heads=False,
@@ -338,8 +338,8 @@ class Attention(nn.Module):
         self.heads = heads
         self.causal = causal
         self.mask = mask
-        self.value_guided = value_guided  # dev
-        self.guide_scale = dim_guide_heads ** -0.5  # dev
+        self.value_guides = value_guides
+        self.guide_scale = dim_guide_heads ** -0.5
 
         qk_dim = v_dim = heads * dim_head  # stacking heads together
 
@@ -353,31 +353,14 @@ class Attention(nn.Module):
         self.to_k = nn.Linear(dim, qk_dim, bias=False)
         self.to_v = nn.Linear(dim, v_dim, bias=False)
 
-        # dev value-guided heads
-        if self.value_guided == 'vg1':
-            g_dim = heads * 1
-            self.to_g = nn.Linear(1, g_dim, bias=False)
-        elif self.value_guided == 'vg1.1':
-            g_dim = heads * 1
-            self.to_g = nn.Linear(1, g_dim, bias=True)
-        elif self.value_guided == 'vg1.2':
-            g_dim = heads * 1
-            self.to_g = nn.Linear(6, g_dim, bias=False)  # input is one-hot of a 6-value categorical.
-        elif self.value_guided == 'vg1.3':
-            g_dim = heads * 1
-            self.to_g = nn.Linear(6, g_dim, bias=True)  # input is one-hot of a 6-value categorical.
-        elif self.value_guided == 'vg1.4':
-            g_dim = heads * 1
-            self.to_g = nn.Linear(dim_guide, g_dim, bias=True)  # input is one-hot of a 7-value categorical.
-        elif self.value_guided[0:3] == 'vg2':
+        if self.value_guides is None:
+            pass
+        else:
             g_dim = heads * dim_guide_heads
-            go_dim = heads * dim_guide if self.value_guided == 'vg2.1' else g_dim
             self.to_gk = nn.Linear(dim_guide, g_dim, bias=False)
             self.to_gq = nn.Linear(dim_guide, g_dim, bias=False)
-            self.to_gv = nn.Linear(dim_guide, g_dim, bias=False)  # dev 2.2
-            self.to_g_out = nn.Linear(go_dim, dim_guide)
-        else:
-            pass
+            self.to_gv = nn.Linear(dim_guide, g_dim, bias=False)
+            self.to_g_out = nn.Linear(g_dim, dim_guide)
 
         self.dropout = nn.Dropout(dropout)
 
@@ -487,48 +470,26 @@ class Attention(nn.Module):
 
         pre_softmax_attn = dots.clone()
 
-        # dev value_guided
-
-        if self.value_guided == 'plain':
+        if self.value_guides is None:
             pass
-        elif self.value_guided in ['vg1', 'vg1.1']:
-            g_input = quantiles
-            g = self.to_g(g_input)
-            g = rearrange(g, 'b n (h d) -> b h n d', h=h)
-            dots = einsum('b h i k, b h j k -> b h i j', dots, g)
-        elif self.value_guided in ['vg1.2', 'vg1.3', 'vg1.4']:
-            g_input = quantiles
-            g = self.to_g(g_input)
-            g = rearrange(g, 'b n d h -> b h n d', h=h)
-            dots = einsum('b h i k, b h j k -> b h i j', dots, g)
-        elif self.value_guided == 'vg2':
-            gk_input = gq_input = quantiles
-            gk = self.to_gk(gk_input)
-            gq = self.to_gq(gq_input)
-            gq, gk = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), (gq, gk))
-            guide_dots = einsum('b h i d, b h j d -> b h i j', gq, gk) * self.guide_scale
-            dots = torch.einsum('b h i j, b h i j -> b h i j', dots, guide_dots.clone())
-        elif self.value_guided == 'vg2.1':
-            gk_input = gq_input = quantiles
-            gk = self.to_gk(gk_input)
-            gq = self.to_gq(gq_input)
-            gq, gk = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), (gq, gk))
-            guide_dots = einsum('b h i d, b h j d -> b h i j', gq, gk) * self.guide_scale
-            dots_clone, guide_dots_clone = dots.clone(), guide_dots.clone()
-            dots = torch.einsum('b h i j, b h i j -> b h i j', dots, guide_dots_clone)
-            guide_dots = torch.einsum('b h i j, b h i j -> b h i j', dots_clone, guide_dots)
-        elif self.value_guided == 'vg2.2':
+        else:
             gk_input = gq_input = gv_input = quantiles
             gk = self.to_gk(gk_input)
             gq = self.to_gq(gq_input)
             gv = self.to_gv(gv_input)
             gq, gk, gv = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), (gq, gk, gv))
             guide_dots = einsum('b h i d, b h j d -> b h i j', gq, gk) * self.guide_scale
-            dots_clone, guide_dots_clone = dots.clone(), guide_dots.clone()
-            dots = torch.einsum('b h i j, b h i j -> b h i j', dots, guide_dots_clone)  # break
-            guide_dots = torch.einsum('b h i j, b h i j -> b h i j', dots_clone, guide_dots)
-        else:
-            raise AssertionError('value-guided mechanism has not been implemented!')
+            if self.value_guides == 'no-mixing':
+                pass
+            elif self.value_guides == 'g-on-t':
+                dots = torch.einsum('b h i j, b h i j -> b h i j', dots, guide_dots.clone())
+            elif self.value_guides == 't-on-g':
+                guide_dots = torch.einsum('b h i j, b h i j -> b h i j', dots.clone(), guide_dots)
+            elif self.value_guides == 'g-and-t':
+                dots = torch.einsum('b h i j, b h i j -> b h i j', dots, guide_dots.clone())
+                guide_dots = torch.einsum('b h i j, b h i j -> b h i j', dots.clone(), guide_dots)
+            else:
+                raise Exception('Unknown guide and token mixing specified!')
 
         if talking_heads:
             dots = einsum('b h i j, h k -> b k i j', dots, self.pre_softmax_proj).contiguous()
@@ -546,8 +507,8 @@ class Attention(nn.Module):
             mask = rearrange(r, 'i -> () () i ()') < rearrange(r, 'j -> () () () j')
             mask = F.pad(mask, (j - i, 0), value=False)  # fit mask to correct shape. only necc if q.shape != k.shape
             dots.masked_fill_(mask, mask_value)
-            if self.value_guided[0:3] == 'vg2':
-                guide_dots.masked_fill_(mask, mask_value)  # dev
+            if self.value_guides is not None:
+                guide_dots.masked_fill_(mask, mask_value)
             del mask
 
         if exists(self.sparse_topk) and self.sparse_topk < dots.shape[-1]:
@@ -562,7 +523,7 @@ class Attention(nn.Module):
 
         attn = self.dropout(attn)
 
-        if self.value_guided[0:3] == 'vg2':
+        if self.value_guides is not None:
             g_attn = self.attn_fn(guide_dots, dim=-1)  # specify attention non-linearity
             g_attn = self.dropout(g_attn)
 
@@ -581,8 +542,8 @@ class Attention(nn.Module):
             post_softmax_attn=post_softmax_attn
         )
 
-        if self.value_guided[0:3] == 'vg2':
-            g_in = gv if self.value_guided == 'vg2.2' else torch.unsqueeze(quantiles, 1).repeat(1, h, 1, 1)
+        if self.value_guides is not None:
+            g_in = gv #if self.value_guides == 'vg2.2' else torch.unsqueeze(quantiles, 1).repeat(1, h, 1, 1)
             g_out = einsum('b h i j, b h j d -> b h i d', g_attn, g_in)
             g_out = rearrange(g_out, 'b h n d -> b n (h d)')
             return self.to_out(out), intermediates, self.to_g_out(g_out)
@@ -596,7 +557,7 @@ class AttentionLayers(nn.Module):
             dim,
             depth,
             heads=8,
-            value_guided='plain',
+            value_guides=None,
             dim_guide=10,
             causal=False,
             cross_attend=False,
@@ -644,7 +605,7 @@ class AttentionLayers(nn.Module):
                                             max_distance=rel_pos_max_distance) if rel_pos_bias else None
 
         self.pre_norm = pre_norm
-        self.value_guided = value_guided
+        self.value_guides = value_guides
         self.residual_attn = residual_attn
         self.cross_residual_attn = cross_residual_attn
         self.cross_attend = cross_attend
@@ -691,7 +652,7 @@ class AttentionLayers(nn.Module):
         for layer_type in self.layer_types:
             if layer_type == 'a':
                 layer = Attention(dim,
-                                  value_guided=value_guided,
+                                  value_guides=value_guides,
                                   dim_guide=dim_guide,
                                   heads=heads,
                                   causal=causal,
@@ -754,13 +715,13 @@ class AttentionLayers(nn.Module):
             if self.pre_norm:
                 x = norm(x)
 
-            if self.value_guided[0:3] == 'vg2':
+            if self.value_guides is not None:
                 g_residual = quantiles
                 if self.pre_norm:
                     quantiles = F.layer_norm(quantiles, quantiles.shape)
 
-            if layer_type == 'a':  # dev extra clause
-                if self.value_guided[0:3] == 'vg2':
+            if layer_type == 'a':
+                if self.value_guides is not None:
                     out, inter, g_out = block(x,
                                               quantiles=quantiles,
                                               mask=mask,
@@ -784,7 +745,7 @@ class AttentionLayers(nn.Module):
                 out = block(x)
 
             x = residual_fn(out, residual)
-            if self.value_guided[0:3] == 'vg2':
+            if self.value_guides is not None:
                 quantiles = residual_fn(g_out, g_residual)
 
             if layer_type in ('a', 'c'):
@@ -798,7 +759,7 @@ class AttentionLayers(nn.Module):
             if not self.pre_norm and not is_last:
                 x = norm(x)
 
-        if self.value_guided[0:3] == 'vg2':
+        if self.value_guides is not None:
             if return_hiddens:
                 intermediates = LayerIntermediates(
                     hiddens=hiddens,
@@ -856,7 +817,7 @@ class TransformerWrapper(nn.Module):
         dim_guide = attn_layers.dim_guide
         emb_dim = default(emb_dim, dim)
 
-        self.value_guided = attn_layers.value_guided
+        self.value_guides = attn_layers.value_guides
         self.num_guide_tokens = num_guide_tokens
 
         self.max_seq_len = max_seq_len
@@ -871,12 +832,14 @@ class TransformerWrapper(nn.Module):
         self.project_emb = nn.Linear(emb_dim, dim) if emb_dim != dim else nn.Identity()
         self.attn_layers = attn_layers
         self.norm = nn.LayerNorm(dim)
-        self.guide_norm = nn.LayerNorm(dim_guide)
+        if self.value_guides is not None:
+            self.guide_norm = nn.LayerNorm(dim_guide)
 
         self.init_()
 
         self.to_logits = nn.Linear(dim, num_tokens) if not tie_embedding else lambda t: t @ self.token_emb.weight.t()
-        self.to_guide_logits = nn.Linear(dim_guide, num_guide_tokens)
+        if self.value_guides is not None:
+            self.to_guide_logits = nn.Linear(dim_guide, num_guide_tokens)
 
         # memory tokens (like [cls]) from Memory Transformers paper
         num_memory_tokens = default(num_memory_tokens, 0)
@@ -909,15 +872,7 @@ class TransformerWrapper(nn.Module):
         x = self.emb_dropout(x)
         x = self.project_emb(x)
 
-        # dev value-guided
-
-        if self.value_guided in ['vg1', 'vg1.1']:
-            quantiles = torch.unsqueeze(quantiles.to(torch.float), -1)  # need to add dimension to quantiles for to_g
-        elif self.value_guided in ['vg1.2', 'vg1.3', 'vg1.4']:
-            quantiles = torch.unsqueeze(quantiles, -1)  # need to add dimension to quantiles for to_g
-            quantiles = F.one_hot(quantiles, num_classes=self.num_guide_tokens)
-            quantiles = quantiles.to(torch.float)
-        elif self.value_guided[0:3] == 'vg2':
+        if self.value_guides is not None:
             quantiles = self.guide_emb(quantiles)
 
         if num_mem > 0:
@@ -928,7 +883,7 @@ class TransformerWrapper(nn.Module):
             if exists(mask):
                 mask = F.pad(mask, (num_mem, 0), value=True)
 
-        if self.value_guided[0:3] == 'vg2':
+        if self.value_guides is not None:
             x, intermediates, quantiles = self.attn_layers(x,
                                                            quantiles=quantiles,
                                                            mask=mask,
@@ -959,7 +914,7 @@ class TransformerWrapper(nn.Module):
             attn_maps = list(map(lambda t: t.post_softmax_attn, intermediates.attn_intermediates))
             return out, attn_maps
 
-        if self.value_guided[0:3] == 'vg2':
+        if self.value_guides is not None:
             quantiles = self.guide_norm(quantiles)
             quantiles_out = self.to_guide_logits(quantiles) if not return_embeddings else quantiles
             return out, quantiles_out

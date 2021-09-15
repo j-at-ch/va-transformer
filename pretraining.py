@@ -70,7 +70,7 @@ def evaluate(args):
 
     # get quantiles
 
-    if args.value_guided == 'plain':
+    if args.value_guides is None:
         quantiles_train = None
         quantiles_val = None
     else:
@@ -112,7 +112,7 @@ def evaluate(args):
             heads=args.attn_heads,
             attn_dropout=args.attn_dropout,
             ff_dropout=args.ff_dropout,
-            value_guided=args.value_guided,
+            value_guides=args.value_guides,
             dim_guide=args.attn_dim_guide,
             use_rezero=bool(args.use_rezero),
             rotary_pos_emb=bool(args.rotary_pos_emb)
@@ -122,7 +122,7 @@ def evaluate(args):
     # wrap model for pretraining
 
     pre_model = AutoregressiveWrapper(model,
-                                      value_guided=args.value_guided,
+                                      value_guides=args.value_guides,
                                       ignore_index=args.ignore_index,
                                       ignore_guide_index=args.ignore_guide_index)
 
@@ -134,7 +134,6 @@ def evaluate(args):
         pass
 
     pre_model.to(device)
-    #print(pre_model.state_dict()['net.token_emb.weight']) sanity check
     pre_model.eval()
     with torch.no_grad():
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
@@ -142,7 +141,20 @@ def evaluate(args):
             print(X)
             if i > 5:
                 break
-            if pre_model.value_guided[0:3] == 'vg2':
+
+            if pre_model.value_guides is None:
+                xi = X[:, :-1]
+                xo = X[:, 1:]
+                out = pre_model.predict(X)
+                loss = pre_model(X)
+                print("target:",
+                      xo[1, :],
+                      "prediction:",
+                      out[1, :],
+                      sep='\n')
+
+
+            else:
                 xo = X[0][:, 1:]
                 qo = X[1][:, 1:]
                 out, quantiles_out = pre_model.predict(X)
@@ -154,17 +166,6 @@ def evaluate(args):
                       "prediction:",
                       out[1, :],
                       quantiles_out[1, :],
-                      sep='\n')
-
-            elif pre_model.value_guided == 'plain':
-                xi = X[:, :-1]
-                xo = X[:, 1:]
-                out = pre_model.predict(X)
-                loss = pre_model(X)
-                print("target:",
-                      xo[1, :],
-                      "prediction:",
-                      out[1, :],
                       sep='\n')
 
 
@@ -217,7 +218,7 @@ def pretrain(args):
 
     # get quantiles
 
-    if args.value_guided == 'plain':
+    if args.value_guides is None:
         quantiles_train = None
         quantiles_val = None
     else:
@@ -256,7 +257,7 @@ def pretrain(args):
             heads=args.attn_heads,
             attn_dropout=args.attn_dropout,
             ff_dropout=args.ff_dropout,
-            value_guided=args.value_guided,
+            value_guides=args.value_guides,
             dim_guide=args.attn_dim_guide,
             use_rezero=bool(args.use_rezero),
             rotary_pos_emb=bool(args.rotary_pos_emb)
@@ -266,7 +267,7 @@ def pretrain(args):
     # wrap model for pretraining
 
     pre_model = AutoregressiveWrapper(model,
-                                      value_guided=args.value_guided,
+                                      value_guides=args.value_guides,
                                       ignore_index=args.ignore_index,
                                       ignore_guide_index=args.ignore_guide_index)
     pre_model.to(device)
