@@ -61,7 +61,9 @@ class TrainingMethods:
                               mininterval=0.5, desc=f'epoch {epoch} evaluation'):
             if self.model.value_guides is None:
                 loss = self.model(X)
-                cum_loss += loss.item()
+                token_loss = batch_loss = loss.item()
+                cum_loss += batch_loss
+                cum_token_loss += token_loss
             else:
                 token_loss, quantile_loss = self.model(X)
                 loss = gamma * token_loss + (1 - gamma) * quantile_loss
@@ -75,7 +77,7 @@ class TrainingMethods:
         self.writer.add_scalar('epoch_loss/val', epoch_loss, epoch)
         self.writer.add_scalar('epoch_token_loss/val', epoch_token_loss, epoch)
         self.writer.add_scalar('epoch_quantile_loss/val', epoch_quantile_loss, epoch)
-        print(f'epoch avg val loss: {epoch_loss}, token/quantile loss: {epoch_token_loss}/{epoch_quantile_loss}')
+        print(f'epoch avg val loss: {epoch_loss}, token | quantile loss: {epoch_token_loss} | {epoch_quantile_loss}')
         return epoch_loss
 
     @torch.no_grad()
