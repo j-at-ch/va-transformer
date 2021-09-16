@@ -58,15 +58,19 @@ class VgSamplerDataset(Dataset):
 
     def __getitem__(self, key):
         index = self.lookup[key]
+        token_seq = self.tokens[index]
+
         if self.use_specials:
-            self.tokens[index] = self.add_specials_(self.tokens[index],
-                                                    self.mappings.sos_token,
-                                                    self.mappings.eos_token)
+            # assert sum(seq == torch.tensor(self.mappings.sos_token)) < 1
+            token_seq = self.add_specials_(self.tokens[index],
+                                           self.mappings.sos_token,
+                                           self.mappings.eos_token)
             if self.quantiles is not None:
-                self.quantiles[index] = self.add_specials_(self.quantiles[index],
-                                                           self.mappings.sos_guide_token,
-                                                           self.mappings.eos_guide_token)
-        item_len = self.tokens[index].size(0)
+                guide_seq = self.add_specials_(self.quantiles[index],
+                                               self.mappings.sos_guide_token,
+                                               self.mappings.eos_guide_token)
+
+        item_len = token_seq.size(0)
         obtainable_len = min(item_len, self.seq_len)
 
         # extract sample
@@ -75,30 +79,30 @@ class VgSamplerDataset(Dataset):
         if self.align_sample_at == 'SOS':
             start_index = 0
             end_index = start_index + obtainable_len
-            sample[:obtainable_len] = self.tokens[index][start_index: end_index]
+            sample[:obtainable_len] = token_seq[start_index: end_index]
         elif self.align_sample_at == 'EOS':
             end_index = item_len
             start_index = max(0, end_index - self.seq_len)
-            sample[self.seq_len - obtainable_len:self.seq_len] = self.tokens[index][start_index: end_index]
+            sample[self.seq_len - obtainable_len:self.seq_len] = token_seq[start_index: end_index]
         elif self.align_sample_at == 'random/SOS':
             start_index = torch.randint(0, item_len - self.seq_len, (1,)) if item_len > self.seq_len else 0
             end_index = start_index + obtainable_len
-            sample[:obtainable_len] = self.tokens[index][start_index: end_index]
+            sample[:obtainable_len] = token_seq[start_index: end_index]
         elif self.align_sample_at == 'random/EOS':
             end_index = torch.randint(self.seq_len, item_len, (1,)) if item_len > self.seq_len else item_len
             start_index = max(0, end_index - self.seq_len)
-            sample[self.seq_len - obtainable_len:self.seq_len] = self.tokens[index][start_index: end_index]
+            sample[self.seq_len - obtainable_len:self.seq_len] = token_seq[start_index: end_index]
         sample = sample.long().to(self.device)
 
         # extract guides and labels if required
 
         if self.quantiles is not None:
-            quantiles = self.mappings.pad_guide_token * torch.ones(self.seq_len)
+            q_sample = self.mappings.pad_guide_token * torch.ones(self.seq_len)
             if self.align_sample_at in ['EOS', 'random/EOS']:
-                quantiles[self.seq_len - obtainable_len: self.seq_len] = self.quantiles[index][start_index: end_index]
+                q_sample[self.seq_len - obtainable_len: self.seq_len] = guide_seq[start_index: end_index]
             else:
-                quantiles[:obtainable_len] = self.quantiles[index][start_index: end_index]
-            quantiles = quantiles.long().to(self.device)
+                q_sample[:obtainable_len] = guide_seq[start_index: end_index]
+            q_sample = q_sample.long().to(self.device)
 
         if self.labels is not None:
             labels = torch.tensor(self.labels[index])
@@ -107,11 +111,11 @@ class VgSamplerDataset(Dataset):
         if (self.quantiles is None) & (self.labels is None):
             return sample
         elif (self.quantiles is not None) & (self.labels is None):
-            return sample, quantiles
+            return sample, q_sample
         elif (self.quantiles is None) & (self.labels is not None):
             return sample, labels
         else:
-            return sample, quantiles, labels
+            return sample, q_sample, labels
 
     def __len__(self):
         return len(self.tokens)
