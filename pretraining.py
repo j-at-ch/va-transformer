@@ -97,9 +97,6 @@ def evaluate(args):
         train_loader = [X for i, X in enumerate(train_loader) if i < 2]
         val_loader = [X for i, X in enumerate(val_loader) if i < 2]
 
-    for i, X in enumerate(val_loader):
-        print(X)
-
     # instantiate GPT-like decoder architecture
 
     model = TransformerWrapper(
@@ -135,13 +132,10 @@ def evaluate(args):
 
     pre_model.to(device)
     pre_model.eval()
-    with torch.no_grad():
-        for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
+    for epoch in range(args.num_epochs):
+        for i, X in tqdm.tqdm(enumerate(val_loader), total=len(val_loader),
                               mininterval=0.5, desc=f'evaluation'):
             print(X)
-            if i > 5:
-                break
-
             if pre_model.value_guides is None:
                 xi = X[:, :-1]
                 xo = X[:, 1:]
@@ -152,8 +146,6 @@ def evaluate(args):
                       "prediction:",
                       out[1, :],
                       sep='\n')
-
-
             else:
                 xo = X[0][:, 1:]
                 qo = X[1][:, 1:]
@@ -239,11 +231,18 @@ def pretrain(args):
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
 
-    #  for rapid test run
-
     if bool(args.test_run):
-        train_loader = [X for i, X in enumerate(train_loader) if i < 2]
-        val_loader = [X for i, X in enumerate(val_loader) if i < 2]
+        def make_toy_loader(loader, size=2):
+            toy_loader = []
+            for i, X in enumerate(loader):
+                if i == size - 1:
+                    break
+                else:
+                    toy_loader.append(X)
+            return toy_loader
+
+        train_loader = make_toy_loader(train_loader)
+        val_loader = make_toy_loader(val_loader)
 
     # instantiate GPT-like decoder architecture
 
