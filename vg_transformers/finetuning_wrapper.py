@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import copy
@@ -55,10 +56,10 @@ class FinetuningWrapper(nn.Module):
 
         if clf_style == 'flatten':
             num_features = net.attn_layers.dim * self.seq_len
-        elif clf_style in ['on_SOS', 'on_EOS', 'sum']:
+        elif clf_style in ['on_SOS', 'on_EOS', 'sum', 'on_EOS_token']:
             num_features = net.attn_layers.dim
         else:
-            raise Exception(f"clf_reduce option {clf_style} is not implemented!")
+            raise Exception(f"clf_style option {clf_style} is not implemented!")
         del self.net.to_logits
 
         if self.value_guides is None:
@@ -66,10 +67,10 @@ class FinetuningWrapper(nn.Module):
         else:
             if clf_style == 'flatten':
                 num_guide_ft = net.attn_layers.dim_guide * self.seq_len
-            elif clf_style in ['on_SOS', 'on_EOS', 'sum']:
+            elif clf_style in ['on_SOS', 'on_EOS', 'sum', 'on_EOS_token']:
                 num_guide_ft = net.attn_layers.dim_guide
             else:
-                raise Exception(f"clf_reduce option {clf_style} is not implemented!")
+                raise Exception(f"clf_style option {clf_style} is not implemented!")
             del self.net.to_guide_logits
             self.clf = Classifier(num_guide_ft + num_features, hidden_dim, num_classes, clf_dropout)
 
@@ -86,6 +87,8 @@ class FinetuningWrapper(nn.Module):
             x, quantiles, targets = x
             out, quantiles_out = self.net(x, quantiles=quantiles, return_embeddings=True, **kwargs)
 
+        b = out.size(0)
+
         if self.clf_style == 'flatten':
             out = torch.flatten(out, start_dim=1)  # first dim is batch
         elif self.clf_style == 'sum':
@@ -94,8 +97,11 @@ class FinetuningWrapper(nn.Module):
             out = out[:, 0, :]
         elif self.clf_style == 'on_EOS':
             out = out[:, -1, :]
+        elif self.clf_style == 'on_EOS_token':
+            eos_indices = torch.sum(x != 0, dim=1) - 2
+            out = out[np.arange(b), eos_indices, :]
         else:
-            raise Exception(f"clf_reduce option {self.clf_style} is not implemented!")
+            raise Exception(f"clf_style option {self.clf_style} is not implemented!")
 
         if self.value_guides is not None:
             if self.clf_style == 'flatten':
@@ -106,6 +112,8 @@ class FinetuningWrapper(nn.Module):
                 quantiles_out = quantiles_out[:, 0, :]
             elif self.clf_style == 'on_EOS':
                 quantiles_out = quantiles_out[:, -1, :]
+            elif self.clf_style == 'on_EOS_token':
+                quantiles_out = quantiles_out[np.arange(b), eos_indices, :]
             out = torch.cat([out, quantiles_out], dim=1)
 
         logits = self.clf(out)

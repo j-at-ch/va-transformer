@@ -17,7 +17,7 @@ class Arguments:
         self.parser.add_argument('--model_root', type=str)
         self.parser.set_defaults(model_root='/home/james/Documents/Charters/labs_dataset4/models')
         self.parser.add_argument('--save_root', type=str)
-        self.parser.set_defaults(save_root='/home/james/Documents/Charters/labs_dataset4/results')
+        self.parser.set_defaults(save_root='/home/james/Documents/Charters/labs_dataset4/models')
         self.parser.add_argument('--logs_root', type=str)
         self.parser.set_defaults(logs_root='/home/james/Documents/Charters/labs_dataset4/logs')
 
@@ -85,7 +85,7 @@ class Arguments:
             self.parser.add_argument('--weighted_loss', type=int, default=1)
             self.parser.add_argument('--freeze_base', type=int, default=0)
             self.parser.add_argument('--clf_style', type=str, default='flatten',
-                                     choices=['flatten', 'sum', 'on_SOS', 'on_EOS'])
+                                     choices=['flatten', 'sum', 'on_SOS', 'on_EOS', 'on_EOS_token'])
             self.parser.add_argument('--clf_hidden_dim', type=int, default=100)
             self.parser.add_argument('--clf_dropout', type=float, default=0.)
             self.parser.add_argument('--predict_on_train', type=int, default=0)
