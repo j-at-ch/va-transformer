@@ -105,8 +105,8 @@ def finetune(args):
     #  for quick test run
 
     if bool(args.test_run):
-        train_loader = [X for i, X in enumerate(train_loader) if i < 2]
-        val_loader = [X for i, X in enumerate(val_loader) if i < 2]
+        train_loader = make_toy_loader(train_loader)
+        val_loader = make_toy_loader(val_loader)
 
     # unconditional label propensities
 

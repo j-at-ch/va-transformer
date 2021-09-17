@@ -1,7 +1,5 @@
-import sys
 import os
 
-import torch
 import tqdm
 import numpy as np
 import pandas as pd
@@ -232,15 +230,6 @@ def pretrain(args):
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
 
     if bool(args.test_run):
-        def make_toy_loader(loader, size=2):
-            toy_loader = []
-            for i, X in enumerate(loader):
-                if i == size - 1:
-                    break
-                else:
-                    toy_loader.append(X)
-            return toy_loader
-
         train_loader = make_toy_loader(train_loader)
         val_loader = make_toy_loader(val_loader)
 
