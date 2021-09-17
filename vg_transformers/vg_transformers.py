@@ -827,9 +827,6 @@ class TransformerWrapper(nn.Module):
         self.guide_emb = nn.Embedding(num_guide_tokens, dim_guide)
         self.pos_emb = AbsolutePositionalEmbedding(emb_dim, max_seq_len) \
             if (use_pos_emb and not attn_layers.has_pos_emb) else always(0)
-        if self.value_guides is not None:
-            self.guide_pos_emb = AbsolutePositionalEmbedding(dim_guide, max_seq_len) \
-                if (use_pos_emb and not attn_layers.has_pos_emb) else always(0)
         self.emb_dropout = nn.Dropout(emb_dropout)
 
         self.project_emb = nn.Linear(emb_dim, dim) if emb_dim != dim else nn.Identity()
@@ -877,7 +874,6 @@ class TransformerWrapper(nn.Module):
 
         if self.value_guides is not None:
             quantiles = self.guide_emb(quantiles)
-            quantiles = quantiles + self.guide_pos_emb(quantiles)
 
         if num_mem > 0:
             mem = repeat(self.memory_tokens, 'n d -> b n d', b=b)
