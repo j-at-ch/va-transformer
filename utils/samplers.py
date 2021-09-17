@@ -65,10 +65,6 @@ class VgSamplerDataset(Dataset):
             token_seq = self.add_specials_(self.tokens[index],
                                            self.mappings.sos_token,
                                            self.mappings.eos_token)
-            if self.quantiles is not None:
-                guide_seq = self.add_specials_(self.quantiles[index],
-                                               self.mappings.sos_guide_token,
-                                               self.mappings.eos_guide_token)
 
         item_len = token_seq.size(0)
         obtainable_len = min(item_len, self.seq_len)
@@ -97,12 +93,19 @@ class VgSamplerDataset(Dataset):
         # extract guides and labels if required
 
         if self.quantiles is not None:
-            q_sample = self.mappings.pad_guide_token * torch.ones(self.seq_len)
-            if self.align_sample_at in ['EOS', 'random/EOS']:
-                q_sample[self.seq_len - obtainable_len: self.seq_len] = guide_seq[start_index: end_index]
+            if self.use_specials:
+                guide_seq = self.add_specials_(self.quantiles[index],
+                                               self.mappings.sos_guide_token,
+                                               self.mappings.eos_guide_token)
             else:
-                q_sample[:obtainable_len] = guide_seq[start_index: end_index]
-            q_sample = q_sample.long().to(self.device)
+                guide_seq = self.quantiles[index]
+
+            guide_sample = self.mappings.pad_guide_token * torch.ones(self.seq_len)
+            if self.align_sample_at in ['EOS', 'random/EOS']:
+                guide_sample[self.seq_len - obtainable_len: self.seq_len] = guide_seq[start_index: end_index]
+            else:
+                guide_sample[:obtainable_len] = guide_seq[start_index: end_index]
+            guide_sample = guide_sample.long().to(self.device)
 
         if self.labels is not None:
             labels = torch.tensor(self.labels[index])
@@ -111,11 +114,11 @@ class VgSamplerDataset(Dataset):
         if (self.quantiles is None) & (self.labels is None):
             return sample
         elif (self.quantiles is not None) & (self.labels is None):
-            return sample, q_sample
+            return sample, guide_sample
         elif (self.quantiles is None) & (self.labels is not None):
             return sample, labels
         else:
-            return sample, q_sample, labels
+            return sample, guide_sample, labels
 
     def __len__(self):
         return len(self.tokens)
