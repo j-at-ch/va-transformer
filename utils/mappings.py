@@ -12,7 +12,7 @@ class Mappings:
         self.token2itemid = mappings['token2itemid']
         self.token2trcount = mappings['token2trcount']
         self.gn2gt = {  # todo incorporate into preprocessing pipeline
-            'XLOW': 1, 'LOW': 2, 'MID': 3, 'HIGH': 4, 'XHIGH': 5, 'CAT': 6
+            'XLOW': 0, 'LOW': 1, 'MID': 2, 'HIGH': 3, 'XHIGH': 4, 'CAT': 5
         }
         self.gt2gn = {v: k for k, v in self.gn2gt.items()}
         self.pad_token = pad_token
