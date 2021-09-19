@@ -167,7 +167,7 @@ def finetune(args):
     if bool(args.freeze_base):
         print("Freezing base transformer parameters...")
         for name, param in fit_model.named_parameters():
-            if 'net.' in name:
+            if 'clf' not in name:
                 param.requires_grad = False
     else:
         print("Base transformer parameters remaining unfrozen...")
@@ -185,7 +185,7 @@ def finetune(args):
         training.write_embeddings(-1, mappings, labeller, args.seq_len, device)
 
     # training loop
-
+    best_roc_auc = 0
     best_val_loss = np.inf
     early_stopping_counter = 0
     for epoch in range(args.num_epochs):
@@ -203,11 +203,17 @@ def finetune(args):
 
         # whether to checkpoint model
 
-        if val_loss < best_val_loss:
-            print("Saving checkpoint...")
+        if (val_loss < best_val_loss) or (roc_auc > best_roc_auc):
+            if val_loss < best_val_loss:
+                print("Saving checkpoint because best val_loss attained...")
+            else:
+                print("Saving checkpoint because best roc_auc attained...")
             torch.save({
                 'epoch': epoch,
                 'val_loss': val_loss,
+                'roc_auc': roc_auc,
+                'acc': acc,
+                'bal_acc': bal_acc,
                 'args': vars(args),
                 'model_state_dict': fit_model.state_dict(),
                 'optim_state_dict': optimizer.state_dict()
@@ -219,7 +225,8 @@ def finetune(args):
                 training.write_embeddings(epoch, mappings, labeller, args.seq_len, device)
 
             print("Checkpoint saved!\n")
-            best_val_loss = val_loss
+            best_val_loss = min(val_loss, best_val_loss)
+            best_roc_auc = max(roc_auc, best_roc_auc)
             early_stopping_counter = 0
         else:
             early_stopping_counter += 1
