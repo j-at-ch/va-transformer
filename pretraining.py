@@ -306,20 +306,20 @@ def pretrain(args):
         else:
             early_stopping_counter += 1
 
-        if early_stopping_counter == args.early_stopping_threshold:
-            print('early stopping threshold hit! ending training...')
-            break
-
         print(f'epoch {epoch} completed!')
         print('flushing writer...')
         writer.flush()
+
+        if early_stopping_counter == args.early_stopping_threshold:
+            print('early stopping threshold hit! ending training...')
+            break
 
         scheduler.step()
 
     # write final embeddings
 
     if bool(args.write_final_embeddings):
-        training.write_token_emb(args.num_epochs, tokens_to_write, labeller, args.seq_len, device)
+        training.write_token_emb(epoch, tokens_to_write, labeller, args.seq_len, device)
 
     writer.close()
     print("training finished and writer closed!")

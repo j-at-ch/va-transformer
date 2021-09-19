@@ -98,6 +98,7 @@ class TrainingMethods:
     @torch.no_grad()  # dev: should this be an at-the-end eval method?
     def write_output_emb(self, step, tokens, labeller, seq_len, device):
         self.model.eval()
+
         if labeller.mappings.eos_token is not None:
             pass
 
