@@ -185,7 +185,6 @@ def finetune(args):
         training.write_embeddings(-1, mappings, labeller, args.seq_len, device)
 
     # training loop
-    best_roc_auc = 0
     best_val_loss = np.inf
     early_stopping_counter = 0
     for epoch in range(args.num_epochs):
@@ -203,11 +202,8 @@ def finetune(args):
 
         # whether to checkpoint model
 
-        if (val_loss < best_val_loss) or (roc_auc > best_roc_auc):
-            if val_loss < best_val_loss:
-                print("Saving checkpoint because best val_loss attained...")
-            else:
-                print("Saving checkpoint because best roc_auc attained...")
+        if val_loss < best_val_loss:
+            print("Saving checkpoint because best val_loss attained...")
             torch.save({
                 'epoch': epoch,
                 'val_loss': val_loss,
@@ -226,7 +222,6 @@ def finetune(args):
 
             print("Checkpoint saved!\n")
             best_val_loss = min(val_loss, best_val_loss)
-            best_roc_auc = max(roc_auc, best_roc_auc)
             early_stopping_counter = 0
         else:
             early_stopping_counter += 1
