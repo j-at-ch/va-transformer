@@ -808,7 +808,8 @@ class TransformerWrapper(nn.Module):
             num_guide_tokens=None,
             num_memory_tokens=None,
             tie_embedding=False,
-            use_pos_emb=True
+            use_pos_emb=True,
+            use_guide_pos_emb=False
     ):
         super().__init__()
         assert isinstance(attn_layers, AttentionLayers), 'attention layers must be one of Encoder or Decoder'
@@ -829,7 +830,7 @@ class TransformerWrapper(nn.Module):
             if (use_pos_emb and not attn_layers.has_pos_emb) else always(0)
         if self.value_guides is not None:
             self.guide_pos_emb = AbsolutePositionalEmbedding(dim_guide, max_seq_len) \
-                if (use_pos_emb and not attn_layers.has_pos_emb) else always(0)
+                if (use_guide_pos_emb and not attn_layers.has_pos_emb) else always(0)
         self.emb_dropout = nn.Dropout(emb_dropout)
 
         self.project_emb = nn.Linear(emb_dim, dim) if emb_dim != dim else nn.Identity()

@@ -141,7 +141,8 @@ def finetune(args):
             value_guides=args.value_guides,
             use_rezero=bool(args.use_rezero),
             rotary_pos_emb=bool(args.rotary_pos_emb)
-        )
+        ),
+        use_guide_pos_emb=bool(args.use_guide_pos_emb)
     )
 
     # wrap model for finetuning

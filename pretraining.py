@@ -249,7 +249,8 @@ def pretrain(args):
             dim_guide=args.attn_dim_guide,
             use_rezero=bool(args.use_rezero),
             rotary_pos_emb=bool(args.rotary_pos_emb)
-        )
+        ),
+        use_guide_pos_emb=bool(args.use_guide_pos_emb)
     )
 
     # wrap model for pretraining
