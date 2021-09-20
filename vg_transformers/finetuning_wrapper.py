@@ -58,6 +58,8 @@ class FinetuningWrapper(nn.Module):
             num_features = net.attn_layers.dim * self.seq_len
         elif clf_style in ['on_SOS', 'on_EOS', 'sum', 'on_EOS_token']:
             num_features = net.attn_layers.dim
+        elif clf_style == 'on_EOS-2_tokens':
+            num_features = 2 * net.attn_layers.dim
         else:
             raise Exception(f"clf_style option {clf_style} is not implemented!")
         del self.net.to_logits
@@ -69,6 +71,8 @@ class FinetuningWrapper(nn.Module):
                 num_guide_ft = net.attn_layers.dim_guide * self.seq_len
             elif clf_style in ['on_SOS', 'on_EOS', 'sum', 'on_EOS_token']:
                 num_guide_ft = net.attn_layers.dim_guide
+            elif clf_style == 'on_EOS-2_tokens':
+                num_guide_ft = 2 * net.attn_layers.dim_guide
             else:
                 raise Exception(f"clf_style option {clf_style} is not implemented!")
             del self.net.to_guide_logits
@@ -100,6 +104,13 @@ class FinetuningWrapper(nn.Module):
         elif self.clf_style == 'on_EOS_token':
             eos_indices = torch.sum(x != 0, dim=1) - 2
             out = out[np.arange(b), eos_indices, :]
+        elif self.clf_style == 'on_EOS-2_tokens':
+            eos_indices = torch.sum(x != 0, dim=1) - 1
+            out = torch.cat([
+                out[np.arange(b), eos_indices, :],
+                out[np.arange(b), eos_indices - 1, :]
+                ], dim=1
+                )
         else:
             raise Exception(f"clf_style option {self.clf_style} is not implemented!")
 
@@ -110,10 +121,16 @@ class FinetuningWrapper(nn.Module):
                 quantiles_out = torch.sum(quantiles_out, dim=1)
             elif self.clf_style == 'on_SOS':
                 quantiles_out = quantiles_out[:, 0, :]
-            elif self.clf_style == 'on_EOS':
+            elif self.clf_style == 'on_-1':
                 quantiles_out = quantiles_out[:, -1, :]
             elif self.clf_style == 'on_EOS_token':
                 quantiles_out = quantiles_out[np.arange(b), eos_indices, :]
+            elif self.clf_style == 'on_EOS-2_tokens':
+                quantiles_out = torch.cat([
+                    quantiles_out[np.arange(b), eos_indices, :],
+                    quantiles_out[np.arange(b), eos_indices - 1, :]
+                ], dim=1
+                )
             out = torch.cat([out, quantiles_out], dim=1)
 
         logits = self.clf(out)

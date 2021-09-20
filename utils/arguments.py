@@ -86,7 +86,7 @@ class Arguments:
             self.parser.add_argument('--weighted_loss', type=int, default=1)
             self.parser.add_argument('--freeze_base', type=int, default=0)
             self.parser.add_argument('--clf_style', type=str, default='flatten',
-                                     choices=['flatten', 'sum', 'on_SOS', 'on_EOS', 'on_EOS_token'])
+                                     choices=['flatten', 'sum', 'on_SOS', 'on_EOS', 'on_EOS_token', 'on_EOS-2_tokens'])
             self.parser.add_argument('--clf_hidden_dim', type=int, default=100)
             self.parser.add_argument('--clf_dropout', type=float, default=0.)
             self.parser.add_argument('--predict_on_train', type=int, default=0)
