@@ -42,11 +42,16 @@ def finetune(args):
 
     mappings_dict = fetch_mappings(mapping_path)
 
-    pad_token = pad_guide_token = 0
+    pad_token = args.pad_token
+    pad_guide_token = args.pad_guide_token
     sos_token = sos_guide_token = eos_token = eos_guide_token = None
-    if bool(args.use_specials):
+    if args.specials == 'SOS':
         sos_token, sos_guide_token = len(mappings_dict['itemid2token']), 7
-        eos_token, eos_guide_token = sos_token + 1, 8
+    elif args.specials == 'EOS':
+        eos_token, eos_guide_token = len(mappings_dict['itemid2token']), 7
+    elif args.specials == 'both':
+        sos_token, sos_guide_token = len(mappings_dict['itemid2token']), 7
+        eos_token, eos_guide_token = len(mappings_dict['itemid2token']) + 1, 8
 
     mappings = Mappings(mappings_dict,
                         pad_token=pad_token,
@@ -56,6 +61,14 @@ def finetune(args):
                         sos_guide_token=sos_guide_token,
                         eos_guide_token=eos_guide_token
                         )
+
+    print(f"[PAD] token is {mappings.pad_token}",
+          f"[SOS] token is {mappings.sos_token}",
+          f"[EOS] token is {mappings.eos_token}",
+          f"[PAD] guide token is {mappings.pad_guide_token}",
+          f"[SOS] guide token is {mappings.sos_guide_token}",
+          f"[EOS] guide token is {mappings.eos_guide_token}",
+          sep="\n")
 
     # labellers
 
@@ -90,12 +103,12 @@ def finetune(args):
 
     train_dataset = VgSamplerDataset(data_train, args.seq_len, mappings, device,
                                      quantiles=quantiles_train, labels=train_targets,
-                                     use_specials=bool(args.use_specials),
+                                     specials=args.specials,
                                      align_sample_at=args.align_sample_at
                                      )
     val_dataset = VgSamplerDataset(data_val, args.seq_len, mappings, device,
                                    quantiles=quantiles_val, labels=val_targets,
-                                   use_specials=bool(args.use_specials),
+                                   specials=args.specials,
                                    align_sample_at=args.align_sample_at
                                    )
 

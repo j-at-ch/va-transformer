@@ -3,33 +3,6 @@ import numpy as np
 from torch.utils.data import Dataset
 
 
-class BasicSamplerDataset(Dataset):
-    def __init__(self, data, seq_len, device, labels=None):
-        super().__init__()
-        self.data = data
-        self.labels = labels
-        self.device = device
-        self.seq_len = seq_len
-        self.lookup = dict(zip(np.arange(len(self.data)), self.data.keys()))
-
-    def __getitem__(self, key):
-        index = self.lookup[key]
-        item_len = self.data[index].size(0)
-        rand_start = torch.randint(0, item_len - self.seq_len, (1,)) if item_len > self.seq_len else 0
-        lenfromseq = min(item_len, self.seq_len)
-        sample = torch.zeros(self.seq_len)
-        sample[:lenfromseq] = self.data[index][rand_start: rand_start + lenfromseq]
-
-        if self.labels is not None:
-            label = torch.tensor(self.labels[index])
-            return sample.long().to(self.device), label.long().to(self.device)
-        else:
-            return sample.long().to(self.device)
-
-    def __len__(self):
-        return len(self.data)
-
-
 class VgSamplerDataset(Dataset):
     def __init__(self,
                  tokens,
@@ -38,7 +11,7 @@ class VgSamplerDataset(Dataset):
                  device,
                  quantiles=None,
                  labels=None,
-                 use_specials=False,
+                 specials=None,
                  align_sample_at='random/SOS'
                  ):
         super().__init__()
@@ -48,21 +21,30 @@ class VgSamplerDataset(Dataset):
         self.device = device
         self.quantiles = quantiles
         self.labels = labels
-        self.use_specials = use_specials
+        self.specials = specials
         self.align_sample_at = align_sample_at
         self.lookup = dict(zip(np.arange(len(self.tokens)), self.tokens.keys()))
 
     @staticmethod
-    def add_specials_(seq, sos_token, eos_token):
-        return torch.cat((torch.tensor([sos_token]), seq, torch.tensor([eos_token])), 0)
+    def add_specials_(seq, specials, sos_token, eos_token):
+        if specials == 'EOS':
+            new_seq = torch.cat((seq, torch.tensor([eos_token])), 0)
+        elif specials == 'both':
+            new_seq = torch.cat((torch.tensor([sos_token]), seq,
+                                 torch.tensor([eos_token])), 0)
+        elif specials == 'SOS':
+            new_seq = torch.cat((torch.tensor([sos_token]), seq), 0)
+        else:
+            raise Exception('Unknown specials configuration specified!')
+        return new_seq
 
     def __getitem__(self, key):
         index = self.lookup[key]
         token_seq = self.tokens[index]
 
-        if self.use_specials:
-            # assert sum(seq == torch.tensor(self.mappings.sos_token)) < 1
+        if self.specials is not None:
             token_seq = self.add_specials_(self.tokens[index],
+                                           self.specials,
                                            self.mappings.sos_token,
                                            self.mappings.eos_token)
 
@@ -93,14 +75,16 @@ class VgSamplerDataset(Dataset):
         # extract guides and labels if required
 
         if self.quantiles is not None:
-            if self.use_specials:
+            if self.specials:
                 guide_seq = self.add_specials_(self.quantiles[index],
+                                               self.specials,
                                                self.mappings.sos_guide_token,
                                                self.mappings.eos_guide_token)
             else:
                 guide_seq = self.quantiles[index]
 
             guide_sample = self.mappings.pad_guide_token * torch.ones(self.seq_len)
+
             if self.align_sample_at in ['EOS', 'random/EOS']:
                 guide_sample[self.seq_len - obtainable_len: self.seq_len] = guide_seq[start_index: end_index]
             else:
@@ -124,7 +108,7 @@ class VgSamplerDataset(Dataset):
         return len(self.tokens)
 
 
-def cycle(loader):
+def cycler(loader):
     while True:
         for data in loader:
             yield data
