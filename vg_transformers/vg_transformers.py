@@ -362,6 +362,9 @@ class Attention(nn.Module):
             self.to_gv = nn.Linear(dim_guide, g_dim, bias=False)
             self.to_g_out = nn.Linear(g_dim, dim_guide)
 
+            if self.value_guides == 'g-on-t-dev':
+                self.g_on_t = nn.Linear(1, 1, bias=False)
+
         self.dropout = nn.Dropout(dropout)
 
         # add GLU gating for aggregated values, from alphafold2
@@ -483,6 +486,11 @@ class Attention(nn.Module):
                 pass
             elif self.value_guides == 'g-on-t':
                 dots = torch.einsum('b h i j, b h i j -> b h i j', dots, guide_dots.clone())
+            elif self.value_guides == 'g-on-t-dev':
+                g_dots_on_t = rearrange(guide_dots.clone(), 'b h i (j k) -> b h i j k', k=1)
+                g_dots_on_t = self.g_on_t(g_dots_on_t)
+                g_dots_on_t = rearrange(g_dots_on_t, 'b h i j k -> b h i (j k)', k=1)
+                dots = torch.einsum('b h i j, b h i j -> b h i j', dots, g_dots_on_t)
             elif self.value_guides == 't-on-g':
                 guide_dots = torch.einsum('b h i j, b h i j -> b h i j', dots.clone(), guide_dots)
             elif self.value_guides == 'g-and-t':
@@ -543,7 +551,7 @@ class Attention(nn.Module):
         )
 
         if self.value_guides is not None:
-            g_in = gv #if self.value_guides == 'vg2.2' else torch.unsqueeze(quantiles, 1).repeat(1, h, 1, 1)
+            g_in = gv
             g_out = einsum('b h i j, b h j d -> b h i d', g_attn, g_in)
             g_out = rearrange(g_out, 'b h n d -> b n (h d)')
             return self.to_out(out), intermediates, self.to_g_out(g_out)
