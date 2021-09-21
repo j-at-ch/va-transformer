@@ -1,5 +1,6 @@
 import pickle
 import torch
+import pandas as pd
 
 
 def fetch_mappings(mapping_path):
@@ -23,3 +24,7 @@ def make_toy_loader(loader, size=2):
         else:
             toy_loader.append(X)
     return toy_loader
+
+
+def ts_to_posix(time):
+    return pd.Timestamp(time, unit='s').timestamp()

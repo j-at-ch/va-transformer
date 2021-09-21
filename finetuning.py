@@ -30,8 +30,8 @@ def finetune(args):
     ckpt_path = os.path.join(args.save_root, args.model_name + ".pt")
     logs_path = os.path.join(args.logs_root, args.model_name)
 
-    train_lbl_path = os.path.join(args.data_root, "train_targets.pkl")
-    val_lbl_path = os.path.join(args.data_root, "val_targets.pkl")
+    train_tgt_path = os.path.join(args.data_root, "train_targets.pkl")
+    val_tgt_path = os.path.join(args.data_root, "val_targets.pkl")
     params_path = os.path.join(args.model_root, args.pretrained_model)
 
     # device
@@ -75,17 +75,17 @@ def finetune(args):
     d_items_df = pd.read_csv(d_items_path, index_col='ITEMID', dtype={'ITEMID': str})
     labeller = Labellers(mappings, d_items_df)
 
-    # fetch labels
+    # fetch targets
 
-    with open(train_lbl_path, 'rb') as f:
-        X = pickle.load(f)
-        train_targets = {k: v[args.label_set] for k, v in X['train_targets'].items()}
-        del X
+    with open(train_tgt_path, 'rb') as f:
+        x = pickle.load(f)
+        train_targets = {k: v[args.targets] for k, v in x['train_targets'].items()}
+        del x
 
-    with open(val_lbl_path, 'rb') as f:
-        X = pickle.load(f)
-        val_targets = {k: v[args.label_set] for k, v in X['val_targets'].items()}
-        del X
+    with open(val_tgt_path, 'rb') as f:
+        x = pickle.load(f)
+        val_targets = {k: v[args.targets] for k, v in x['val_targets'].items()}
+        del x
 
     # get tokens
 
@@ -102,12 +102,12 @@ def finetune(args):
         quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
 
     train_dataset = VgSamplerDataset(data_train, args.seq_len, mappings, device,
-                                     quantiles=quantiles_train, labels=train_targets,
+                                     quantiles=quantiles_train, targets=train_targets,
                                      specials=args.specials,
                                      align_sample_at=args.align_sample_at
                                      )
     val_dataset = VgSamplerDataset(data_val, args.seq_len, mappings, device,
-                                   quantiles=quantiles_val, labels=val_targets,
+                                   quantiles=quantiles_val, targets=val_targets,
                                    specials=args.specials,
                                    align_sample_at=args.align_sample_at
                                    )
@@ -121,18 +121,19 @@ def finetune(args):
         train_loader = make_toy_loader(train_loader)
         val_loader = make_toy_loader(val_loader)
 
-    # unconditional label propensities
+    # weighting with target propensities if necessary
 
-    def propensity_from(targets_dict):
-        return sum(targets_dict.values()) / len(targets_dict)
+    weights = None
 
-    p = propensity_from(train_targets)
-    print(f"Train set positive class propensity is {p}")
+    if args.clf_or_reg == 'clf':
+        def propensity_from(targets_dict):
+            return sum(targets_dict.values()) / len(targets_dict)
 
-    if bool(args.weighted_loss):
-        weights = torch.tensor([p, 1 - p]).to(device)
-    else:
-        weights = None
+        p = propensity_from(train_targets)
+        print(f"Train set positive class propensity is {p}")
+
+        if bool(args.weighted_loss):
+            weights = torch.tensor([p, 1 - p]).to(device)
 
     # fetch model params
 
@@ -144,7 +145,7 @@ def finetune(args):
     model = TransformerWrapper(
         num_tokens=mappings.num_tokens,
         num_guide_tokens=mappings.num_guide_tokens,
-        max_seq_len=args.seq_len,  # NOTE: max_seq_len necessary for the absolute positional embeddings.
+        max_seq_len=args.seq_len,
         attn_layers=Decoder(
             dim=args.attn_dim,
             depth=args.attn_depth,
@@ -160,15 +161,10 @@ def finetune(args):
 
     # wrap model for finetuning
 
-    fit_model = FinetuningWrapper(model,
-                                  num_classes=2,
-                                  seq_len=args.seq_len,  # doesn't model know this?
-                                  state_dict=states,
-                                  load_from=args.load_from,
-                                  weight=weights,
-                                  clf_style=args.clf_style,
-                                  clf_dropout=args.clf_dropout,
-                                  value_guides=args.value_guides)
+    fit_model = FinetuningWrapper(model, seq_len=args.seq_len, clf_or_reg=args.clf_or_reg, num_classes=2,
+                                  state_dict=states, weight=weights, load_from=args.load_from,
+                                  value_guides=args.value_guides, clf_style=args.clf_style,
+                                  clf_dropout=args.clf_dropout)
     fit_model.to(device)
 
     # for name, param in states.named_parameters():
@@ -212,7 +208,10 @@ def finetune(args):
 
         if bool(args.predict_on_train):
             training.predict(train_loader, epoch, device, prefix="train")
-        _, _, acc, bal_acc, roc_auc = training.predict(val_loader, epoch, device, prefix="val")
+
+        _, _, acc, bal_acc, roc_auc = training.predict(val_loader, epoch, device, prefix="val") # todo: clf difference here!
+
+        metrics = {'acc': acc, 'bal_acc': bal_acc, 'roc_auc': roc_auc}
 
         # whether to checkpoint model
 
@@ -221,9 +220,7 @@ def finetune(args):
             torch.save({
                 'epoch': epoch,
                 'val_loss': val_loss,
-                'roc_auc': roc_auc,
-                'acc': acc,
-                'bal_acc': bal_acc,
+                'metrics': metrics,
                 'args': vars(args),
                 'model_state_dict': fit_model.state_dict(),
                 'optim_state_dict': optimizer.state_dict()
@@ -297,12 +294,12 @@ def evaluate(args):
 
     with open(train_lbl_path, 'rb') as f:
         X = pickle.load(f)
-        train_targets = {k: v[args.label_set] for k, v in X['train_targets'].items()}
+        train_targets = {k: v[args.targets] for k, v in X['train_targets'].items()}
         del X
 
     with open(val_lbl_path, 'rb') as f:
         X = pickle.load(f)
-        val_targets = {k: v[args.label_set] for k, v in X['val_targets'].items()}
+        val_targets = {k: v[args.targets] for k, v in X['val_targets'].items()}
         del X
 
     # get tokens
@@ -320,9 +317,9 @@ def evaluate(args):
         quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
 
     train_dataset = VgSamplerDataset(data_train, args.seq_len, device,
-                                     quantiles=quantiles_train, labels=train_targets)
+                                     quantiles=quantiles_train, targets=train_targets)
     val_dataset = VgSamplerDataset(data_val, args.seq_len, device,
-                                   quantiles=quantiles_val, labels=val_targets)
+                                   quantiles=quantiles_val, targets=val_targets)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
@@ -372,16 +369,10 @@ def evaluate(args):
 
     # wrap model for finetuning
 
-    fit_model = FinetuningWrapper(model,
-                                  num_classes=2,
-                                  seq_len=args.seq_len,
-                                  state_dict=states,
-                                  load_from=args.load_from,
-                                  weight=weights,
-                                  hidden_dim=args.clf_hidden_dim,
-                                  clf_style=args.clf_style,
-                                  clf_dropout=args.clf_dropout,
-                                  value_guides=args.value_guides)
+    fit_model = FinetuningWrapper(model, seq_len=args.seq_len, num_classes=2, hidden_dim=args.clf_hidden_dim,
+                                  state_dict=states, weight=weights, load_from=args.load_from,
+                                  value_guides=args.value_guides, clf_style=args.clf_style,
+                                  clf_dropout=args.clf_dropout)
     fit_model.to(device)
 
     # for name, param in states.named_parameters():

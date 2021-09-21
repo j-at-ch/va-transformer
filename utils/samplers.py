@@ -10,7 +10,7 @@ class VgSamplerDataset(Dataset):
                  mappings,
                  device,
                  quantiles=None,
-                 labels=None,
+                 targets=None,
                  specials=None,
                  align_sample_at='random/SOS'
                  ):
@@ -20,7 +20,7 @@ class VgSamplerDataset(Dataset):
         self.mappings = mappings
         self.device = device
         self.quantiles = quantiles
-        self.labels = labels
+        self.targets = targets
         self.specials = specials
         self.align_sample_at = align_sample_at
         self.lookup = dict(zip(np.arange(len(self.tokens)), self.tokens.keys()))
@@ -72,7 +72,7 @@ class VgSamplerDataset(Dataset):
             sample[self.seq_len - obtainable_len:self.seq_len] = token_seq[start_index: end_index]
         sample = sample.long().to(self.device)
 
-        # extract guides and labels if required
+        # extract guides and targets if required
 
         if self.quantiles is not None:
             if self.specials:
@@ -91,18 +91,18 @@ class VgSamplerDataset(Dataset):
                 guide_sample[:obtainable_len] = guide_seq[start_index: end_index]
             guide_sample = guide_sample.long().to(self.device)
 
-        if self.labels is not None:
-            labels = torch.tensor(self.labels[index])
-            labels = labels.long().to(self.device)
+        if self.targets is not None:
+            targets = torch.tensor(self.targets[index])
+            targets = targets.long().to(self.device)
 
-        if (self.quantiles is None) & (self.labels is None):
+        if (self.quantiles is None) & (self.targets is None):
             return sample
-        elif (self.quantiles is not None) & (self.labels is None):
+        elif (self.quantiles is not None) & (self.targets is None):
             return sample, guide_sample
-        elif (self.quantiles is None) & (self.labels is not None):
-            return sample, labels
+        elif (self.quantiles is None) & (self.targets is not None):
+            return sample, targets
         else:
-            return sample, guide_sample, labels
+            return sample, guide_sample, targets
 
     def __len__(self):
         return len(self.tokens)

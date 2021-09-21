@@ -25,19 +25,11 @@ class Classifier(nn.Module):
 
 
 class FinetuningWrapper(nn.Module):
-    def __init__(self, net,
-                 num_classes,
-                 seq_len,
-                 hidden_dim=100,
-                 state_dict=None,
-                 weight=None,
-                 load_from='pretrained',
-                 value_guides=None,
-                 clf_style='flatten',
-                 clf_dropout=0.
-                 ):
+    def __init__(self, net, seq_len, num_classes, clf_or_reg='clf', hidden_dim=100, state_dict=None, weight=None,
+                 load_from='pretrained', value_guides=None, clf_style='flatten', clf_dropout=0.):
         super().__init__()
         self.num_classes = num_classes
+        self.clf_or_reg = clf_or_reg
         self.weight = weight.to(torch.float) if weight is not None else weight
         self.net = copy.deepcopy(net)
         self.max_seq_len = net.max_seq_len
@@ -84,6 +76,10 @@ class FinetuningWrapper(nn.Module):
             self.load_state_dict(state_dict)
 
     def forward(self, x, predict=False, **kwargs):
+
+        if self.clf_or_reg == 'reg':
+            assert self.num_classes == 1, "if in regression mode, num_classes must be 1"
+
         if self.value_guides is None:
             x, targets = x
             out = self.net(x, return_embeddings=True, **kwargs)
@@ -133,7 +129,11 @@ class FinetuningWrapper(nn.Module):
                 )
             out = torch.cat([out, quantiles_out], dim=1)
 
-        logits = self.clf(out)
+        if self.clf_or_reg == 'reg':
+            preds = self.clf(out)
+            loss = F.mse_loss(preds, targets)
+            return preds if predict else loss
 
+        logits = self.clf(out)
         loss = F.cross_entropy(logits, targets, weight=self.weight)  # note: weighted mean, normalised by tot weight.
         return logits if predict else loss

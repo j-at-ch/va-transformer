@@ -29,7 +29,7 @@ class Arguments:
             return value
 
         self.parser.add_argument('--value_guides', type=none_or_str, default=None,
-                                 choices=[None, 'no-mixing', 'g-on-t', 't-on-g', 'g-and-t'])
+                                 choices=[None, 'no-mixing', 'g-on-t-dev', 'g-on-t', 't-on-g', 'g-and-t'])
 
         # attention specification
 
@@ -83,16 +83,17 @@ class Arguments:
             self.parser.add_argument('--mode', type=str, default='training')
             self.parser.add_argument('--pretrained_model', type=str, required=True)
             self.parser.add_argument('--load_from', type=str, default='pretrained')
-            self.parser.add_argument('--label_set', type=str, required=True)
+            self.parser.add_argument('--targets', type=str, required=True)
             self.parser.add_argument('--weighted_loss', type=int, default=1)
             self.parser.add_argument('--freeze_base', type=int, default=0)
             self.parser.add_argument('--clf_style', type=str, default='flatten',
                                      choices=['flatten', 'sum', 'on_SOS', 'on_EOS', 'on_EOS_token', 'on_EOS-2_tokens'])
             self.parser.add_argument('--clf_hidden_dim', type=int, default=100)
             self.parser.add_argument('--clf_dropout', type=float, default=0.)
+            self.parser.add_argument('--clf_or_reg', type=str, default='clf', choices=['reg', 'clf'])
             self.parser.add_argument('--predict_on_train', type=int, default=0)
         elif self.mode == 'baselining':
-            self.parser.add_argument('--label_set', type=str, required=True)
+            self.parser.add_argument('--targets', type=str, required=True)
             self.parser.add_argument('--values_as', type=str, default='one-hot', choices=['int', 'one-hot'])
             self.parser.add_argument('--weighted_loss', type=int, default=1)
             self.parser.add_argument('--clf_dropout', type=float, default=0.)
