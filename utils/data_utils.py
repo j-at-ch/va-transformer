@@ -9,6 +9,13 @@ def fetch_mappings(mapping_path):
     return mappings
 
 
+def fetch_data_as_numpy(path, var_key):
+    with open(path, 'rb') as f:
+        data = pickle.load(f)
+    di = data[var_key]
+    return di
+
+
 def fetch_data_as_torch(path, var_key):
     with open(path, 'rb') as f:
         data = pickle.load(f)
