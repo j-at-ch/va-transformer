@@ -1,4 +1,5 @@
 import os
+import sys
 import numpy as np
 import pandas as pd
 import pickle as pickle
@@ -6,8 +7,11 @@ import tqdm
 
 from pprint import pprint
 from sklearn.model_selection import train_test_split
+from preprocessing_arguments import PreprocessingArguments
 
-from utils.arguments import PreprocessingArguments
+
+def ts_to_posix(time):
+    return pd.Timestamp(time, unit='s').timestamp()
 
 
 def preprocess_labs(args):
@@ -74,25 +78,43 @@ def preprocess_labs(args):
                      ], axis=1
                     )
 
+    # select hadms for this data slice:
+
+    qualifying_hadms = adm[(
+        (adm.LOS >= pd.Timedelta(days=2)) & (adm['NUMLABS<2D'] >= args.min_num_labs)
+        & (pd.isna(adm.ADMIT_TO_EXPIRE) | (adm.ADMIT_TO_EXPIRE >= pd.Timedelta(days=2)))
+    )]
+    qualifying_hadm_ids = qualifying_hadms.index.to_numpy()
+
+    qualifying_subjects = qualifying_hadms.loc[:, 'SUBJECT_ID'].unique()
+    print(qualifying_subjects, len(qualifying_subjects))
+
+    # split qualifying subject_ids into train, val, test and assert that they partition.
+
+    train_subjects, surplus = train_test_split(qualifying_subjects, train_size=0.8, random_state=1965)
+    val_subjects, test_subjects = train_test_split(surplus, train_size=0.5, random_state=1965)
+    del surplus
+
+    #train_indices, surplus = train_test_split(hadms, train_size=0.8, random_state=1965)
+    #val_indices, test_indices = train_test_split(surplus, test_size=0.5, random_state=1965)
+
+    train_indices = qualifying_hadms[qualifying_hadms.SUBJECT_ID.isin(train_subjects)].index.to_numpy()
+    val_indices = qualifying_hadms[qualifying_hadms.SUBJECT_ID.isin(val_subjects)].index.to_numpy()
+    test_indices = qualifying_hadms[qualifying_hadms.SUBJECT_ID.isin(test_subjects)].index.to_numpy()
+
+    print(f"num_train: {len(train_indices)}",
+          f"num_val: {len(val_indices)}",
+          f"num_test: {len(test_indices)}",
+          f"num_qualifying: {len(qualifying_hadm_ids)}")
+    assert set(qualifying_hadm_ids) == set(train_indices) | set(val_indices) | set(test_indices)
+
+    adm.loc[train_indices, 'PARTITION'] = 'train'
+    adm.loc[val_indices, 'PARTITION'] = 'val'
+    adm.loc[test_indices, 'PARTITION'] = 'test'
+
     print(f"writing augmented admissions df to {targets_path}...")
     adm.to_csv(targets_path)
     print("written!\n")
-
-    # select hadms for this data slice:
-
-    hadms = adm[(
-            (adm.LOS >= pd.Timedelta(days=2)) & (adm['NUMLABS<2D'] > 0)
-            & (pd.isna(adm.ADMIT_TO_EXPIRE) | (adm.ADMIT_TO_EXPIRE >= pd.Timedelta(days=2)))
-            # remove deaths occurring during stay and before 2 days.
-    )].index.to_numpy()
-
-    # split first-hadm_ids into train, val, test and assert that they partition.
-
-    train_indices, surplus = train_test_split(hadms, train_size=0.8, random_state=1965)
-    val_indices, test_indices = train_test_split(surplus, test_size=0.5, random_state=1965)
-    del surplus
-    assert set(hadms) == set(train_indices) | set(val_indices) | set(test_indices)
-    print(f"num_train: {len(train_indices)}, num_val: {len(val_indices)}, num_test: {len(test_indices)}")
 
     # ready the tokens:
 
@@ -108,9 +130,6 @@ def preprocess_labs(args):
     def map2token(itemid):
         return itemid2token[int(itemid)]
 
-    def ts_to_posix(time):
-        return pd.Timestamp(time, unit='s').timestamp()
-
     def get_from_adm(hadm_id, target):
         return adm.loc[hadm_id, target]
 
@@ -122,8 +141,8 @@ def preprocess_labs(args):
         50926: {"mIU/L": 1, "mIU/mL": 1},
         50958: {"mIU/L": 1, "mIU/mL": 1},
         50989: {"pg/mL": 1, "ng/dL": 10},
-        51127: {"#/uL": 1, "#/CU MM": 1},  # unclear #/CU MM RBC Ascites - distr looks roughly same.
-        51128: {"#/uL": 1, "#/CU MM": 1},  # unclear #/CU MM WBC Ascites - distr looks roughly same.
+        51127: {"#/uL": 1, "#/CU MM": 1},  # distr looks roughly same.
+        51128: {"#/uL": 1, "#/CU MM": 1},  # distr looks roughly same.
     }
 
     def unitscale(itemid, valueuom):  # TODO: implement more efficient solution.
@@ -134,22 +153,26 @@ def preprocess_labs(args):
         return scale_val_by
 
     def get_numeric_quantile_from_(quantiles_df, itemid, value):
+        # maps unknown indices to 0
+        # otherwise maps to 1..(num_quantiles+1)
         if itemid not in quantiles_df.index:
-            return -1
-        q = quantiles_df.loc[itemid]
-        array = (value <= q)
-        if value > q.iloc[-1]:
-            index = len(q)
-        elif not any(array):
             index = -1
         else:
-            a, = np.where(array)
-            index = a[0]
-        return index
+            q = quantiles_df.loc[itemid]  # q is a quantiles series
+            array = (value <= q)
+            if value > q.iloc[-1]:
+                index = len(q)
+            elif not any(array):  # this option should never be used!
+                assert Exception("Something has gone wrong in get_numeric_quantiles_from_()")
+                index = -1
+            else:
+                a, = np.where(array)
+                index = a[0]
+        return index + 1
 
     def apply_quantile_fct(df, quantiles_df):
         if pd.isna(df.VALUENUM):
-            return -1
+            return 0
         else:
             return get_numeric_quantile_from_(quantiles_df, df.ITEMID, df.VALUENUM)
 
