@@ -172,7 +172,9 @@ def finetune(args):
 
     print("base transformer specification:", fit_model.net, sep="\n")
 
-    print("clf specification:", fit_model.clf, "clf style:", fit_model.clf_style, sep="\n")
+    print("clf specification:", fit_model.clf,
+          "clf style:", fit_model.clf_style,
+          sep="\n")
 
     if bool(args.freeze_base):
         print("Freezing base transformer parameters...")

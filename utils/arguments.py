@@ -4,22 +4,21 @@ import argparse
 
 class Arguments:
     def __init__(self, mode):
-        self.parser = argparse.ArgumentParser(description='chart-transformer')
+        self.parser = argparse.ArgumentParser(description='vg-transformer')
         self.mode = mode
         self.arguments = None
 
     def initialise(self):
 
         # data roots
-
         self.parser.add_argument('--data_root', type=str)
-        self.parser.set_defaults(data_root='/home/james/Documents/Charters/labs_dataset4/data')
+        self.parser.set_defaults(data_root=f'/home/james/Documents/Charters/labs_dataset5/data')
         self.parser.add_argument('--model_root', type=str)
-        self.parser.set_defaults(model_root='/home/james/Documents/Charters/labs_dataset4/models')
+        self.parser.set_defaults(model_root='/home/james/Documents/Charters/labs_dataset5/models')
         self.parser.add_argument('--save_root', type=str)
-        self.parser.set_defaults(save_root='/home/james/Documents/Charters/labs_dataset4/models')
+        self.parser.set_defaults(save_root='/home/james/Documents/Charters/labs_dataset5/models')
         self.parser.add_argument('--logs_root', type=str)
-        self.parser.set_defaults(logs_root='/home/james/Documents/Charters/labs_dataset4/logs')
+        self.parser.set_defaults(logs_root='/home/james/Documents/Charters/labs_dataset5/logs')
 
         # use value-guided and define appropriate type-checking
 

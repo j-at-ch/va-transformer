@@ -24,9 +24,24 @@ class Classifier(nn.Module):
         return self.net(x)
 
 
+class SimpleClassifier(nn.Module):
+    def __init__(self, num_in, num_out, dropout_in):
+        super().__init__()
+        self.num_in = num_in
+        self.num_out = num_out
+        self.dropout_in = dropout_in
+        self.net = nn.Sequential(
+            nn.Dropout(p=dropout_in),
+            nn.Linear(num_in, num_out, bias=True)
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
 class FinetuningWrapper(nn.Module):
     def __init__(self, net, seq_len, num_classes, clf_or_reg='clf', hidden_dim=100, state_dict=None, weight=None,
-                 load_from='pretrained', value_guides=None, clf_style='flatten', clf_dropout=0.):
+                 load_from='pretrained', value_guides=None, clf_style='flatten', clf_dropout=0., clf_depth=1):
         super().__init__()
         self.num_classes = num_classes
         self.clf_or_reg = clf_or_reg
@@ -38,6 +53,7 @@ class FinetuningWrapper(nn.Module):
         self.value_guides = value_guides
         self.clf_style = clf_style
         self.clf_dropout = clf_dropout
+        self.clf_depth = clf_depth
 
         # initialise net hparams from pretrained
 
@@ -57,7 +73,8 @@ class FinetuningWrapper(nn.Module):
         del self.net.to_logits
 
         if self.value_guides is None:
-            self.clf = Classifier(num_features, hidden_dim, num_classes, clf_dropout)
+            self.clf = Classifier(num_features, hidden_dim, num_classes, clf_dropout) if clf_depth == 2 \
+                else SimpleClassifier(num_features, num_classes, clf_dropout)
         else:
             if clf_style == 'flatten':
                 num_guide_ft = net.attn_layers.dim_guide * self.seq_len
@@ -68,8 +85,8 @@ class FinetuningWrapper(nn.Module):
             else:
                 raise Exception(f"clf_style option {clf_style} is not implemented!")
             del self.net.to_guide_logits
-            self.clf = Classifier(num_guide_ft + num_features, hidden_dim, num_classes, clf_dropout)
-
+            self.clf = Classifier(num_guide_ft + num_features, hidden_dim, num_classes, clf_dropout) if clf_depth == 2 \
+                else SimpleClassifier(num_guide_ft + num_features, num_classes, clf_dropout)
         # if doing post-training analysis then initialise net hparams from finetuned model
 
         if self.load_from == 'finetuned' and state_dict is not None:
