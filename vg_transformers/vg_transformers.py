@@ -119,15 +119,14 @@ class DepthWiseConv1d(nn.Module):
 class AbsolutePositionalEmbedding(nn.Module):
     def __init__(self, dim, max_seq_len):
         super().__init__()
+        self.scale = dim ** -0.5
         self.emb = nn.Embedding(max_seq_len, dim)
-        self.init_()
-
-    def init_(self):
-        nn.init.normal_(self.emb.weight, std=0.02)
 
     def forward(self, x):
         n = torch.arange(x.shape[1], device=x.device)
-        return self.emb(n)[None, :, :]
+        pos_emb = self.emb(n)
+        pos_emb = rearrange(pos_emb, 'n d -> () n d')
+        return pos_emb * self.scale
 
 
 class FixedPositionalEmbedding(nn.Module):
