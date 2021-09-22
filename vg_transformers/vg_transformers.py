@@ -864,8 +864,8 @@ class TransformerWrapper(nn.Module):
                 attn_layers.num_memory_tokens = num_memory_tokens
 
     def init_(self):
-        nn.init.normal_(self.token_emb.weight, std=0.02)
-        nn.init.normal_(self.guide_emb.weight, std=0.02)  # todo: nn.init.kaiming_normal_?
+        nn.init.kaiming_normal_(self.token_emb.weight)
+        nn.init.kaiming_normal_(self.guide_emb.weight)
 
     def forward(
             self,
