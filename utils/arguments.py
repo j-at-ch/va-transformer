@@ -28,7 +28,8 @@ class Arguments:
             return value
 
         self.parser.add_argument('--value_guides', type=none_or_str, default=None,
-                                 choices=[None, 'no-mixing', 'g-on-t-dev', 'g-on-t', 't-on-g', 'g-and-t'])
+                                 choices=[None, 'no-mixing', 'g-on-t-dev', 't-on-g-dev',
+                                          'g-on-t', 't-on-g', 'g-and-t'])
 
         # attention specification
 

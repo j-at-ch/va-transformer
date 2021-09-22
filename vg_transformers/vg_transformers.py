@@ -364,6 +364,8 @@ class Attention(nn.Module):
 
             if self.value_guides == 'g-on-t-dev':
                 self.g_on_t = nn.Linear(1, 1, bias=False)
+            elif self.value_guides == 't-on-g-dev':
+                self.t_on_g = nn.Linear(1, 1, bias=False)
 
         self.dropout = nn.Dropout(dropout)
 
@@ -493,6 +495,11 @@ class Attention(nn.Module):
                 dots = torch.einsum('b h i j, b h i j -> b h i j', dots, g_dots_on_t)
             elif self.value_guides == 't-on-g':
                 guide_dots = torch.einsum('b h i j, b h i j -> b h i j', dots.clone(), guide_dots)
+            elif self.value_guides == 't-on-g-dev':
+                t_dots_on_g = rearrange(dots.clone(), 'b h i (j k) -> b h i j k', k=1)
+                t_dots_on_g = self.t_on_g(t_dots_on_g)
+                t_dots_on_g = rearrange(t_dots_on_g, 'b h i j k -> b h i (j k)', k=1)
+                guide_dots = torch.einsum('b h i j, b h i j -> b h i j', t_dots_on_g, guide_dots)
             elif self.value_guides == 'g-and-t':
                 dots = torch.einsum('b h i j, b h i j -> b h i j', dots, guide_dots.clone())
                 guide_dots = torch.einsum('b h i j, b h i j -> b h i j', dots.clone(), guide_dots)
