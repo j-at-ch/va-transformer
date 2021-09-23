@@ -101,13 +101,10 @@ class AutoregressiveWrapper(nn.Module):
     def predict(self, x, **kwargs):
         if self.value_guides is None:
             xi = x[:, :-1]
-            xo = x[:, 1:]
             out = self.net(xi, **kwargs)
         else:
             xi = x[0][:, :-1]
             qi = x[1][:, :-1]
-            xo = x[0][:, 1:]
-            qo = x[1][:, 1:]
             out, quantiles_out = self.net(xi, quantiles=qi, **kwargs)
             return torch.argmax(out, dim=-1), torch.argmax(quantiles_out, dim=-1)
         return torch.argmax(out, dim=-1)
@@ -134,5 +131,5 @@ class AutoregressiveWrapper(nn.Module):
             quantile_loss = F.cross_entropy(quantiles_out.transpose(1, 2), qo, ignore_index=self.ignore_guide_index)
             return token_loss, quantile_loss
 
-        loss = F.cross_entropy(out.transpose(1, 2), xo, ignore_index=self.ignore_index)
-        return loss
+        token_loss = F.cross_entropy(out.transpose(1, 2), xo, ignore_index=self.ignore_index)
+        return token_loss
