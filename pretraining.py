@@ -120,7 +120,8 @@ def main(args):
             use_rezero=bool(args.use_rezero),
             rotary_pos_emb=bool(args.rotary_pos_emb)
         ),
-        use_guide_pos_emb=bool(args.use_guide_pos_emb)
+        use_guide_pos_emb=bool(args.use_guide_pos_emb),
+        vg_conditional=args.vg_conditional
     )
 
     # wrap model for pretraining

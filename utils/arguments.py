@@ -72,6 +72,8 @@ class Arguments:
         self.parser.add_argument('--specials', type=none_or_str, default='EOS')
         self.parser.add_argument('--align_sample_at', type=str, default='random/SOS',
                                  choices=['SOS', 'EOS', 'random/SOS', 'random/EOS'])
+        self.parser.add_argument('--vg_conditional', type=none_or_str, default=None,
+                                 choices=[None, 'weak', 'strict'])
         if self.mode == 'pretraining':
             self.parser.add_argument('--mode', type=str, default='pretraining',
                                      choices=['pretraining', 'evaluation'])

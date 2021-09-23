@@ -823,7 +823,8 @@ class TransformerWrapper(nn.Module):
             num_memory_tokens=None,
             tie_embedding=False,
             use_pos_emb=True,
-            use_guide_pos_emb=False
+            use_guide_pos_emb=False,
+            vg_conditional=False
     ):
         super().__init__()
         assert isinstance(attn_layers, AttentionLayers), 'attention layers must be one of Encoder or Decoder'
@@ -834,6 +835,7 @@ class TransformerWrapper(nn.Module):
 
         self.value_guides = attn_layers.value_guides
         self.num_guide_tokens = num_guide_tokens
+        self.vg_conditional = vg_conditional
 
         self.max_seq_len = max_seq_len
         self.max_mem_len = max_mem_len
@@ -855,9 +857,20 @@ class TransformerWrapper(nn.Module):
 
         self.init_()
 
-        self.to_logits = nn.Linear(dim, num_tokens) if not tie_embedding else lambda t: t @ self.token_emb.weight.t()
+        if self.vg_conditional is not None:
+            self.to_logits = nn.Linear(dim + dim_guide, num_tokens) if not tie_embedding else \
+                lambda t: t @ self.token_emb.weight.t()
+        else:
+            self.to_logits = nn.Linear(dim, num_tokens) if not tie_embedding else \
+                lambda t: t @ self.token_emb.weight.t()
+
         if self.value_guides is not None:
-            self.to_guide_logits = nn.Linear(dim_guide, num_guide_tokens)
+            if self.vg_conditional == "weak":
+                self.to_guide_logits = nn.Linear(dim + dim_guide, num_guide_tokens)
+            elif self.vg_conditional == "strict":
+                self.to_guide_logits = nn.Linear(dim, num_guide_tokens)
+            else:
+                self.to_guide_logits = nn.Linear(dim_guide, num_guide_tokens)
 
         # memory tokens (like [cls]) from Memory Transformers paper
         num_memory_tokens = default(num_memory_tokens, 0)
@@ -921,7 +934,11 @@ class TransformerWrapper(nn.Module):
 
         mem, x = x[:, :num_mem], x[:, num_mem:]
 
-        out = self.to_logits(x) if not return_embeddings else x
+        if self.vg_conditional is not None:
+            x_and_quantiles = torch.cat((x, quantiles), dim=2)
+            out = self.to_logits(x_and_quantiles) if not return_embeddings else x_and_quantiles
+        else:
+            out = self.to_logits(x) if not return_embeddings else x
 
         if return_mems:
             hiddens = intermediates.hiddens
@@ -935,7 +952,13 @@ class TransformerWrapper(nn.Module):
 
         if self.value_guides is not None:
             quantiles = self.guide_norm(quantiles)
-            quantiles_out = self.to_guide_logits(quantiles) if not return_embeddings else quantiles
+            if self.vg_conditional == "weak":
+                x_and_quantiles = torch.cat((x, quantiles), dim=2)
+                quantiles_out = self.to_guide_logits(x_and_quantiles) if not return_embeddings else quantiles
+            elif self.vg_conditional == "strict":
+                quantiles_out = self.to_guide_logits(x) if not return_embeddings else quantiles
+            else:
+                quantiles_out = self.to_guide_logits(quantiles) if not return_embeddings else quantiles
             return out, quantiles_out
 
         return out
