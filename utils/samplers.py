@@ -93,7 +93,7 @@ class VgSamplerDataset(Dataset):
 
         if self.targets is not None:
             targets = torch.tensor(self.targets[index])
-            targets = targets.long().to(self.device)
+            targets = targets.to(self.device)
 
         if (self.quantiles is None) & (self.targets is None):
             return sample

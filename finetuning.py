@@ -161,10 +161,10 @@ def finetune(args):
 
     # wrap model for finetuning
 
-    fit_model = FinetuningWrapper(model, seq_len=args.seq_len, clf_or_reg=args.clf_or_reg, num_classes=2,
+    fit_model = FinetuningWrapper(model, seq_len=args.seq_len, clf_or_reg=args.clf_or_reg, num_classes=args.num_classes,
                                   state_dict=states, weight=weights, load_from=args.load_from,
                                   value_guides=args.value_guides, clf_style=args.clf_style,
-                                  clf_dropout=args.clf_dropout)
+                                  clf_dropout=args.clf_dropout, clf_depth=args.clf_depth)
     fit_model.to(device)
 
     # for name, param in states.named_parameters():
@@ -211,9 +211,10 @@ def finetune(args):
         if bool(args.predict_on_train):
             training.predict(train_loader, epoch, device, prefix="train")
 
-        _, _, acc, bal_acc, roc_auc = training.predict(val_loader, epoch, device, prefix="val") # todo: clf difference here!
-
-        metrics = {'acc': acc, 'bal_acc': bal_acc, 'roc_auc': roc_auc}
+        if args.clf_or_reg == 'clf':
+            _, _, metrics = training.predict(val_loader, epoch, device, prefix="val", clf_or_reg=args.clf_or_reg)
+        elif args.clf_or_reg == 'reg':
+            _, _, metrics = training.predict(val_loader, epoch, device, prefix="val", clf_or_reg=args.clf_or_reg)
 
         # whether to checkpoint model
 

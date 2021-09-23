@@ -93,15 +93,16 @@ class FinetuningWrapper(nn.Module):
             self.load_state_dict(state_dict)
 
     def forward(self, x, predict=False, **kwargs):
-
         if self.clf_or_reg == 'reg':
             assert self.num_classes == 1, "if in regression mode, num_classes must be 1"
 
         if self.value_guides is None:
             x, targets = x
+            targets = targets.long() if self.clf_or_reg == 'clf' else targets.float()
             out = self.net(x, return_embeddings=True, **kwargs)
         else:
             x, quantiles, targets = x
+            targets = targets.long() if self.clf_or_reg == 'clf' else targets.float()
             out, quantiles_out = self.net(x, quantiles=quantiles, return_embeddings=True, **kwargs)
 
         b = out.size(0)
@@ -147,7 +148,8 @@ class FinetuningWrapper(nn.Module):
             out = torch.cat([out, quantiles_out], dim=1)
 
         if self.clf_or_reg == 'reg':
-            preds = self.clf(out)
+            pre_act = torch.squeeze(self.clf(out))
+            preds = F.softplus(pre_act)
             loss = F.mse_loss(preds, targets)
             return preds if predict else loss
 
