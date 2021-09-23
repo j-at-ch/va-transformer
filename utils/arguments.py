@@ -95,13 +95,17 @@ class Arguments:
             self.parser.add_argument('--clf_or_reg', type=str, default='clf', choices=['reg', 'clf'])
             self.parser.add_argument('--predict_on_train', type=int, default=0)
             self.parser.add_argument('--num_classes', type=int, default=2)
-            self.parser.add_argument('--clf_depth', type=int, default=1)
+            self.parser.add_argument('--clf_depth', type=int, default=2)
         elif self.mode == 'baselining':
             self.parser.add_argument('--targets', type=str, required=True)
+            self.parser.add_argument('--with_values', type=int, default=1)
             self.parser.add_argument('--values_as', type=str, default='one-hot', choices=['int', 'one-hot'])
             self.parser.add_argument('--weighted_loss', type=int, default=1)
+            self.parser.add_argument('--num_classes', type=int, default=2)
             self.parser.add_argument('--clf_dropout', type=float, default=0.)
             self.parser.add_argument('--clf_hidden_dim', type=int, default=100)
+            self.parser.add_argument('--clf_or_reg', type=str, default='clf', choices=['reg', 'clf'])
+            self.parser.add_argument('--clf_depth', type=int, default=2)
 
     def parse(self):
         self.initialise()

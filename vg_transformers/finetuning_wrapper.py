@@ -41,7 +41,7 @@ class SimpleClassifier(nn.Module):
 
 class FinetuningWrapper(nn.Module):
     def __init__(self, net, seq_len, num_classes, clf_or_reg='clf', hidden_dim=100, state_dict=None, weight=None,
-                 load_from='pretrained', value_guides=None, clf_style='flatten', clf_dropout=0., clf_depth=1):
+                 load_from='pretrained', value_guides=None, clf_style='flatten', clf_dropout=0., clf_depth=2):
         super().__init__()
         self.num_classes = num_classes
         self.clf_or_reg = clf_or_reg
