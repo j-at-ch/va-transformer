@@ -162,20 +162,18 @@ def main(args):
         best_val_loss = np.inf
         early_stopping_counter = 0
         for epoch in range(args.num_epochs):
-            training.train(train_loader, optimizer, epoch,
-                           grad_accum_every=args.grad_accum_every,
-                           gamma=args.gamma)
-            val_loss = training.evaluate(val_loader, epoch,
-                                         gamma=args.gamma)
-
-            if val_loss < best_val_loss:
+            training.train(train_loader, optimizer, epoch, grad_accum_every=args.grad_accum_every, gamma=args.gamma)
+            val_losses = training.evaluate(val_loader, epoch, gamma=args.gamma)
+            if val_losses.loss < best_val_loss:
                 print("Saving checkpoint...")
                 torch.save({
                     'epoch': epoch,
                     'model_state_dict': pre_model.state_dict(),
                     'args': vars(args),
                     'optim_state_dict': optimizer.state_dict(),
-                    'val_loss': val_loss
+                    'val_loss': val_losses.loss,
+                    'token_loss': val_losses.token_loss,
+                    'quantile_loss': val_losses.quantile_loss
                 }, ckpt_path)
 
                 # track checkpoint's embeddings
@@ -184,7 +182,7 @@ def main(args):
                     training.write_token_emb(epoch, tokens_to_write, labeller, args.seq_len, device)
 
                 print("Checkpoint saved!\n")
-                best_val_loss = val_loss
+                best_val_loss = val_losses.loss
                 early_stopping_counter = 0
             else:
                 early_stopping_counter += 1
@@ -209,9 +207,6 @@ def main(args):
 
     elif args.mode == 'evaluation':
         pre_model.eval()
-
-        #for in tqdm.tqdm(enumerate(val_loader), total=len(val_loader),
-        #                 mininterval=0.5, desc=f'evaluation'):
 
         X = next(cycler(val_loader))
         if pre_model.value_guides is None:
