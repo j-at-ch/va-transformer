@@ -812,7 +812,7 @@ class CrossAttender(AttentionLayers):
 class TransformerWrapper(nn.Module):
     def __init__(self, *, num_tokens, max_seq_len, attn_layers, emb_dim=None, token_emb_dim=None, max_mem_len=0., emb_dropout=0.,
                  num_quant_tokens=None, num_memory_tokens=None, use_pos_emb=True, use_quant_pos_emb=False,
-                 va_transformer=False,
+                 va_transformer=False, with_values=False,
                  conditional_logit=False):
         super().__init__()
         assert isinstance(attn_layers, AttentionLayers), 'attention layers must be one of Encoder or Decoder'
@@ -822,7 +822,10 @@ class TransformerWrapper(nn.Module):
         token_emb_dim = default(token_emb_dim, dim)
         emb_dim = default(emb_dim, dim)
 
+        self.quant_emb_dim = quant_emb_dim
+
         self.quant_guides = attn_layers.quant_guides
+        self.with_values = with_values
         self.va_transformer = va_transformer
         self.num_quant_tokens = num_quant_tokens
         self.conditional_logit = conditional_logit
@@ -860,7 +863,7 @@ class TransformerWrapper(nn.Module):
         self.init_()
 
         if self.conditional_logit is not None:
-            self.to_logits = nn.Linear(dim + quant_emb_dim, num_tokens)
+            self.to_logits = nn.Linear(dim - quant_emb_dim, num_tokens)
         else:
             self.to_logits = nn.Linear(dim, num_tokens)
 
@@ -892,7 +895,6 @@ class TransformerWrapper(nn.Module):
             quants=None,
             return_embeddings=False,
             mask=None,
-            return_mems=False,
             return_attn=False,
             mems=None,
             **kwargs
@@ -902,7 +904,7 @@ class TransformerWrapper(nn.Module):
 
         if self.va_transformer:
             quants = self.quant_emb(quants)
-            x = torch.cat((x, quants), dim=1)
+            x = torch.cat((x, quants), dim=2)
 
         print(x.shape)
 
@@ -934,10 +936,15 @@ class TransformerWrapper(nn.Module):
                                                 **kwargs)
 
         x = self.norm(x)
+        print(x.shape)
 
-        mem, x = x[:, :num_mem], x[:, num_mem:]
-
-        out = self.to_logits(x) if not return_embeddings else x
+        if self.with_values and self.va_transformer:
+            x_token = x[:, :, :-self.quant_emb_dim]
+            x_quant = x[:, :, -self.quant_emb_dim:]
+            out = self.to_logits(x_token) if not return_embeddings else x_token
+            quants_out = self.to_quant_logits(x_quant) if not return_embeddings else x_quant
+        else:
+            out = self.to_logits(x) if not return_embeddings else x
 
         if return_attn:
             attn_maps = list(map(lambda t: t.post_softmax_attn, intermediates.attn_intermediates))

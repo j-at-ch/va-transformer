@@ -107,6 +107,7 @@ def main(args):
 
     model = TransformerWrapper(
         num_tokens=mappings.num_tokens,
+        with_values=bool(args.with_values),
         num_quant_tokens=mappings.num_quant_tokens,
         max_seq_len=args.seq_len,
         attn_layers=Decoder(
@@ -174,7 +175,7 @@ def main(args):
                     'optim_state_dict': optimizer.state_dict(),
                     'val_loss': val_losses.loss,
                     'token_loss': val_losses.token_loss,
-                    'quantile_loss': val_losses.quantile_loss
+                    'quantile_loss': val_losses.quant_loss
                 }, ckpt_path)
 
                 # track checkpoint's embeddings

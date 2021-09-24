@@ -40,13 +40,13 @@ entmax = entmax_bisect
 
 
 class AutoregressiveWrapper(nn.Module):
-    def __init__(self, net, quant_guides=None, ignore_index=-100, pad_value=0, ignore_quant_index=None, with_values=False):
+    def __init__(self, net, quant_guides=None, ignore_index=-100, pad_value=0, ignore_quant_index=None):
         super().__init__()
         self.pad_value = pad_value
         self.ignore_index = ignore_index
         self.ignore_quant_index = ignore_quant_index
         self.net = net
-        self.with_values = with_values
+        self.with_values = net.with_values
         self.quant_guides = quant_guides
         self.max_seq_len = net.max_seq_len
 
