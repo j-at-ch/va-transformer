@@ -25,7 +25,7 @@ class TrainingMethods:
         cum_loss = cum_token_loss = cum_quantile_loss = 0
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
                               mininterval=0.5, desc=f'epoch {epoch} training'):
-            if self.model.value_guides is None:
+            if self.model.quant_guides is None:
                 loss = self.model(X)
                 token_loss = batch_loss = loss.item()
                 self.writer.add_scalar('batch_loss/train', batch_loss, epoch * len(train_loader) + i)
@@ -70,7 +70,7 @@ class TrainingMethods:
         cum_loss = cum_token_loss = cum_quantile_loss = 0
         for i, X in tqdm.tqdm(enumerate(val_loader), total=len(val_loader),
                               mininterval=0.5, desc=f'epoch {epoch} evaluation'):
-            if self.model.value_guides is None:
+            if self.model.quant_guides is None:
                 loss = self.model(X)
                 token_loss = batch_loss = loss.item()
                 cum_loss += batch_loss

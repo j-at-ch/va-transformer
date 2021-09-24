@@ -12,7 +12,7 @@ from utils.data_utils import *
 from utils.arguments import Arguments
 from utils.mappings import Mappings, Labellers
 from utils.samplers import VgSamplerDataset, cycler
-from vg_transformers.vg_transformers import Decoder, TransformerWrapper
+from vg_transformers.va_transformers import Decoder, TransformerWrapper
 from vg_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
 
@@ -39,31 +39,31 @@ def main(args):
     mappings_dict = fetch_mappings(mapping_path)
 
     pad_token = args.pad_token
-    pad_guide_token = args.pad_guide_token
-    sos_token = sos_guide_token = eos_token = eos_guide_token = None
+    pad_quant_token = args.pad_quant_token
+    sos_token = sos_quant_token = eos_token = eos_quant_token = None
     if args.specials == 'SOS':
-        sos_token, sos_guide_token = len(mappings_dict['itemid2token']), 7
+        sos_token, sos_quant_token = len(mappings_dict['itemid2token']), 7
     elif args.specials == 'EOS':
-        eos_token, eos_guide_token = len(mappings_dict['itemid2token']), 7
+        eos_token, eos_quant_token = len(mappings_dict['itemid2token']), 7
     elif args.specials == 'both':
-        sos_token, sos_guide_token = len(mappings_dict['itemid2token']), 7
-        eos_token, eos_guide_token = len(mappings_dict['itemid2token']) + 1, 8
+        sos_token, sos_quant_token = len(mappings_dict['itemid2token']), 7
+        eos_token, eos_quant_token = len(mappings_dict['itemid2token']) + 1, 8
 
     mappings = Mappings(mappings_dict,
                         pad_token=pad_token,
                         sos_token=sos_token,
                         eos_token=eos_token,
-                        pad_guide_token=pad_guide_token,
-                        sos_guide_token=sos_guide_token,
-                        eos_guide_token=eos_guide_token
+                        pad_quant_token=pad_quant_token,
+                        sos_quant_token=sos_quant_token,
+                        eos_quant_token=eos_quant_token
                         )
 
     print(f"[PAD] token is {mappings.pad_token}",
           f"[SOS] token is {mappings.sos_token}",
           f"[EOS] token is {mappings.eos_token}",
-          f"[PAD] guide token is {mappings.pad_guide_token}",
-          f"[SOS] guide token is {mappings.sos_guide_token}",
-          f"[EOS] guide token is {mappings.eos_guide_token}",
+          f"[PAD] quant token is {mappings.pad_quant_token}",
+          f"[SOS] quant token is {mappings.sos_quant_token}",
+          f"[EOS] quant token is {mappings.eos_quant_token}",
           sep="\n")
 
     # labellers
@@ -78,21 +78,21 @@ def main(args):
 
     # get quantiles
 
-    if args.value_guides is None:
-        quantiles_train = None
-        quantiles_val = None
+    if bool(args.with_values):
+        quants_train = fetch_data_as_torch(train_path, 'train_quantiles')
+        quants_val = fetch_data_as_torch(val_path, 'val_quantiles')
     else:
-        quantiles_train = fetch_data_as_torch(train_path, 'train_quantiles')
-        quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
+        quants_train = None
+        quants_val = None
 
     # load data for pretraining based on arguments
 
     train_dataset = VgSamplerDataset(data_train, args.seq_len, mappings, device,
-                                     quantiles=quantiles_train,
+                                     quants=quants_train,
                                      specials=args.specials,
                                      align_sample_at=args.align_sample_at)
     val_dataset = VgSamplerDataset(data_val, args.seq_len, mappings, device,
-                                   quantiles=quantiles_val,
+                                   quants=quants_val,
                                    specials=args.specials,
                                    align_sample_at=args.align_sample_at)
 
@@ -107,7 +107,7 @@ def main(args):
 
     model = TransformerWrapper(
         num_tokens=mappings.num_tokens,
-        num_guide_tokens=mappings.num_guide_tokens,
+        num_quant_tokens=mappings.num_quant_tokens,
         max_seq_len=args.seq_len,
         attn_layers=Decoder(
             dim=args.attn_dim,
@@ -115,21 +115,22 @@ def main(args):
             heads=args.attn_heads,
             attn_dropout=args.attn_dropout,
             ff_dropout=args.ff_dropout,
-            value_guides=args.value_guides,
-            dim_guide=args.attn_dim_guide,
+            quant_guides=args.quant_guides,
+            dim_quants=args.attn_dim_quants,
             use_rezero=bool(args.use_rezero),
             rotary_pos_emb=bool(args.rotary_pos_emb)
         ),
-        use_guide_pos_emb=bool(args.use_guide_pos_emb),
-        vg_conditional=args.vg_conditional
+        use_quant_pos_emb=bool(args.use_quant_pos_emb),
+        conditional_logit=args.conditional_logit,
+        va_transformer=bool(args.va_transformer)
     )
 
     # wrap model for pretraining
 
     pre_model = AutoregressiveWrapper(model,
-                                      value_guides=args.value_guides,
+                                      quant_guides=args.quant_guides,
                                       ignore_index=args.ignore_index,
-                                      ignore_guide_index=args.ignore_guide_index)
+                                      ignore_quant_index=args.ignore_quant_index)
 
     if args.load_from_checkpoint_at is not None:
         params_path = os.path.join(args.model_root, args.load_from_checkpoint_at)
@@ -209,7 +210,7 @@ def main(args):
         pre_model.eval()
 
         X = next(cycler(val_loader))
-        if pre_model.value_guides is None:
+        if pre_model.quant_guides is None:
             xi = X[:, :-1]
             xo = X[:, 1:]
             out = pre_model.predict(X)

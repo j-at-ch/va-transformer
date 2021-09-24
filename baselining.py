@@ -41,7 +41,7 @@ def baseline(args):
     mappings_dict = fetch_mappings(mapping_path)
 
     pad_token = args.pad_token
-    pad_guide_token = args.pad_guide_token
+    pad_guide_token = args.pad_quant_token
     sos_token = sos_guide_token = eos_token = eos_guide_token = None
     if args.specials == 'SOS':
         sos_token, sos_guide_token = len(mappings_dict['itemid2token']), 7
@@ -55,17 +55,17 @@ def baseline(args):
                         pad_token=pad_token,
                         sos_token=sos_token,
                         eos_token=eos_token,
-                        pad_guide_token=pad_guide_token,
-                        sos_guide_token=sos_guide_token,
-                        eos_guide_token=eos_guide_token
+                        pad_quant_token=pad_guide_token,
+                        sos_quant_token=sos_guide_token,
+                        eos_quant_token=eos_guide_token
                         )
 
     print(f"[PAD] token is {mappings.pad_token}",
           f"[SOS] token is {mappings.sos_token}",
           f"[EOS] token is {mappings.eos_token}",
-          f"[PAD] guide token is {mappings.pad_guide_token}",
-          f"[SOS] guide token is {mappings.sos_guide_token}",
-          f"[EOS] guide token is {mappings.eos_guide_token}",
+          f"[PAD] guide token is {mappings.pad_quant_token}",
+          f"[SOS] guide token is {mappings.sos_quant_token}",
+          f"[EOS] guide token is {mappings.eos_quant_token}",
           sep="\n")
 
     # fetch labels
@@ -95,12 +95,12 @@ def baseline(args):
         quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
 
     train_dataset = VgSamplerDataset(data_train, args.seq_len, mappings, device,
-                                     quantiles=quantiles_train,
+                                     quants=quantiles_train,
                                      targets=train_targets,
                                      specials=args.specials,
                                      align_sample_at=args.align_sample_at)
     val_dataset = VgSamplerDataset(data_val, args.seq_len, mappings, device,
-                                   quantiles=quantiles_val,
+                                   quants=quantiles_val,
                                    targets=val_targets,
                                    specials=args.specials,
                                    align_sample_at=args.align_sample_at)
@@ -162,7 +162,7 @@ def baseline(args):
                 if args.values_as == 'one-hot':
                     x = F.one_hot(x, mappings.num_tokens)
                     x = torch.flatten(x, start_dim=1)
-                    quantiles = F.one_hot(quantiles, mappings.num_guide_tokens)
+                    quantiles = F.one_hot(quantiles, mappings.num_quant_tokens)
                     quantiles = torch.flatten(quantiles, start_dim=1)
                 features = torch.cat([x, quantiles], dim=1).float()
             else:
@@ -185,7 +185,7 @@ def baseline(args):
 
     if args.with_values:
         if args.values_as == 'one-hot':
-            num_features = args.seq_len * (mappings.num_tokens + mappings.num_guide_tokens)
+            num_features = args.seq_len * (mappings.num_tokens + mappings.num_quant_tokens)
         else:
             num_features = args.seq_len * 2
     else:

@@ -27,7 +27,7 @@ class Arguments:
                 return None
             return value
 
-        self.parser.add_argument('--value_guides', type=none_or_str, default=None,
+        self.parser.add_argument('--quant_guides', type=none_or_str, default=None,
                                  choices=[None, 'no-mixing', 'g-on-t-dev', 't-on-g-dev',
                                           'g-on-t', 't-on-g', 'g-and-t'])
 
@@ -36,12 +36,12 @@ class Arguments:
         self.parser.add_argument('--attn_dim', type=int, default=100)
         self.parser.add_argument('--attn_depth', type=int, default=4)
         self.parser.add_argument('--attn_heads', type=int, default=8)
-        self.parser.add_argument('--attn_dim_guide', type=int, default=10)
+        self.parser.add_argument('--attn_dim_quants', type=int, default=10)
         self.parser.add_argument('--attn_dropout', type=float, default=0.05)
         self.parser.add_argument('--ff_dropout', type=float, default=0.05)
         self.parser.add_argument('--use_rezero', type=int, default=0)
         self.parser.add_argument('--rotary_pos_emb', type=int, default=0)
-        self.parser.add_argument('--use_guide_pos_emb', type=int, default=0)
+        self.parser.add_argument('--use_quant_pos_emb', type=int, default=0)
 
         # general arguments
 
@@ -62,9 +62,9 @@ class Arguments:
         self.parser.add_argument('--scheduler_decay', type=float, default=1.)
         self.parser.add_argument('--test_run', type=int, default=0)
         self.parser.add_argument('--pad_token', type=int, default=0)
-        self.parser.add_argument('--pad_guide_token', type=int, default=6)
+        self.parser.add_argument('--pad_quant_token', type=int, default=6)
         self.parser.add_argument('--ignore_index', type=int, default=-100)
-        self.parser.add_argument('--ignore_guide_index', type=int, default=-100)
+        self.parser.add_argument('--ignore_quant_index', type=int, default=-100)
         self.parser.add_argument('--grad_accum_every', type=int, default=1)
         self.parser.add_argument('--early_stopping_threshold', type=int, default=5)
         self.parser.add_argument('--gamma', type=float, default=0.5)
@@ -72,12 +72,14 @@ class Arguments:
         self.parser.add_argument('--specials', type=none_or_str, default='EOS')
         self.parser.add_argument('--align_sample_at', type=str, default='random/SOS',
                                  choices=['SOS', 'EOS', 'random/SOS', 'random/EOS'])
-        self.parser.add_argument('--vg_conditional', type=none_or_str, default=None,
+        self.parser.add_argument('--conditional_logit', type=none_or_str, default=None,
                                  choices=[None, 'weak', 'strict'])
         if self.mode == 'pretraining':
             self.parser.add_argument('--mode', type=str, default='pretraining',
                                      choices=['pretraining', 'evaluation'])
             self.parser.add_argument('--load_from_checkpoint_at', type=str, default=None)
+            self.parser.add_argument('--va_transformer', type=int, default=0)
+            self.parser.add_argument('--with_values', type=int, default=0)
 
         # finetuning/baselining arguments
 

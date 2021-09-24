@@ -4,9 +4,9 @@ class Mappings:
                  pad_token=None,
                  sos_token=None,
                  eos_token=None,
-                 pad_guide_token=None,
-                 sos_guide_token=None,
-                 eos_guide_token=None
+                 pad_quant_token=None,
+                 sos_quant_token=None,
+                 eos_quant_token=None
                  ):
         self.itemid2token = mappings['itemid2token']
         self.token2itemid = mappings['token2itemid']
@@ -18,9 +18,9 @@ class Mappings:
         self.pad_token = pad_token
         self.sos_token = sos_token
         self.eos_token = eos_token
-        self.pad_guide_token = pad_guide_token
-        self.sos_guide_token = sos_guide_token
-        self.eos_guide_token = eos_guide_token
+        self.pad_quant_token = pad_quant_token
+        self.sos_quant_token = sos_quant_token
+        self.eos_quant_token = eos_quant_token
 
         if pad_token is not None:
             self.append_special_(self.itemid2token, self.token2itemid, '[PAD]', pad_token)
@@ -29,15 +29,15 @@ class Mappings:
         if eos_token is not None:
             self.append_special_(self.itemid2token, self.token2itemid, '[EOS]', eos_token)
 
-        if pad_guide_token is not None:
-            self.append_special_(self.gn2gt, self.gt2gn, '[PAD]', pad_guide_token)
-        if sos_guide_token is not None:
-            self.append_special_(self.gn2gt, self.gt2gn, '[SOS]', sos_guide_token)
-        if eos_guide_token is not None:
-            self.append_special_(self.gn2gt, self.gt2gn, '[EOS]', eos_guide_token)
+        if pad_quant_token is not None:
+            self.append_special_(self.gn2gt, self.gt2gn, '[PAD]', pad_quant_token)
+        if sos_quant_token is not None:
+            self.append_special_(self.gn2gt, self.gt2gn, '[SOS]', sos_quant_token)
+        if eos_quant_token is not None:
+            self.append_special_(self.gn2gt, self.gt2gn, '[EOS]', eos_quant_token)
 
         self.num_tokens = len(self.itemid2token)
-        self.num_guide_tokens = len(self.gn2gt)
+        self.num_quant_tokens = len(self.gn2gt)
 
     @staticmethod
     def append_special_(n2t, t2n, name, token):

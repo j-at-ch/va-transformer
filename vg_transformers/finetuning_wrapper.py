@@ -77,14 +77,14 @@ class FinetuningWrapper(nn.Module):
                 else SimpleClassifier(num_features, num_classes, clf_dropout)
         else:
             if clf_style == 'flatten':
-                num_guide_ft = net.attn_layers.dim_guide * self.seq_len
+                num_guide_ft = net.attn_layers.dim_quants * self.seq_len
             elif clf_style in ['on_SOS', 'on_EOS', 'sum', 'on_EOS_token']:
-                num_guide_ft = net.attn_layers.dim_guide
+                num_guide_ft = net.attn_layers.dim_quants
             elif clf_style == 'on_EOS-2_tokens':
-                num_guide_ft = 2 * net.attn_layers.dim_guide
+                num_guide_ft = 2 * net.attn_layers.dim_quants
             else:
                 raise Exception(f"clf_style option {clf_style} is not implemented!")
-            del self.net.to_guide_logits
+            del self.net.to_quant_logits
             self.clf = Classifier(num_guide_ft + num_features, hidden_dim, num_classes, clf_dropout) if clf_depth == 2 \
                 else SimpleClassifier(num_guide_ft + num_features, num_classes, clf_dropout)
         # if doing post-training analysis then initialise net hparams from finetuned model

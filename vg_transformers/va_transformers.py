@@ -400,7 +400,7 @@ class Attention(nn.Module):
     def forward(
             self,
             x,
-            quantiles=None,  # dev value-guided
+            quants=None,  # dev value-guided
             context=None,
             mask=None,
             context_mask=None,
@@ -477,7 +477,7 @@ class Attention(nn.Module):
         if self.value_guides is None:
             pass
         else:
-            gk_input = gq_input = gv_input = quantiles
+            gk_input = gq_input = gv_input = quants
             gk = self.to_gk(gk_input)
             gq = self.to_gq(gq_input)
             gv = self.to_gv(gv_input)
@@ -696,7 +696,7 @@ class AttentionLayers(nn.Module):
     def forward(
             self,
             x,
-            quantiles=None,
+            quants=None,
             context=None,
             mask=None,
             context_mask=None,
@@ -730,14 +730,14 @@ class AttentionLayers(nn.Module):
                 x = norm(x)
 
             if self.quant_guides is not None:
-                g_residual = quantiles
+                g_residual = quants
                 if self.pre_norm:
-                    quantiles = F.layer_norm(quantiles, quantiles.shape)
+                    quants = F.layer_norm(quants, quants.shape)
 
             if layer_type == 'a':
                 if self.quant_guides is not None:
                     out, inter, g_out = block(x,
-                                              quantiles=quantiles,
+                                              quants=quants,
                                               mask=mask,
                                               sinusoidal_emb=self.pia_pos_emb,
                                               rel_pos=self.rel_pos,
@@ -746,7 +746,7 @@ class AttentionLayers(nn.Module):
                                               mem=layer_mem)
                 else:
                     out, inter = block(x,
-                                       quantiles=quantiles,
+                                       quants=quants,
                                        mask=mask,
                                        sinusoidal_emb=self.pia_pos_emb,
                                        rel_pos=self.rel_pos,
@@ -760,7 +760,7 @@ class AttentionLayers(nn.Module):
 
             x = residual_fn(out, residual)
             if self.quant_guides is not None:
-                quantiles = residual_fn(g_out, g_residual)
+                quants = residual_fn(g_out, g_residual)
 
             if layer_type in ('a', 'c'):
                 intermediates.append(inter)
@@ -779,8 +779,8 @@ class AttentionLayers(nn.Module):
                     hiddens=hiddens,
                     attn_intermediates=intermediates
                 )
-                return x, intermediates, quantiles
-            return x, quantiles
+                return x, intermediates, quants
+            return x, quants
 
         if return_hiddens:
             intermediates = LayerIntermediates(
@@ -811,7 +811,7 @@ class CrossAttender(AttentionLayers):
 
 class TransformerWrapper(nn.Module):
     def __init__(self, *, num_tokens, max_seq_len, attn_layers, emb_dim=None, token_emb_dim=None, max_mem_len=0., emb_dropout=0.,
-                 num_quant_tokens=None, num_memory_tokens=None, use_pos_emb=True, use_guide_pos_emb=False,
+                 num_quant_tokens=None, num_memory_tokens=None, use_pos_emb=True, use_quant_pos_emb=False,
                  va_transformer=False,
                  conditional_logit=False):
         super().__init__()
@@ -843,8 +843,8 @@ class TransformerWrapper(nn.Module):
                 if (use_pos_emb and not attn_layers.has_pos_emb) else always(0)
 
         if self.quant_guides is not None:
-            self.guide_pos_emb = AbsolutePositionalEmbedding(quant_emb_dim, max_seq_len) \
-                if (use_guide_pos_emb and not attn_layers.has_pos_emb) else always(0)
+            self.quant_pos_emb = AbsolutePositionalEmbedding(quant_emb_dim, max_seq_len) \
+                if (use_quant_pos_emb and not attn_layers.has_pos_emb) else always(0)
 
         self.emb_dropout = nn.Dropout(emb_dropout)
 
@@ -853,8 +853,9 @@ class TransformerWrapper(nn.Module):
         self.attn_layers = attn_layers
 
         self.norm = nn.LayerNorm(dim)
-        #if self.quant_guides is not None:
-        #    self.guide_norm = nn.LayerNorm(quant_emb_dim)
+
+        if self.quant_guides is not None:
+            self.quant_norm = nn.LayerNorm(quant_emb_dim)
 
         self.init_()
 
@@ -865,11 +866,11 @@ class TransformerWrapper(nn.Module):
 
         if self.quant_guides is not None:
             if self.conditional_logit == "weak":
-                self.to_guide_logits = nn.Linear(dim + quant_emb_dim, num_quant_tokens)
+                self.to_quant_logits = nn.Linear(dim + quant_emb_dim, num_quant_tokens)
             elif self.conditional_logit == "strict":
-                self.to_guide_logits = nn.Linear(dim, num_quant_tokens)
+                self.to_quant_logits = nn.Linear(dim, num_quant_tokens)
             else:
-                self.to_guide_logits = nn.Linear(quant_emb_dim, num_quant_tokens)
+                self.to_quant_logits = nn.Linear(quant_emb_dim, num_quant_tokens)
 
         # memory tokens (like [cls]) from Memory Transformers paper
         num_memory_tokens = default(num_memory_tokens, 0)
@@ -919,14 +920,14 @@ class TransformerWrapper(nn.Module):
 
         if self.quant_guides is not None:
             x, intermediates, quants = self.attn_layers(x,
-                                                        quantiles=quants,
+                                                        quants=quants,
                                                         mask=mask,
                                                         mems=mems,
                                                         return_hiddens=True,
                                                         **kwargs)
         else:
             x, intermediates = self.attn_layers(x,
-                                                quantiles=quants,
+                                                quants=quants,
                                                 mask=mask,
                                                 mems=mems,
                                                 return_hiddens=True,
@@ -944,22 +945,22 @@ class TransformerWrapper(nn.Module):
 
         if self.va_transformer:
             if self.conditional_logit == "weak":
-                quantiles_out = self.to_guide_logits(x) if not return_embeddings else x
+                quants_out = self.to_quant_logits(x) if not return_embeddings else x
             elif self.conditional_logit == "strict":
-                quantiles_out = self.to_guide_logits(x) if not return_embeddings else quants
+                quants_out = self.to_quant_logits(x) if not return_embeddings else quants
             else:
-                quantiles_out = self.to_guide_logits(quants) if not return_embeddings else quants
-            return out, quantiles_out
+                quants_out = self.to_quant_logits(quants) if not return_embeddings else quants
+            return out, quants_out
 
         if self.quant_guides is not None:
-            quants = self.guide_norm(quants)
+            quants = self.quant_norm(quants)
             if self.conditional_logit == "weak":
                 x_and_quants = torch.cat((x, quants), dim=2)
-                quantiles_out = self.to_guide_logits(x_and_quants) if not return_embeddings else quants
+                quants_out = self.to_quant_logits(x_and_quants) if not return_embeddings else quants
             elif self.conditional_logit == "strict":
-                quantiles_out = self.to_guide_logits(x) if not return_embeddings else quants
+                quants_out = self.to_quant_logits(x) if not return_embeddings else quants
             else:
-                quantiles_out = self.to_guide_logits(quants) if not return_embeddings else quants
-            return out, quantiles_out
+                quants_out = self.to_quant_logits(quants) if not return_embeddings else quants
+            return out, quants_out
 
         return out

@@ -43,7 +43,7 @@ def finetune(args):
     mappings_dict = fetch_mappings(mapping_path)
 
     pad_token = args.pad_token
-    pad_guide_token = args.pad_guide_token
+    pad_guide_token = args.pad_quant_token
     sos_token = sos_guide_token = eos_token = eos_guide_token = None
     if args.specials == 'SOS':
         sos_token, sos_guide_token = len(mappings_dict['itemid2token']), 7
@@ -57,17 +57,17 @@ def finetune(args):
                         pad_token=pad_token,
                         sos_token=sos_token,
                         eos_token=eos_token,
-                        pad_guide_token=pad_guide_token,
-                        sos_guide_token=sos_guide_token,
-                        eos_guide_token=eos_guide_token
+                        pad_quant_token=pad_guide_token,
+                        sos_quant_token=sos_guide_token,
+                        eos_quant_token=eos_guide_token
                         )
 
     print(f"[PAD] token is {mappings.pad_token}",
           f"[SOS] token is {mappings.sos_token}",
           f"[EOS] token is {mappings.eos_token}",
-          f"[PAD] guide token is {mappings.pad_guide_token}",
-          f"[SOS] guide token is {mappings.sos_guide_token}",
-          f"[EOS] guide token is {mappings.eos_guide_token}",
+          f"[PAD] guide token is {mappings.pad_quant_token}",
+          f"[SOS] guide token is {mappings.sos_quant_token}",
+          f"[EOS] guide token is {mappings.eos_quant_token}",
           sep="\n")
 
     # labellers
@@ -94,7 +94,7 @@ def finetune(args):
 
     # get quantiles
 
-    if args.value_guides is None:
+    if args.quant_guides is None:
         quantiles_train = None
         quantiles_val = None
     else:
@@ -102,12 +102,12 @@ def finetune(args):
         quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
 
     train_dataset = VgSamplerDataset(data_train, args.seq_len, mappings, device,
-                                     quantiles=quantiles_train, targets=train_targets,
+                                     quants=quantiles_train, targets=train_targets,
                                      specials=args.specials,
                                      align_sample_at=args.align_sample_at
                                      )
     val_dataset = VgSamplerDataset(data_val, args.seq_len, mappings, device,
-                                   quantiles=quantiles_val, targets=val_targets,
+                                   quants=quantiles_val, targets=val_targets,
                                    specials=args.specials,
                                    align_sample_at=args.align_sample_at
                                    )
@@ -144,7 +144,7 @@ def finetune(args):
 
     model = TransformerWrapper(
         num_tokens=mappings.num_tokens,
-        num_guide_tokens=mappings.num_guide_tokens,
+        num_guide_tokens=mappings.num_quant_tokens,
         max_seq_len=args.seq_len,
         attn_layers=Decoder(
             dim=args.attn_dim,
@@ -152,18 +152,18 @@ def finetune(args):
             heads=args.attn_heads,
             attn_dropout=args.attn_dropout,
             ff_dropout=args.ff_dropout,
-            value_guides=args.value_guides,
+            value_guides=args.quant_guides,
             use_rezero=bool(args.use_rezero),
             rotary_pos_emb=bool(args.rotary_pos_emb)
         ),
-        use_guide_pos_emb=bool(args.use_guide_pos_emb)
+        use_guide_pos_emb=bool(args.use_quant_pos_emb)
     )
 
     # wrap model for finetuning
 
     fit_model = FinetuningWrapper(model, seq_len=args.seq_len, clf_or_reg=args.clf_or_reg, num_classes=args.num_classes,
                                   state_dict=states, weight=weights, load_from=args.load_from,
-                                  value_guides=args.value_guides, clf_style=args.clf_style,
+                                  value_guides=args.quant_guides, clf_style=args.clf_style,
                                   clf_dropout=args.clf_dropout, clf_depth=args.clf_depth)
     fit_model.to(device)
 
@@ -312,7 +312,7 @@ def evaluate(args):
 
     # get quantiles
 
-    if args.value_guides is None:
+    if args.quant_guides is None:
         quantiles_train = None
         quantiles_val = None
     else:
@@ -320,9 +320,9 @@ def evaluate(args):
         quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
 
     train_dataset = VgSamplerDataset(data_train, args.seq_len, device,
-                                     quantiles=quantiles_train, targets=train_targets)
+                                     quants=quantiles_train, targets=train_targets)
     val_dataset = VgSamplerDataset(data_val, args.seq_len, device,
-                                   quantiles=quantiles_val, targets=val_targets)
+                                   quants=quantiles_val, targets=val_targets)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
@@ -364,7 +364,7 @@ def evaluate(args):
             heads=args.attn_heads,
             attn_dropout=args.attn_dropout,
             ff_dropout=args.ff_dropout,
-            value_guides=args.value_guides,
+            value_guides=args.quant_guides,
             use_rezero=bool(args.use_rezero),
             rotary_pos_emb=bool(args.rotary_pos_emb)
         )
@@ -374,7 +374,7 @@ def evaluate(args):
 
     fit_model = FinetuningWrapper(model, seq_len=args.seq_len, num_classes=2, hidden_dim=args.clf_hidden_dim,
                                   state_dict=states, weight=weights, load_from=args.load_from,
-                                  value_guides=args.value_guides, clf_style=args.clf_style,
+                                  value_guides=args.quant_guides, clf_style=args.clf_style,
                                   clf_dropout=args.clf_dropout)
     fit_model.to(device)
 

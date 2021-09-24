@@ -40,13 +40,14 @@ entmax = entmax_bisect
 
 
 class AutoregressiveWrapper(nn.Module):
-    def __init__(self, net, value_guides=None, ignore_index=-100, pad_value=0, ignore_guide_index=None):
+    def __init__(self, net, quant_guides=None, ignore_index=-100, pad_value=0, ignore_quant_index=None, with_values=False):
         super().__init__()
         self.pad_value = pad_value
         self.ignore_index = ignore_index
-        self.ignore_guide_index = ignore_guide_index
+        self.ignore_quant_index = ignore_quant_index
         self.net = net
-        self.value_guides = value_guides
+        self.with_values = with_values
+        self.quant_guides = quant_guides
         self.max_seq_len = net.max_seq_len
 
     @torch.no_grad()
@@ -99,14 +100,14 @@ class AutoregressiveWrapper(nn.Module):
 
     @torch.no_grad()
     def predict(self, x, **kwargs):
-        if self.value_guides is None:
+        if not self.with_values:
             xi = x[:, :-1]
             out = self.net(xi, **kwargs)
         else:
             xi = x[0][:, :-1]
             qi = x[1][:, :-1]
-            out, quantiles_out = self.net(xi, quantiles=qi, **kwargs)
-            return torch.argmax(out, dim=-1), torch.argmax(quantiles_out, dim=-1)
+            out, quants_out = self.net(xi, quants=qi, **kwargs)
+            return torch.argmax(out, dim=-1), torch.argmax(quants_out, dim=-1)
         return torch.argmax(out, dim=-1)
 
     def forward(self, x, **kwargs):
@@ -117,7 +118,7 @@ class AutoregressiveWrapper(nn.Module):
             mask = mask[:, :-1]
             kwargs['mask'] = mask
 
-        if self.value_guides is None:
+        if not self.with_values:
             xi = x[:, :-1]
             xo = x[:, 1:]
             out = self.net(xi, **kwargs)
@@ -126,10 +127,10 @@ class AutoregressiveWrapper(nn.Module):
             qi = x[1][:, :-1]
             xo = x[0][:, 1:]
             qo = x[1][:, 1:]
-            out, quantiles_out = self.net(xi, quantiles=qi, **kwargs)
+            out, quants_out = self.net(xi, quants=qi, **kwargs)
             token_loss = F.cross_entropy(out.transpose(1, 2), xo, ignore_index=self.ignore_index)
-            quantile_loss = F.cross_entropy(quantiles_out.transpose(1, 2), qo, ignore_index=self.ignore_guide_index)
-            return token_loss, quantile_loss
+            quant_loss = F.cross_entropy(quants_out.transpose(1, 2), qo, ignore_index=self.ignore_quant_index)
+            return token_loss, quant_loss
 
         token_loss = F.cross_entropy(out.transpose(1, 2), xo, ignore_index=self.ignore_index)
         return token_loss

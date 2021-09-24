@@ -9,7 +9,7 @@ class VgSamplerDataset(Dataset):
                  seq_len,
                  mappings,
                  device,
-                 quantiles=None,
+                 quants=None,
                  targets=None,
                  specials=None,
                  align_sample_at='random/SOS'
@@ -19,7 +19,7 @@ class VgSamplerDataset(Dataset):
         self.seq_len = seq_len
         self.mappings = mappings
         self.device = device
-        self.quantiles = quantiles
+        self.quants = quants
         self.targets = targets
         self.specials = specials
         self.align_sample_at = align_sample_at
@@ -74,35 +74,35 @@ class VgSamplerDataset(Dataset):
 
         # extract guides and targets if required
 
-        if self.quantiles is not None:
+        if self.quants is not None:
             if self.specials:
-                guide_seq = self.add_specials_(self.quantiles[index],
+                quant_seq = self.add_specials_(self.quants[index],
                                                self.specials,
-                                               self.mappings.sos_guide_token,
-                                               self.mappings.eos_guide_token)
+                                               self.mappings.sos_quant_token,
+                                               self.mappings.eos_quant_token)
             else:
-                guide_seq = self.quantiles[index]
+                quant_seq = self.quants[index]
 
-            guide_sample = self.mappings.pad_guide_token * torch.ones(self.seq_len)
+            quant_sample = self.mappings.pad_quant_token * torch.ones(self.seq_len)
 
             if self.align_sample_at in ['EOS', 'random/EOS']:
-                guide_sample[self.seq_len - obtainable_len: self.seq_len] = guide_seq[start_index: end_index]
+                quant_sample[self.seq_len - obtainable_len: self.seq_len] = quant_seq[start_index: end_index]
             else:
-                guide_sample[:obtainable_len] = guide_seq[start_index: end_index]
-            guide_sample = guide_sample.long().to(self.device)
+                quant_sample[:obtainable_len] = quant_seq[start_index: end_index]
+            quant_sample = quant_sample.long().to(self.device)
 
         if self.targets is not None:
             targets = torch.tensor(self.targets[index])
             targets = targets.to(self.device)
 
-        if (self.quantiles is None) & (self.targets is None):
+        if (self.quants is None) & (self.targets is None):
             return sample
-        elif (self.quantiles is not None) & (self.targets is None):
-            return sample, guide_sample
-        elif (self.quantiles is None) & (self.targets is not None):
+        elif (self.quants is not None) & (self.targets is None):
+            return sample, quant_sample
+        elif (self.quants is None) & (self.targets is not None):
             return sample, targets
         else:
-            return sample, guide_sample, targets
+            return sample, quant_sample, targets
 
     def __len__(self):
         return len(self.tokens)
