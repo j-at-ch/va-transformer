@@ -73,7 +73,7 @@ class Arguments:
         self.parser.add_argument('--align_sample_at', type=str, default='random/SOS',
                                  choices=['SOS', 'EOS', 'random/SOS', 'random/EOS'])
         self.parser.add_argument('--conditional_logit', type=none_or_str, default=None,
-                                 choices=[None, 'weak', 'strict'])
+                                 choices=[None, 'weak', 'strict', 'separate'])
         if self.mode == 'pretraining':
             self.parser.add_argument('--mode', type=str, default='pretraining',
                                      choices=['pretraining', 'evaluation'])

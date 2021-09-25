@@ -715,10 +715,8 @@ class CrossAttender(AttentionLayers):
 
 class TransformerWrapper(nn.Module):
     def __init__(self, *, num_tokens, max_seq_len, attn_layers, emb_dim=None, token_emb_dim=None, quant_emb_dim=None,
-                 max_mem_len=0., emb_dropout=0.,
-                 num_quant_tokens=None, num_memory_tokens=None, use_pos_emb=True,
-                 va_transformer=False, with_values=False,
-                 conditional_logit=False):
+                 max_mem_len=0., emb_dropout=0., num_quant_tokens=None, use_pos_emb=True, va_transformer=False,
+                 with_values=False, conditional_logit=False):
         super().__init__()
         assert isinstance(attn_layers, AttentionLayers), 'attention layers must be one of Encoder or Decoder'
 
@@ -759,28 +757,22 @@ class TransformerWrapper(nn.Module):
 
         self.init_()
 
-        if self.conditional_logit is not None:
+        if self.conditional_logit == "weak":
+            assert dim > quant_emb_dim
+            self.to_logits = nn.Linear(dim - quant_emb_dim, num_tokens)
+        elif self.conditional_logit == "separate":
+            assert dim > quant_emb_dim
             self.to_logits = nn.Linear(dim - quant_emb_dim, num_tokens)
         else:
             self.to_logits = nn.Linear(dim, num_tokens)
 
         if self.with_values:
             if self.conditional_logit == "weak":
-                self.to_quant_logits = nn.Linear(dim + quant_emb_dim, num_quant_tokens)
-            elif self.conditional_logit == "strict":
                 self.to_quant_logits = nn.Linear(dim, num_quant_tokens)
-            else:
+            elif self.conditional_logit == "separate":
                 self.to_quant_logits = nn.Linear(quant_emb_dim, num_quant_tokens)
-
-        # memory tokens (like [cls]) from Memory Transformers paper
-        num_memory_tokens = default(num_memory_tokens, 0)
-        self.num_memory_tokens = num_memory_tokens
-        if num_memory_tokens > 0:
-            self.memory_tokens = nn.Parameter(torch.randn(num_memory_tokens, dim))
-
-            # let funnel encoder know number of memory tokens, if specified
-            if hasattr(attn_layers, 'num_memory_tokens'):
-                attn_layers.num_memory_tokens = num_memory_tokens
+            else:
+                self.to_quant_logits = nn.Linear(dim, num_quant_tokens)
 
     def init_(self):
         nn.init.kaiming_normal_(self.token_emb.weight)
@@ -796,7 +788,7 @@ class TransformerWrapper(nn.Module):
             mems=None,
             **kwargs
     ):
-        b, n, device, num_mem = *x.shape, x.device, self.num_memory_tokens
+        b, n, device = *x.shape, x.device
         x = self.token_emb(x)
 
         if self.va_transformer:
@@ -807,14 +799,6 @@ class TransformerWrapper(nn.Module):
         x = self.emb_dropout(x)
         x = self.project_emb(x)
 
-        if num_mem > 0:
-            mem = repeat(self.memory_tokens, 'n d -> b n d', b=b)
-            x = torch.cat((mem, x), dim=1)
-
-            # auto-handle masking after appending memory tokens
-            if exists(mask):
-                mask = F.pad(mask, (num_mem, 0), value=True)
-
         x, intermediates = self.attn_layers(x,
                                             mask=mask,
                                             mems=mems,
@@ -824,9 +808,17 @@ class TransformerWrapper(nn.Module):
         x = self.norm(x)
 
         if self.with_values and self.va_transformer:
-            x_token = x
-            x_quant = x[:, :, -self.quant_emb_dim:]
-            out = self.to_logits(x_token) if not return_embeddings else x_token
+            if self.conditional_logit == "weak":
+                x_token = x[:, :, :-self.quant_emb_dim]
+                out = self.to_logits(x_token) if not return_embeddings else x_token
+                x_quant = x
+            elif self.conditional_logit == "separate":
+                x_token = x[:, :, :-self.quant_emb_dim]
+                out = self.to_logits(x_token) if not return_embeddings else x_token
+                x_quant = x[:, :, -self.quant_emb_dim:]
+            else:
+                x_token = x_quant = x
+                out = self.to_logits(x_token) if not return_embeddings else x_token
             quants_out = self.to_quant_logits(x_quant) if not return_embeddings else x_quant
             return out, quants_out
         else:
