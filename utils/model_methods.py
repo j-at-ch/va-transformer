@@ -70,7 +70,7 @@ class TrainingMethods:
         cum_loss = cum_token_loss = cum_quant_loss = 0
         for i, X in tqdm.tqdm(enumerate(val_loader), total=len(val_loader),
                               mininterval=0.5, desc=f'epoch {epoch} evaluation'):
-            if self.model.quant_guides is None:
+            if not self.model.with_values:
                 loss = self.model(X)
                 token_loss = batch_loss = loss.item()
                 cum_loss += batch_loss

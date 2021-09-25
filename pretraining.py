@@ -116,12 +116,11 @@ def main(args):
             heads=args.attn_heads,
             attn_dropout=args.attn_dropout,
             ff_dropout=args.ff_dropout,
-            quant_guides=args.quant_guides,
-            dim_quants=args.attn_dim_quants,
             use_rezero=bool(args.use_rezero),
             rotary_pos_emb=bool(args.rotary_pos_emb)
         ),
-        use_quant_pos_emb=bool(args.use_quant_pos_emb),
+        token_emb_dim=100,
+        quant_emb_dim=10,
         conditional_logit=args.conditional_logit,
         va_transformer=bool(args.va_transformer)
     )

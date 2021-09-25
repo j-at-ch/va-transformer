@@ -317,9 +317,6 @@ class Attention(nn.Module):
             dim,
             dim_head=DEFAULT_DIM_HEAD,
             heads=8,
-            value_guides=None,
-            dim_guide=None,
-            dim_guide_heads=10,
             causal=False,
             mask=None,
             talking_heads=False,
@@ -337,8 +334,6 @@ class Attention(nn.Module):
         self.heads = heads
         self.causal = causal
         self.mask = mask
-        self.value_guides = value_guides
-        self.guide_scale = dim_guide_heads ** -0.5
 
         qk_dim = v_dim = heads * dim_head  # stacking heads together
 
@@ -351,20 +346,6 @@ class Attention(nn.Module):
         self.to_q = nn.Linear(dim, qk_dim, bias=False)  # the attention heads
         self.to_k = nn.Linear(dim, qk_dim, bias=False)
         self.to_v = nn.Linear(dim, v_dim, bias=False)
-
-        if self.value_guides is None:
-            pass
-        else:
-            g_dim = heads * dim_guide_heads
-            self.to_gk = nn.Linear(dim_guide, g_dim, bias=False)
-            self.to_gq = nn.Linear(dim_guide, g_dim, bias=False)
-            self.to_gv = nn.Linear(dim_guide, g_dim, bias=False)
-            self.to_g_out = nn.Linear(g_dim, dim_guide)
-
-            if self.value_guides == 'g-on-t-dev':
-                self.g_on_t = nn.Linear(1, 1, bias=False)
-            elif self.value_guides == 't-on-g-dev':
-                self.t_on_g = nn.Linear(1, 1, bias=False)
 
         self.dropout = nn.Dropout(dropout)
 
@@ -400,7 +381,6 @@ class Attention(nn.Module):
     def forward(
             self,
             x,
-            quants=None,  # dev value-guided
             context=None,
             mask=None,
             context_mask=None,
@@ -474,37 +454,6 @@ class Attention(nn.Module):
 
         pre_softmax_attn = dots.clone()
 
-        if self.value_guides is None:
-            pass
-        else:
-            gk_input = gq_input = gv_input = quants
-            gk = self.to_gk(gk_input)
-            gq = self.to_gq(gq_input)
-            gv = self.to_gv(gv_input)
-            gq, gk, gv = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), (gq, gk, gv))
-            guide_dots = einsum('b h i d, b h j d -> b h i j', gq, gk) * self.guide_scale
-            if self.value_guides == 'no-mixing':
-                pass
-            elif self.value_guides == 'g-on-t':
-                dots = torch.einsum('b h i j, b h i j -> b h i j', dots, guide_dots.clone())
-            elif self.value_guides == 'g-on-t-dev':
-                g_dots_on_t = rearrange(guide_dots.clone(), 'b h i (j k) -> b h i j k', k=1)
-                g_dots_on_t = self.g_on_t(g_dots_on_t)
-                g_dots_on_t = rearrange(g_dots_on_t, 'b h i j k -> b h i (j k)', k=1)
-                dots = torch.einsum('b h i j, b h i j -> b h i j', dots, g_dots_on_t)
-            elif self.value_guides == 't-on-g':
-                guide_dots = torch.einsum('b h i j, b h i j -> b h i j', dots.clone(), guide_dots)
-            elif self.value_guides == 't-on-g-dev':
-                t_dots_on_g = rearrange(dots.clone(), 'b h i (j k) -> b h i j k', k=1)
-                t_dots_on_g = self.t_on_g(t_dots_on_g)
-                t_dots_on_g = rearrange(t_dots_on_g, 'b h i j k -> b h i (j k)', k=1)
-                guide_dots = torch.einsum('b h i j, b h i j -> b h i j', t_dots_on_g, guide_dots)
-            elif self.value_guides == 'g-and-t':
-                dots = torch.einsum('b h i j, b h i j -> b h i j', dots, guide_dots.clone())
-                guide_dots = torch.einsum('b h i j, b h i j -> b h i j', dots.clone(), guide_dots)
-            else:
-                raise Exception('Unknown guide and token mixing specified!')
-
         if talking_heads:
             dots = einsum('b h i j, h k -> b k i j', dots, self.pre_softmax_proj).contiguous()
 
@@ -521,8 +470,6 @@ class Attention(nn.Module):
             mask = rearrange(r, 'i -> () () i ()') < rearrange(r, 'j -> () () () j')
             mask = F.pad(mask, (j - i, 0), value=False)  # fit mask to correct shape. only necc if q.shape != k.shape
             dots.masked_fill_(mask, mask_value)
-            if self.value_guides is not None:
-                guide_dots.masked_fill_(mask, mask_value)
             del mask
 
         if exists(self.sparse_topk) and self.sparse_topk < dots.shape[-1]:
@@ -536,10 +483,6 @@ class Attention(nn.Module):
         post_softmax_attn = attn.clone()
 
         attn = self.dropout(attn)
-
-        if self.value_guides is not None:
-            g_attn = self.attn_fn(guide_dots, dim=-1)  # specify attention non-linearity
-            g_attn = self.dropout(g_attn)
 
         if talking_heads:
             attn = einsum('b h i j, h k -> b k i j', attn, self.post_softmax_proj).contiguous()
@@ -556,12 +499,6 @@ class Attention(nn.Module):
             post_softmax_attn=post_softmax_attn
         )
 
-        if self.value_guides is not None:
-            g_in = gv
-            g_out = einsum('b h i j, b h j d -> b h i d', g_attn, g_in)
-            g_out = rearrange(g_out, 'b h n d -> b n (h d)')
-            return self.to_out(out), intermediates, self.to_g_out(g_out)
-
         return self.to_out(out), intermediates
 
 
@@ -571,8 +508,6 @@ class AttentionLayers(nn.Module):
             dim,
             depth,
             heads=8,
-            value_guides=None,
-            dim_guide=10,
             causal=False,
             cross_attend=False,
             only_cross=False,
@@ -602,7 +537,6 @@ class AttentionLayers(nn.Module):
         dim_head = attn_kwargs.get('dim_head', DEFAULT_DIM_HEAD)
 
         self.dim = dim
-        self.dim_guide = dim_guide
         self.depth = depth
         self.layers = nn.ModuleList([])
 
@@ -619,7 +553,6 @@ class AttentionLayers(nn.Module):
                                             max_distance=rel_pos_max_distance) if rel_pos_bias else None
 
         self.pre_norm = pre_norm
-        self.quant_guides = value_guides
         self.residual_attn = residual_attn
         self.cross_residual_attn = cross_residual_attn
         self.cross_attend = cross_attend
@@ -666,8 +599,6 @@ class AttentionLayers(nn.Module):
         for layer_type in self.layer_types:
             if layer_type == 'a':
                 layer = Attention(dim,
-                                  value_guides=value_guides,
-                                  dim_guide=dim_guide,
                                   heads=heads,
                                   causal=causal,
                                   **attn_kwargs)
@@ -729,38 +660,20 @@ class AttentionLayers(nn.Module):
             if self.pre_norm:
                 x = norm(x)
 
-            if self.quant_guides is not None:
-                g_residual = quants
-                if self.pre_norm:
-                    quants = F.layer_norm(quants, quants.shape)
-
             if layer_type == 'a':
-                if self.quant_guides is not None:
-                    out, inter, g_out = block(x,
-                                              quants=quants,
-                                              mask=mask,
-                                              sinusoidal_emb=self.pia_pos_emb,
-                                              rel_pos=self.rel_pos,
-                                              rotary_pos_emb=rotary_pos_emb,
-                                              prev_attn=prev_attn,
-                                              mem=layer_mem)
-                else:
-                    out, inter = block(x,
-                                       quants=quants,
-                                       mask=mask,
-                                       sinusoidal_emb=self.pia_pos_emb,
-                                       rel_pos=self.rel_pos,
-                                       rotary_pos_emb=rotary_pos_emb,
-                                       prev_attn=prev_attn,
-                                       mem=layer_mem)
+                out, inter = block(x,
+                                   mask=mask,
+                                   sinusoidal_emb=self.pia_pos_emb,
+                                   rel_pos=self.rel_pos,
+                                   rotary_pos_emb=rotary_pos_emb,
+                                   prev_attn=prev_attn,
+                                   mem=layer_mem)
             elif layer_type == 'c':
                 out, inter = block(x, context=context, mask=mask, context_mask=context_mask, prev_attn=prev_cross_attn)
             elif layer_type == 'f':
                 out = block(x)
 
             x = residual_fn(out, residual)
-            if self.quant_guides is not None:
-                quants = residual_fn(g_out, g_residual)
 
             if layer_type in ('a', 'c'):
                 intermediates.append(inter)
@@ -772,15 +685,6 @@ class AttentionLayers(nn.Module):
 
             if not self.pre_norm and not is_last:
                 x = norm(x)
-
-        if self.quant_guides is not None:
-            if return_hiddens:
-                intermediates = LayerIntermediates(
-                    hiddens=hiddens,
-                    attn_intermediates=intermediates
-                )
-                return x, intermediates, quants
-            return x, quants
 
         if return_hiddens:
             intermediates = LayerIntermediates(
@@ -810,21 +714,21 @@ class CrossAttender(AttentionLayers):
 
 
 class TransformerWrapper(nn.Module):
-    def __init__(self, *, num_tokens, max_seq_len, attn_layers, emb_dim=None, token_emb_dim=None, max_mem_len=0., emb_dropout=0.,
-                 num_quant_tokens=None, num_memory_tokens=None, use_pos_emb=True, use_quant_pos_emb=False,
+    def __init__(self, *, num_tokens, max_seq_len, attn_layers, emb_dim=None, token_emb_dim=None, quant_emb_dim=None,
+                 max_mem_len=0., emb_dropout=0.,
+                 num_quant_tokens=None, num_memory_tokens=None, use_pos_emb=True,
                  va_transformer=False, with_values=False,
                  conditional_logit=False):
         super().__init__()
         assert isinstance(attn_layers, AttentionLayers), 'attention layers must be one of Encoder or Decoder'
 
         dim = attn_layers.dim
-        quant_emb_dim = attn_layers.dim_guide
         token_emb_dim = default(token_emb_dim, dim)
-        emb_dim = default(emb_dim, dim)
+        quant_emb_dim = default(quant_emb_dim, dim)
+        emb_dim = default(token_emb_dim + quant_emb_dim, dim)
 
         self.quant_emb_dim = quant_emb_dim
 
-        self.quant_guides = attn_layers.quant_guides
         self.with_values = with_values
         self.va_transformer = va_transformer
         self.num_quant_tokens = num_quant_tokens
@@ -833,7 +737,7 @@ class TransformerWrapper(nn.Module):
         self.max_seq_len = max_seq_len
         self.max_mem_len = max_mem_len
 
-        self.token_emb = nn.Embedding(num_tokens, emb_dim)
+        self.token_emb = nn.Embedding(num_tokens, token_emb_dim)
 
         if self.va_transformer:
             self.quant_emb = nn.Embedding(num_quant_tokens, quant_emb_dim)
@@ -845,10 +749,6 @@ class TransformerWrapper(nn.Module):
             self.pos_emb = AbsolutePositionalEmbedding(emb_dim, max_seq_len) \
                 if (use_pos_emb and not attn_layers.has_pos_emb) else always(0)
 
-        if self.quant_guides is not None:
-            self.quant_pos_emb = AbsolutePositionalEmbedding(quant_emb_dim, max_seq_len) \
-                if (use_quant_pos_emb and not attn_layers.has_pos_emb) else always(0)
-
         self.emb_dropout = nn.Dropout(emb_dropout)
 
         self.project_emb = nn.Linear(emb_dim, dim) if emb_dim != dim else nn.Identity()
@@ -857,9 +757,6 @@ class TransformerWrapper(nn.Module):
 
         self.norm = nn.LayerNorm(dim)
 
-        if self.quant_guides is not None:
-            self.quant_norm = nn.LayerNorm(quant_emb_dim)
-
         self.init_()
 
         if self.conditional_logit is not None:
@@ -867,7 +764,7 @@ class TransformerWrapper(nn.Module):
         else:
             self.to_logits = nn.Linear(dim, num_tokens)
 
-        if self.quant_guides is not None:
+        if self.with_values:
             if self.conditional_logit == "weak":
                 self.to_quant_logits = nn.Linear(dim + quant_emb_dim, num_quant_tokens)
             elif self.conditional_logit == "strict":
@@ -906,8 +803,6 @@ class TransformerWrapper(nn.Module):
             quants = self.quant_emb(quants)
             x = torch.cat((x, quants), dim=2)
 
-        print(x.shape)
-
         x = x + self.pos_emb(x)
         x = self.emb_dropout(x)
         x = self.project_emb(x)
@@ -920,29 +815,20 @@ class TransformerWrapper(nn.Module):
             if exists(mask):
                 mask = F.pad(mask, (num_mem, 0), value=True)
 
-        if self.quant_guides is not None:
-            x, intermediates, quants = self.attn_layers(x,
-                                                        quants=quants,
-                                                        mask=mask,
-                                                        mems=mems,
-                                                        return_hiddens=True,
-                                                        **kwargs)
-        else:
-            x, intermediates = self.attn_layers(x,
-                                                quants=quants,
-                                                mask=mask,
-                                                mems=mems,
-                                                return_hiddens=True,
-                                                **kwargs)
+        x, intermediates = self.attn_layers(x,
+                                            mask=mask,
+                                            mems=mems,
+                                            return_hiddens=True,
+                                            **kwargs)
 
         x = self.norm(x)
-        print(x.shape)
 
         if self.with_values and self.va_transformer:
-            x_token = x[:, :, :-self.quant_emb_dim]
+            x_token = x
             x_quant = x[:, :, -self.quant_emb_dim:]
             out = self.to_logits(x_token) if not return_embeddings else x_token
             quants_out = self.to_quant_logits(x_quant) if not return_embeddings else x_quant
+            return out, quants_out
         else:
             out = self.to_logits(x) if not return_embeddings else x
 
@@ -950,24 +836,13 @@ class TransformerWrapper(nn.Module):
             attn_maps = list(map(lambda t: t.post_softmax_attn, intermediates.attn_intermediates))
             return out, attn_maps
 
-        if self.va_transformer:
-            if self.conditional_logit == "weak":
-                quants_out = self.to_quant_logits(x) if not return_embeddings else x
-            elif self.conditional_logit == "strict":
-                quants_out = self.to_quant_logits(x) if not return_embeddings else quants
-            else:
-                quants_out = self.to_quant_logits(quants) if not return_embeddings else quants
-            return out, quants_out
-
-        if self.quant_guides is not None:
-            quants = self.quant_norm(quants)
-            if self.conditional_logit == "weak":
-                x_and_quants = torch.cat((x, quants), dim=2)
-                quants_out = self.to_quant_logits(x_and_quants) if not return_embeddings else quants
-            elif self.conditional_logit == "strict":
-                quants_out = self.to_quant_logits(x) if not return_embeddings else quants
-            else:
-                quants_out = self.to_quant_logits(quants) if not return_embeddings else quants
-            return out, quants_out
+        #if self.va_transformer:
+        #    if self.conditional_logit == "weak":
+        #        quants_out = self.to_quant_logits(x) if not return_embeddings else x
+        #    elif self.conditional_logit == "strict":
+        #        quants_out = self.to_quant_logits(x) if not return_embeddings else quants
+        #    else:
+        #        quants_out = self.to_quant_logits(quants) if not return_embeddings else quants
+        #    return out, quants_out
 
         return out
