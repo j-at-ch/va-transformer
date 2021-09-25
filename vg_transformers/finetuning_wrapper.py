@@ -68,8 +68,6 @@ class FinetuningWrapper(nn.Module):
         if self.load_from == 'pretrained' and state_dict is not None:
             self.load_state_dict(state_dict)
 
-        print(state_dict)
-
         # define classifier head layers
 
         if clf_style == 'flatten':
@@ -80,10 +78,6 @@ class FinetuningWrapper(nn.Module):
             num_features = 2 * net.attn_layers.dim
         else:
             raise Exception(f"clf_style option {clf_style} is not implemented!")
-
-        #del self.net.to_logits
-        #if self.va_transformer:
-            #del self.net.to_quant_logits
 
         if self.quant_guides is not None:
             if clf_style == 'flatten':
