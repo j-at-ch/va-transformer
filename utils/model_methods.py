@@ -12,7 +12,7 @@ class VGLoss:
         self.quant_loss = quant_loss
 
 
-class TrainingMethods:
+class PretrainingMethods:
     def __init__(self, model, writer):
         self.model = model
         clip_value = 0.5
@@ -60,12 +60,13 @@ class TrainingMethods:
         self.writer.add_scalar('epoch_loss/train', epoch_loss, epoch)
         self.writer.add_scalar('epoch_token_loss/train', epoch_token_loss, epoch)
         self.writer.add_scalar('epoch_quantile_loss/train', epoch_quant_loss, epoch)
-        print(f'epoch avg train loss: {epoch_loss}',
-              f'token | quant loss: {epoch_token_loss} | {epoch_quant_loss}')
+        print(f'epoch avg train losses: '
+              f'{epoch_loss:.3f}, token: {epoch_token_loss:.3f}, quant: {epoch_quant_loss:.3f}',
+              f' (gamma={gamma})')
         return epoch_losses
 
     @torch.no_grad()
-    def evaluate(self, val_loader, epoch, gamma=0.5):
+    def evaluate(self, val_loader, epoch, gamma=0.5, prefix='val'):
         self.model.eval()
         cum_loss = cum_token_loss = cum_quant_loss = 0
         for i, X in tqdm.tqdm(enumerate(val_loader), total=len(val_loader),
@@ -88,10 +89,13 @@ class TrainingMethods:
         epoch_losses = VGLoss(loss=epoch_loss,
                               token_loss=epoch_token_loss,
                               quant_loss=epoch_quant_loss)
-        self.writer.add_scalar('epoch_loss/val', epoch_loss, epoch)
-        self.writer.add_scalar('epoch_token_loss/val', epoch_token_loss, epoch)
-        self.writer.add_scalar('epoch_quantile_loss/val', epoch_quant_loss, epoch)
-        print(f'epoch avg val loss: {epoch_loss}, token | quant loss: {epoch_token_loss} | {epoch_quant_loss}')
+        if self.writer is not None:
+            self.writer.add_scalar(f'epoch_loss/{prefix}', epoch_loss, epoch)
+            self.writer.add_scalar(f'epoch_token_loss/{prefix}', epoch_token_loss, epoch)
+            self.writer.add_scalar(f'epoch_quantile_loss/{prefix}', epoch_quant_loss, epoch)
+        print(f'epoch avg {prefix}   losses: '
+              f'{epoch_loss:.3f}, token: {epoch_token_loss:.3f}, quant: {epoch_quant_loss:.3f}',
+              f' (gamma={gamma})')
         return epoch_losses
 
     @torch.no_grad()

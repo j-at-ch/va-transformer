@@ -39,15 +39,20 @@ def main(args):
     mappings_dict = fetch_mappings(mapping_path)
 
     pad_token = args.pad_token
-    pad_quant_token = args.pad_quant_token
+    pad_quant_token = args.pad_quant_token if args.with_values else None
+
     sos_token = sos_quant_token = eos_token = eos_quant_token = None
     if args.specials == 'SOS':
-        sos_token, sos_quant_token = len(mappings_dict['itemid2token']), 7
+        sos_token = len(mappings_dict['itemid2token'])
+        sos_quant_token = 7 if args.with_values else None
     elif args.specials == 'EOS':
-        eos_token, eos_quant_token = len(mappings_dict['itemid2token']), 7
+        eos_token = len(mappings_dict['itemid2token'])
+        eos_quant_token = 7 if args.with_values else None
     elif args.specials == 'both':
-        sos_token, sos_quant_token = len(mappings_dict['itemid2token']), 7
-        eos_token, eos_quant_token = len(mappings_dict['itemid2token']) + 1, 8
+        sos_token = len(mappings_dict['itemid2token'])
+        sos_quant_token = 7
+        eos_token = len(mappings_dict['itemid2token']) + 1
+        eos_quant_token = 8
 
     mappings = Mappings(mappings_dict,
                         pad_token=pad_token,
@@ -149,7 +154,7 @@ def main(args):
         optimizer = torch.optim.Adam(pre_model.parameters(), lr=args.learning_rate)
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.scheduler_decay)
         writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
-        training = model_methods.TrainingMethods(pre_model, writer)
+        training = model_methods.PretrainingMethods(pre_model, writer)
 
         # write initial embeddings
 
@@ -207,8 +212,35 @@ def main(args):
         print("training finished and writer closed!")
 
     elif args.mode == 'evaluation':
-        pre_model.eval()
 
+        # load test set data
+
+        test_path = os.path.join(args.data_root, "test_data.pkl")
+        data_test = fetch_data_as_torch(test_path, 'test_tokens')
+        if bool(args.with_values):
+            quants_test = fetch_data_as_torch(test_path, 'test_quantiles')
+        else:
+            quants_test = None
+
+        test_dataset = VgSamplerDataset(data_test, args.seq_len, mappings, device,
+                                        quants=quants_test,
+                                        specials=args.specials,
+                                        align_sample_at=args.align_sample_at)
+        test_loader = DataLoader(test_dataset, batch_size=args.batch_size_tr, shuffle=True)
+
+        if bool(args.test_run):
+            test_loader = make_toy_loader(test_loader)
+
+        # test the model
+
+        testing = model_methods.PretrainingMethods(pre_model, writer=None)
+
+        val_losses = testing.evaluate(val_loader, 0, gamma=args.gamma, prefix='val')
+        test_losses = testing.evaluate(test_loader, 0, gamma=args.gamma, prefix='test')
+
+        print("testing finished!")
+
+        """
         X = next(cycler(val_loader))
         if pre_model.quant_guides is None:
             xi = X[:, :-1]
@@ -236,6 +268,7 @@ def main(args):
                   "predicted_quantiles:",
                   quantiles_out[1, :],
                   sep='\n')
+        """
 
 
 if __name__ == "__main__":
@@ -248,13 +281,14 @@ if __name__ == "__main__":
     if not os.path.exists(arguments.logs_root):
         os.mkdir(arguments.logs_root)
 
-    # check gamma makes sense
+    # check that arguments are well-specified
 
     assert (arguments.gamma >= 0) and (arguments.gamma <= 1), "--gamma should satisfy 0 <= gamma <= 1."
+    assert arguments.va_transformer == arguments.with_values, "with_values is only to be used with va_transformer"
+    if arguments.with_values == 0:
+        assert arguments.conditional_logit is None, "cannot use conditional_logit without values!"
 
     # run pretraining
 
     print(f"mode is {arguments.mode}")
     main(arguments)
-
-

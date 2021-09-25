@@ -31,8 +31,10 @@ class Arguments:
                                  choices=[None, 'no-mixing', 'g-on-t-dev', 't-on-g-dev',
                                           'g-on-t', 't-on-g', 'g-and-t'])
 
-        # attention specification
+        # transformer specifications
 
+        self.parser.add_argument('--token_emb_dim', type=int, default=100)
+        self.parser.add_argument('--quant_emb_dim', type=int, default=10)
         self.parser.add_argument('--attn_dim', type=int, default=100)
         self.parser.add_argument('--attn_depth', type=int, default=4)
         self.parser.add_argument('--attn_heads', type=int, default=8)
@@ -68,39 +70,40 @@ class Arguments:
         self.parser.add_argument('--grad_accum_every', type=int, default=1)
         self.parser.add_argument('--early_stopping_threshold', type=int, default=5)
         self.parser.add_argument('--gamma', type=float, default=0.5)
-        # self.parser.add_argument('--use_specials', type=int, default=0) deprecated
         self.parser.add_argument('--specials', type=none_or_str, default='EOS')
         self.parser.add_argument('--align_sample_at', type=str, default='random/SOS',
                                  choices=['SOS', 'EOS', 'random/SOS', 'random/EOS'])
         self.parser.add_argument('--conditional_logit', type=none_or_str, default=None,
                                  choices=[None, 'weak', 'strict', 'separate'])
+        self.parser.add_argument('--va_transformer', type=int, default=0)
+        self.parser.add_argument('--with_values', type=int, default=0)
         if self.mode == 'pretraining':
             self.parser.add_argument('--mode', type=str, default='pretraining',
                                      choices=['pretraining', 'evaluation'])
             self.parser.add_argument('--load_from_checkpoint_at', type=str, default=None)
-            self.parser.add_argument('--va_transformer', type=int, default=0)
-            self.parser.add_argument('--with_values', type=int, default=0)
 
         # finetuning/baselining arguments
 
         if self.mode == 'finetuning':
-            self.parser.add_argument('--mode', type=str, default='training')
+            self.parser.add_argument('--mode', type=str, default='finetuning',
+                                     choices=['finetuning', 'evaluation'])
             self.parser.add_argument('--pretrained_model', type=str, required=True)
             self.parser.add_argument('--load_from', type=str, default='pretrained')
             self.parser.add_argument('--targets', type=str, required=True)
             self.parser.add_argument('--weighted_loss', type=int, default=1)
             self.parser.add_argument('--freeze_base', type=int, default=0)
-            self.parser.add_argument('--clf_style', type=str, default='flatten',
-                                     choices=['flatten', 'sum', 'on_SOS', 'on_EOS', 'on_EOS_token', 'on_EOS-2_tokens'])
+            self.parser.add_argument('--clf_style', type=str, default='on_EOS',
+                                     choices=['flatten', 'sum', 'on_sample_start', 'on_sample_end', 'on_EOS',
+                                              'on_EOS-2'])
             self.parser.add_argument('--clf_hidden_dim', type=int, default=100)
             self.parser.add_argument('--clf_dropout', type=float, default=0.)
             self.parser.add_argument('--clf_or_reg', type=str, default='clf', choices=['reg', 'clf'])
             self.parser.add_argument('--predict_on_train', type=int, default=0)
             self.parser.add_argument('--num_classes', type=int, default=2)
             self.parser.add_argument('--clf_depth', type=int, default=2)
+
         elif self.mode == 'baselining':
             self.parser.add_argument('--targets', type=str, required=True)
-            self.parser.add_argument('--with_values', type=int, default=1)
             self.parser.add_argument('--values_as', type=str, default='one-hot', choices=['int', 'one-hot'])
             self.parser.add_argument('--weighted_loss', type=int, default=1)
             self.parser.add_argument('--num_classes', type=int, default=2)

@@ -723,7 +723,7 @@ class TransformerWrapper(nn.Module):
         dim = attn_layers.dim
         token_emb_dim = default(token_emb_dim, dim)
         quant_emb_dim = default(quant_emb_dim, dim)
-        emb_dim = default(token_emb_dim + quant_emb_dim, dim)
+        emb_dim = default(emb_dim, dim)
 
         self.quant_emb_dim = quant_emb_dim
 
@@ -755,7 +755,9 @@ class TransformerWrapper(nn.Module):
 
         self.norm = nn.LayerNorm(dim)
 
-        self.init_()
+        self.init_(self.token_emb.weight)
+        if self.va_transformer:
+            self.init_(self.quant_emb.weight)
 
         if self.conditional_logit == "weak":
             assert dim > quant_emb_dim
@@ -774,9 +776,9 @@ class TransformerWrapper(nn.Module):
             else:
                 self.to_quant_logits = nn.Linear(dim, num_quant_tokens)
 
-    def init_(self):
-        nn.init.kaiming_normal_(self.token_emb.weight)
-        nn.init.kaiming_normal_(self.quant_emb.weight)
+    @staticmethod
+    def init_(weights):
+        nn.init.kaiming_normal_(weights)
 
     def forward(
             self,
