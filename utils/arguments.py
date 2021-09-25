@@ -74,7 +74,7 @@ class Arguments:
         self.parser.add_argument('--align_sample_at', type=str, default='random/SOS',
                                  choices=['SOS', 'EOS', 'random/SOS', 'random/EOS'])
         self.parser.add_argument('--conditional_logit', type=none_or_str, default=None,
-                                 choices=[None, 'weak', 'strict', 'separate'])
+                                 choices=[None, 'weak', 'separate'])
         self.parser.add_argument('--va_transformer', type=int, default=0)
         self.parser.add_argument('--with_values', type=int, default=0)
         if self.mode == 'pretraining':

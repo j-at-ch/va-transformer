@@ -716,7 +716,7 @@ class CrossAttender(AttentionLayers):
 class TransformerWrapper(nn.Module):
     def __init__(self, *, num_tokens, max_seq_len, attn_layers, emb_dim=None, token_emb_dim=None, quant_emb_dim=None,
                  max_mem_len=0., emb_dropout=0., num_quant_tokens=None, use_pos_emb=True, va_transformer=False,
-                 with_values=False, conditional_logit=False):
+                 with_values=False, conditional_logit=None):
         super().__init__()
         assert isinstance(attn_layers, AttentionLayers), 'attention layers must be one of Encoder or Decoder'
 
