@@ -12,12 +12,12 @@ from utils.data_utils import *
 from utils.arguments import Arguments
 from utils.mappings import Mappings, Labellers
 from utils.samplers import VgSamplerDataset
-from vg_transformers.vg_transformers import TransformerWrapper, Decoder
+from vg_transformers.va_transformers import TransformerWrapper, Decoder
 from vg_transformers.finetuning_wrapper import FinetuningWrapper
 
 
-def finetune(args):
-    print('*' * 17, 'chart-transformer summoned for finetuning with the following settings:', sep='\n')
+def main(args):
+    print('*' * 17, f'vg-transformer summoned for {args.mode} with the following settings:', sep='\n')
     pprint(vars(args), indent=2)
     print('*' * 17)
 
@@ -94,20 +94,20 @@ def finetune(args):
 
     # get quantiles
 
-    if args.quant_guides is None:
-        quantiles_train = None
-        quantiles_val = None
+    if bool(args.with_values):
+        quants_train = fetch_data_as_torch(train_path, 'train_quantiles')
+        quants_val = fetch_data_as_torch(val_path, 'val_quantiles')
     else:
-        quantiles_train = fetch_data_as_torch(train_path, 'train_quantiles')
-        quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
+        quants_train = None
+        quants_val = None
 
     train_dataset = VgSamplerDataset(data_train, args.seq_len, mappings, device,
-                                     quants=quantiles_train, targets=train_targets,
+                                     quants=quants_train, targets=train_targets,
                                      specials=args.specials,
                                      align_sample_at=args.align_sample_at
                                      )
     val_dataset = VgSamplerDataset(data_val, args.seq_len, mappings, device,
-                                   quants=quantiles_val, targets=val_targets,
+                                   quants=quants_val, targets=val_targets,
                                    specials=args.specials,
                                    align_sample_at=args.align_sample_at
                                    )
@@ -144,7 +144,8 @@ def finetune(args):
 
     model = TransformerWrapper(
         num_tokens=mappings.num_tokens,
-        num_guide_tokens=mappings.num_quant_tokens,
+        with_values=bool(args.with_values),
+        num_quant_tokens=mappings.num_quant_tokens,
         max_seq_len=args.seq_len,
         attn_layers=Decoder(
             dim=args.attn_dim,
@@ -152,18 +153,21 @@ def finetune(args):
             heads=args.attn_heads,
             attn_dropout=args.attn_dropout,
             ff_dropout=args.ff_dropout,
-            value_guides=args.quant_guides,
             use_rezero=bool(args.use_rezero),
             rotary_pos_emb=bool(args.rotary_pos_emb)
         ),
-        use_guide_pos_emb=bool(args.use_quant_pos_emb)
+        token_emb_dim=args.token_emb_dim,
+        quant_emb_dim=args.quant_emb_dim,
+        conditional_logit=args.conditional_logit,
+        va_transformer=bool(args.va_transformer)
     )
 
     # wrap model for finetuning
 
-    fit_model = FinetuningWrapper(model, seq_len=args.seq_len, clf_or_reg=args.clf_or_reg, num_classes=args.num_classes,
-                                  state_dict=states, weight=weights, load_from=args.load_from,
-                                  value_guides=args.quant_guides, clf_style=args.clf_style,
+    fit_model = FinetuningWrapper(model, seq_len=args.seq_len,
+                                  load_from=args.load_from, state_dict=states, quant_guides=args.quant_guides,
+                                  clf_or_reg=args.clf_or_reg, num_classes=args.num_classes,
+                                  weight=weights, clf_style=args.clf_style,
                                   clf_dropout=args.clf_dropout, clf_depth=args.clf_depth)
     fit_model.to(device)
 
@@ -184,218 +188,125 @@ def finetune(args):
     else:
         print("Base transformer parameters remaining unfrozen...")
 
-    # initialise optimiser
+    if args.mode == 'finetuning':
 
-    optimizer = torch.optim.Adam(fit_model.parameters(), lr=args.learning_rate)
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.scheduler_decay)
-    writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
-    training = model_methods.FinetuningMethods(fit_model, writer)
+        # initialise optimiser
 
-    # write initial embeddings
+        optimizer = torch.optim.Adam(fit_model.parameters(), lr=args.learning_rate)
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.scheduler_decay)
+        writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
+        training = model_methods.FinetuningMethods(fit_model, writer)
 
-    if bool(args.write_initial_embeddings):
-        training.write_embeddings(-1, mappings, labeller, args.seq_len, device)
+        # write initial embeddings
 
-    # training loop
-    best_val_loss = np.inf
-    early_stopping_counter = 0
-    for epoch in range(args.num_epochs):
+        if bool(args.write_initial_embeddings):
+            training.write_embeddings(-1, mappings, labeller, args.seq_len, device)
 
-        # training and evaluation
+        # training loop
+        best_val_loss = np.inf
+        early_stopping_counter = 0
+        for epoch in range(args.num_epochs):
 
-        training.train(train_loader, optimizer, epoch, grad_accum_every=args.grad_accum_every)
-        val_loss = training.evaluate(val_loader, epoch)
+            # training and evaluation
 
-        # tracking model classification metrics
+            training.train(train_loader, optimizer, epoch, grad_accum_every=args.grad_accum_every)
+            val_loss = training.evaluate(val_loader, epoch)
 
-        if bool(args.predict_on_train):
-            training.predict(train_loader, epoch, device, prefix="train")
+            # tracking model classification metrics
 
-        if args.clf_or_reg == 'clf':
-            _, _, metrics = training.predict(val_loader, epoch, device, prefix="val", clf_or_reg=args.clf_or_reg)
-        elif args.clf_or_reg == 'reg':
-            _, _, metrics = training.predict(val_loader, epoch, device, prefix="val", clf_or_reg=args.clf_or_reg)
+            if bool(args.predict_on_train):
+                training.predict(train_loader, epoch, device, prefix="train")
 
-        # whether to checkpoint model
+            metrics = {}
+            if args.clf_or_reg == 'clf':
+                _, _, metrics = training.predict(val_loader, epoch, device, prefix="val", clf_or_reg=args.clf_or_reg)
+            elif args.clf_or_reg == 'reg':
+                _, _, metrics = training.predict(val_loader, epoch, device, prefix="val", clf_or_reg=args.clf_or_reg)
 
-        if val_loss < best_val_loss:
-            print("Saving checkpoint because best val_loss attained...")
-            torch.save({
-                'epoch': epoch,
-                'val_loss': val_loss,
-                'metrics': metrics,
-                'args': vars(args),
-                'model_state_dict': fit_model.state_dict(),
-                'optim_state_dict': optimizer.state_dict()
-            }, ckpt_path)
+            # whether to checkpoint model
 
-            # track checkpoint's embeddings
+            if val_loss < best_val_loss:
+                print("Saving checkpoint because best val_loss attained...")
+                torch.save({
+                    'epoch': epoch,
+                    'val_loss': val_loss,
+                    'metrics': metrics,
+                    'args': vars(args),
+                    'model_state_dict': fit_model.state_dict(),
+                    'optim_state_dict': optimizer.state_dict()
+                }, ckpt_path)
 
-            if bool(args.write_best_val_embeddings):
-                training.write_embeddings(epoch, mappings, labeller, args.seq_len, device)
+                # track checkpoint's embeddings
 
-            print("Checkpoint saved!\n")
-            best_val_loss = min(val_loss, best_val_loss)
-            early_stopping_counter = 0
+                if bool(args.write_best_val_embeddings):
+                    training.write_embeddings(epoch, mappings, labeller, args.seq_len, device)
+
+                print("Checkpoint saved!\n")
+                best_val_loss = min(val_loss, best_val_loss)
+                early_stopping_counter = 0
+            else:
+                early_stopping_counter += 1
+
+            if early_stopping_counter == args.early_stopping_threshold:
+                print('early stopping threshold hit! ending training...')
+                break
+
+            scheduler.step()
+
+            # flushing writer
+
+            print(f'epoch {epoch} completed!', '\n')
+            print('flushing writer...')
+            writer.flush()
+
+        # write final embeddings
+
+        if bool(args.write_final_embeddings):
+            training.write_embeddings(args.num_epochs, mappings, labeller, args.seq_len, device)
+
+        writer.close()
+        print("training finished and writer closed!")
+
+    elif args.mode == 'evaluation':
+
+        testing = model_methods.FinetuningMethods(fit_model, None)
+
+        fit_model.eval()
+
+        # load test set data  # dev need labels
+
+        test_path = os.path.join(args.data_root, "test_data.pkl")
+        data_test = fetch_data_as_torch(test_path, 'test_tokens')
+
+        if bool(args.with_values):
+            quants_test = fetch_data_as_torch(test_path, 'test_quantiles')
         else:
-            early_stopping_counter += 1
+            quants_test = None
 
-        if early_stopping_counter == args.early_stopping_threshold:
-            print('early stopping threshold hit! ending training...')
-            break
+        test_tgt_path = os.path.join(args.data_root, "test_targets.pkl")
 
-        scheduler.step()
+        with open(test_tgt_path, 'rb') as f:
+            x = pickle.load(f)
+            test_targets = {k: v[args.targets] for k, v in x['test_targets'].items()}
+            del x
 
-        # flushing writer
+        test_dataset = VgSamplerDataset(data_test, args.seq_len, mappings, device,
+                                        targets=test_targets,
+                                        quants=quants_test,
+                                        specials=args.specials,
+                                        align_sample_at=args.align_sample_at)
+        test_loader = DataLoader(test_dataset, batch_size=args.batch_size_tr, shuffle=True)
 
-        print(f'epoch {epoch} completed!', '\n')
-        print('flushing writer...')
-        writer.flush()
+        if bool(args.test_run):
+            test_loader = make_toy_loader(test_loader)
 
-    # write final embeddings
+        # test the model...!
 
-    if bool(args.write_final_embeddings):
-        training.write_embeddings(args.num_epochs, mappings, labeller, args.seq_len, device)
+        #val_losses = testing.evaluate(val_loader, 0, gamma=args.gamma, prefix='val')
+        #test_losses = testing.evaluate(test_loader, 0, gamma=args.gamma, prefix='test')
 
-    writer.close()
-    print("training finished and writer closed!")
-
-
-def evaluate(args):
-    print('*' * 17, 'finetuned chart-transformer summoned for evaluation with the following settings:', sep='\n')
-    pprint(vars(args), indent=2)
-    print('*' * 17)
-
-    # paths
-
-    d_items_path = os.path.join(args.data_root, "D_LABITEMS.csv")
-    train_path = os.path.join(args.data_root, "train_data.pkl")
-    val_path = os.path.join(args.data_root, "val_data.pkl")
-    mapping_path = os.path.join(args.data_root, "mappings.pkl")
-    ckpt_path = os.path.join(args.save_root, args.model_name + ".pt")
-    logs_path = os.path.join(args.logs_root, args.model_name)
-
-    train_lbl_path = os.path.join(args.data_root, "train_targets.pkl")
-    val_lbl_path = os.path.join(args.data_root, "val_targets.pkl")
-    params_path = os.path.join(args.model_root, args.pretrained_model)
-
-    # device
-
-    device = torch.device(args.device)
-
-    # fetch mappings
-
-    mappings_dict = fetch_mappings(mapping_path)
-    mappings = Mappings(mappings_dict)
-
-    # labellers
-
-    d_items_df = pd.read_csv(d_items_path, index_col='ITEMID', dtype={'ITEMID': str})
-    labeller = Labellers(mappings_dict, d_items_df)
-
-    # fetch labels
-
-    with open(train_lbl_path, 'rb') as f:
-        X = pickle.load(f)
-        train_targets = {k: v[args.targets] for k, v in X['train_targets'].items()}
-        del X
-
-    with open(val_lbl_path, 'rb') as f:
-        X = pickle.load(f)
-        val_targets = {k: v[args.targets] for k, v in X['val_targets'].items()}
-        del X
-
-    # get tokens
-
-    data_train = fetch_data_as_torch(train_path, 'train_tokens')
-    data_val = fetch_data_as_torch(val_path, 'val_tokens')
-
-    # get quantiles
-
-    if args.quant_guides is None:
-        quantiles_train = None
-        quantiles_val = None
-    else:
-        quantiles_train = fetch_data_as_torch(train_path, 'train_quantiles')
-        quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
-
-    train_dataset = VgSamplerDataset(data_train, args.seq_len, device,
-                                     quants=quantiles_train, targets=train_targets)
-    val_dataset = VgSamplerDataset(data_val, args.seq_len, device,
-                                   quants=quantiles_val, targets=val_targets)
-
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
-
-    #  for quick test run
-
-    if bool(args.test_run):
-        train_loader = [X for i, X in enumerate(train_loader) if i < 2]
-        val_loader = [X for i, X in enumerate(val_loader) if i < 2]
-
-    # unconditional label propensities
-
-    def propensity_from(targets_dict):
-        return sum(targets_dict.values()) / len(targets_dict)
-
-    p = propensity_from(train_targets)
-    print(f"Train set positive class propensity is {p}")
-
-    if bool(args.weighted_loss):
-        weights = torch.tensor([p, 1 - p]).to(device)
-    else:
-        weights = None
-
-    # fetch model params
-
-    pretrained_ckpt = torch.load(params_path, map_location=device)
-    states = pretrained_ckpt['model_state_dict']
-
-    pprint(states.keys())
-
-    # initialisation of model
-
-    model = TransformerWrapper(
-        num_tokens=mappings.num_tokens,
-        max_seq_len=args.seq_len,  # NOTE: max_seq_len necessary for the absolute positional embeddings.
-        attn_layers=Decoder(
-            dim=args.attn_dim,
-            depth=args.attn_depth,
-            heads=args.attn_heads,
-            attn_dropout=args.attn_dropout,
-            ff_dropout=args.ff_dropout,
-            value_guides=args.quant_guides,
-            use_rezero=bool(args.use_rezero),
-            rotary_pos_emb=bool(args.rotary_pos_emb)
-        )
-    )
-
-    # wrap model for finetuning
-
-    fit_model = FinetuningWrapper(model, seq_len=args.seq_len, num_classes=2, hidden_dim=args.clf_hidden_dim,
-                                  state_dict=states, weight=weights, load_from=args.load_from,
-                                  value_guides=args.quant_guides, clf_style=args.clf_style,
-                                  clf_dropout=args.clf_dropout)
-    fit_model.to(device)
-
-    # for name, param in states.named_parameters():
-    #    print(name, param.requires_grad)
-
-    print("model specification:", fit_model.net, sep="\n")
-
-    print("clf specification:", fit_model.clf, "embedding reduction:", fit_model.clf_style, sep="\n")
-
-    if bool(args.freeze_base):
-        print("Freezing base transformer parameters...")
-        for name, param in fit_model.named_parameters():
-            if 'net.' in name:
-                param.requires_grad = False
-    else:
-        print("Base transformer parameters remaining unfrozen...")
-
-    evaluating = model_methods.FinetuningMethods(fit_model, None)
-    train_out = evaluating.predict(train_loader, 'eval', device, prefix="train")
-    val_out = evaluating.predict(val_loader, 'eval', device, prefix="val")
+        #val_out = testing.predict(val_loader, 'eval', device, prefix="val")
+        #test_out = testing.predict(test_loader, 'eval', device, prefix="test")
 
 
 if __name__ == "__main__":
@@ -408,8 +319,8 @@ if __name__ == "__main__":
     if not os.path.exists(arguments.logs_root):
         os.mkdir(arguments.logs_root)
 
+    # check that arguments are well-specified
+
     # run finetuning
-    if arguments.mode == 'training':
-        finetune(arguments)
-    elif arguments.mode == 'evaluation':
-        evaluate(arguments)
+    print(f"mode is {arguments.mode}")
+    main(arguments)
