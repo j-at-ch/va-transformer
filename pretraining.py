@@ -179,7 +179,7 @@ def main(args):
                     'optim_state_dict': optimizer.state_dict(),
                     'val_loss': val_losses.loss,
                     'token_loss': val_losses.token_loss,
-                    'quantile_loss': val_losses.quant_loss
+                    'quant_loss': val_losses.quant_loss
                 }, ckpt_path)
 
                 # track checkpoint's embeddings
