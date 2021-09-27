@@ -812,15 +812,13 @@ class TransformerWrapper(nn.Module):
         if self.with_values and self.va_transformer:
             if self.conditional_logit == "weak":
                 x_token = x[:, :, :-self.quant_emb_dim]
-                out = self.to_logits(x_token) if not return_embeddings else x_token
                 x_quant = x
             elif self.conditional_logit == "separate":
                 x_token = x[:, :, :-self.quant_emb_dim]
-                out = self.to_logits(x_token) if not return_embeddings else x_token
                 x_quant = x[:, :, -self.quant_emb_dim:]
             else:
                 x_token = x_quant = x
-                out = self.to_logits(x_token) if not return_embeddings else x_token
+            out = self.to_logits(x_token) if not return_embeddings else x_token
             quants_out = self.to_quant_logits(x_quant) if not return_embeddings else x_quant
             return out, quants_out
         else:
