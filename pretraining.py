@@ -12,8 +12,8 @@ from utils.data_utils import *
 from utils.arguments import Arguments
 from utils.mappings import Mappings, Labellers
 from utils.samplers import VgSamplerDataset, cycler
-from vg_transformers.va_transformers import Decoder, TransformerWrapper
-from vg_transformers.autoregressive_wrapper import AutoregressiveWrapper
+from va_transformers.va_transformers import Decoder, TransformerWrapper
+from va_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
 
 def main(args):

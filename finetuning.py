@@ -12,8 +12,8 @@ from utils.data_utils import *
 from utils.arguments import Arguments
 from utils.mappings import Mappings, Labellers
 from utils.samplers import VgSamplerDataset
-from vg_transformers.va_transformers import TransformerWrapper, Decoder
-from vg_transformers.finetuning_wrapper import FinetuningWrapper
+from va_transformers.va_transformers import TransformerWrapper, Decoder
+from va_transformers.finetuning_wrapper import FinetuningWrapper
 
 
 def main(args):

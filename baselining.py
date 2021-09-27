@@ -13,7 +13,7 @@ from utils.data_utils import *
 from utils.arguments import Arguments
 from utils.mappings import Mappings
 from utils.samplers import VgSamplerDataset
-from vg_transformers.finetuning_wrapper import Classifier, SimpleClassifier
+from va_transformers.finetuning_wrapper import Classifier, SimpleClassifier
 
 
 def baseline(args):
