@@ -18,6 +18,9 @@ class PreprocessingArguments:
         self.parser.add_argument('--augmented_admissions', type=str, default="r", choices=["r", "w"])
         self.parser.add_argument('--quantiles', type=list, default=[0.1, 0.25, 0.75, 0.9])
         self.parser.add_argument('--generating_data_for', type=str, default='1.5D')
+        self.parser.add_argument('--scale_labs', type=int, default=1)
+        self.parser.add_argument('--write_scaled_labs', type=int, default=0)
+        self.parser.add_argument('--write_quantiles_summary', type=int, default=0)
 
     def parse(self):
         self.initialise()
