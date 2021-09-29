@@ -12,7 +12,7 @@ from utils import model_methods
 from utils.data_utils import *
 from utils.arguments import Arguments
 from utils.mappings import Mappings
-from utils.samplers import VgSamplerDataset
+from utils.samplers import SeqSamplerDataset
 from va_transformers.finetuning_wrapper import Classifier, SimpleClassifier
 
 
@@ -94,16 +94,16 @@ def baseline(args):
         quantiles_train = fetch_data_as_torch(train_path, 'train_quantiles')
         quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
 
-    train_dataset = VgSamplerDataset(data_train, args.seq_len, mappings, device,
-                                     quants=quantiles_train,
-                                     targets=train_targets,
-                                     specials=args.specials,
-                                     align_sample_at=args.align_sample_at)
-    val_dataset = VgSamplerDataset(data_val, args.seq_len, mappings, device,
-                                   quants=quantiles_val,
-                                   targets=val_targets,
-                                   specials=args.specials,
-                                   align_sample_at=args.align_sample_at)
+    train_dataset = SeqSamplerDataset(data_train, args.seq_len, mappings, device,
+                                      quants=quantiles_train,
+                                      targets=train_targets,
+                                      specials=args.specials,
+                                      align_sample_at=args.align_sample_at)
+    val_dataset = SeqSamplerDataset(data_val, args.seq_len, mappings, device,
+                                    quants=quantiles_val,
+                                    targets=val_targets,
+                                    specials=args.specials,
+                                    align_sample_at=args.align_sample_at)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
@@ -205,9 +205,6 @@ def baseline(args):
                               )
 
     model.to(device)
-
-    # for name, param in states.named_parameters():
-    #    print(name, param.requires_grad)
 
     print("model specification:", model, sep="\n")
 
