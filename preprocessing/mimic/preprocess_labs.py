@@ -16,14 +16,14 @@ def ts_to_posix(time):
 
 
 uom_scales = {
-        50889: {"mg/L": 1, "mg/dL": 10, "MG/DL": 10},
-        50916: {"ug/dL": 10, "nG/mL": 1},
-        50926: {"mIU/L": 1, "mIU/mL": 1},
-        50958: {"mIU/L": 1, "mIU/mL": 1},
-        50989: {"pg/mL": 1, "ng/dL": 10},
-        51127: {"#/uL": 1, "#/CU MM": 1},
-        51128: {"#/uL": 1, "#/CU MM": 1},
-    }
+    50889: {"mg/L": 1, "mg/dL": 10, "MG/DL": 10},
+    50916: {"ug/dL": 10, "nG/mL": 1},
+    50926: {"mIU/L": 1, "mIU/mL": 1},
+    50958: {"mIU/L": 1, "mIU/mL": 1},
+    50989: {"pg/mL": 1, "ng/dL": 10},
+    51127: {"#/uL": 1, "#/CU MM": 1},
+    51128: {"#/uL": 1, "#/CU MM": 1},
+}
 
 
 def unitscale(itemid, valueuom):  # TODO: implement more efficient solution.
@@ -50,31 +50,65 @@ def get_numeric_quantile_from_(quantiles_df, itemid, value):
     return index + 1
 
 
-def apply_quantile_fct(labs_df, quantiles_df):
-    if pd.isna(labs_df.VALUENUM):
+# def apply_quantile_fct(labs_df, quantiles_df):
+#    if pd.isna(labs_df.VALUENUM):
+#        return 0
+#    else:
+#        return get_numeric_quantile_from_(quantiles_df, labs_df.ITEMID, labs_df.VALUENUM)
+
+def apply_quantile_fct(labs_df, quantiles_df, col):
+    if pd.isna(labs_df[col]):
         return 0
     else:
-        return get_numeric_quantile_from_(quantiles_df, labs_df.ITEMID, labs_df.VALUENUM)
+        return get_numeric_quantile_from_(quantiles_df, labs_df.ITEMID, labs_df[col])
 
 
-def preprocess_labs(args):
+class Data1p5D:  # dev
+    def __init__(self, tokens, values=None, quants=None, times=None):
+        self.tokens = tokens  # dict with k:v as hadm: np.array
+        self.values = values
+        self.quants = quants
+        self.times = times
+
+
+class Targets:  # dev
+    def __init__(self, target, **kwargs):
+        self.target = target
+
+
+class Data1D:
+    def __init__(self, values_mean, values_latest=None, values_count=None, quants=None, **kwargs):
+        self.values_mean = values_mean  # dict with k:v as hadm: np.array
+        self.values_latest = values_latest
+        self.values_count = values_count
+        self.quants = quants
+
+
+def preprocess_labs_for_1p5D(args):
     print('*' * 17, 'preprocessing labs with the following settings:', sep='\n')
     pprint(vars(args), indent=2)
     print('*' * 17)
 
     # paths
-
-    labevents_path = os.path.join(args.mimic_root, "LABEVENTS.csv")
     d_labitems_path = os.path.join(args.mimic_root, "D_LABITEMS.csv")
 
-    # read labevents and summarise
-
-    labevents = (pd.read_csv(labevents_path,
-                             index_col='ROW_ID',
-                             parse_dates=['CHARTTIME'])
-                 .dropna(subset=['HADM_ID'])
-                 .astype({'HADM_ID': 'int', 'VALUEUOM': 'str'})
-                 )
+    if bool(args.labs_preliminaries_done):
+        scaled_labevents_path = os.path.join(args.data_root, "scaled_LABEVENTS.csv")
+        lab_quantiles_path = os.path.join(args.save_root, "lab_quantiles.csv")
+        labevents = (pd.read_csv(scaled_labevents_path,
+                                 index_col='ROW_ID',
+                                 parse_dates=['CHARTTIME', 'ADMITTIME'])
+                     .dropna(subset=['HADM_ID'])
+                     .astype({'HADM_ID': 'int', 'VALUEUOM': 'str'})
+                     )
+    else:
+        labevents_path = os.path.join(args.mimic_root, "LABEVENTS.csv")
+        labevents = (pd.read_csv(labevents_path,
+                                 index_col='ROW_ID',
+                                 parse_dates=['CHARTTIME'])
+                     .dropna(subset=['HADM_ID'])
+                     .astype({'HADM_ID': 'int', 'VALUEUOM': 'str'})
+                     )
 
     if args.augmented_admissions == 'w':
         admissions_path = os.path.join(args.mimic_root, "ADMISSIONS.csv")
@@ -127,8 +161,8 @@ def preprocess_labs(args):
         # select hadms for this data slice:
 
         qualifying_hadms = adm[(
-            (adm.LOS >= pd.Timedelta(days=2)) & (adm['NUMLABS<2D'] >= args.min_num_labs)
-            & (pd.isna(adm.ADMIT_TO_EXPIRE) | (adm.ADMIT_TO_EXPIRE >= pd.Timedelta(days=2)))
+                (adm.LOS >= pd.Timedelta(days=2)) & (adm['NUMLABS<2D'] >= args.min_num_labs)
+                & (pd.isna(adm.ADMIT_TO_EXPIRE) | (adm.ADMIT_TO_EXPIRE >= pd.Timedelta(days=2)))
         )]
         qualifying_hadm_ids = qualifying_hadms.index.to_numpy()
 
@@ -165,9 +199,6 @@ def preprocess_labs(args):
                           index_col='HADM_ID',
                           parse_dates=['ADMITTIME', 'DISCHTIME', 'DEATHTIME', 'EDREGTIME', 'EDOUTTIME'])
 
-    labevents = labevents.join(adm[['ADMITTIME']], on='HADM_ID')
-    labevents_2d = labevents[labevents.CHARTTIME <= labevents.ADMITTIME + pd.Timedelta(days=2)]
-
     train_indices = adm[adm.PARTITION == 'train'].index.to_numpy()
     val_indices = adm[adm.PARTITION == 'val'].index.to_numpy()
     test_indices = adm[adm.PARTITION == 'test'].index.to_numpy()
@@ -189,12 +220,13 @@ def preprocess_labs(args):
     def get_from_adm(hadm_id, target):
         return adm.loc[hadm_id, target]
 
-    # minor u.o.m. processing needed for particular labs
+    # minor u.o.m. processing if needed for particular labs
 
-    if args.scale_labs:
+    if not bool(args.labs_preliminaries_done):
         print("unit-scaling lab values...")
         labevents['SCALE'] = labevents.apply(lambda x: unitscale(x['ITEMID'], x['VALUEUOM']), axis=1)
         labevents['VALUE_SCALED'] = labevents['SCALE'] * labevents['VALUENUM']
+        labevents = labevents.join(adm[['ADMITTIME']], on='HADM_ID')
         print("lab values unit-scaled!\n")
         labs_out_path = os.path.join(args.save_root, "labevents_scaled.csv")
         print(f"writing scaled labs df to {labs_out_path} for posterity...")
@@ -203,100 +235,102 @@ def preprocess_labs(args):
     else:
         print("lab values are not being rescaled!")
 
-    if args.generating_data_for == "1.5D":
-        # loop through index sets and generate output files
-        for subset in ['train', 'val', 'test']:
-            print(f'Processing {subset} set data...')
+    labevents_2d = labevents[labevents.CHARTTIME <= labevents.ADMITTIME + pd.Timedelta(days=2)]  # todo: propagate
 
-            # grouper for labs
-            groups = (labevents.query(f'HADM_ID.isin(@{subset}_indices)')
-                      .groupby(by='HADM_ID')
-                      )
+    # loop through index sets and generate output files
+    for subset in ['train', 'val', 'test']:
+        print(f'Processing {subset} set data...')
 
-            # train token counts and quantile calculation
-            if subset == 'train':
-                print("counting train token frequencies...")
-                token2trcount = (groups.obj['ITEMID']
-                                 .apply(map2token)
-                                 .value_counts()
-                                 .to_dict()
-                                 )
-                print("train token frequencies counted!\n")
+        # grouper for labs
+        groups = (labevents.query(f'HADM_ID.isin(@{subset}_indices)')
+                  .groupby(by='HADM_ID')
+                  )
 
-                print("calculating train lab value quants...")
-                lab_quantiles_train = groups.obj.groupby('ITEMID').VALUE_SCALED.quantile([0.1, 0.25, 0.75, 0.9])
-                print("train lab value quants calculated!\n")
+        # train token counts and quantile calculation
+        if subset == 'train':
+            print("counting train token frequencies...")
+            token2trcount = (groups.obj['ITEMID']
+                             .apply(map2token)
+                             .value_counts()
+                             .to_dict()
+                             )
+            print("train token frequencies counted!\n")
 
-            # initialise
-            tokens = dict()
-            times = dict()
-            times_rel = dict()
-            values = dict()
-            quants = dict()
-            targets = dict()
+            print("calculating train lab value quants...")
+            lab_quantiles_train = groups.obj.groupby('ITEMID').VALUE_SCALED.quantile([0.1, 0.25, 0.75, 0.9])
+            print("train lab value quants calculated!\n")
 
-            # populate with entries
-            for i in tqdm.tqdm(groups.groups):
-                admittime = get_from_adm(i, 'ADMITTIME')
-                temp = groups.get_group(i).sort_values(by="CHARTTIME")
-                temp = temp[temp.CHARTTIME <= admittime + pd.Timedelta(days=2)]
-                assert not temp.empty, f"Empty labs for hadm:{i}. There should be {get_from_adm(i, 'NUMLABS<2D')}"
-                temp['QUANTILE'] = temp.apply(lambda x: apply_quantile_fct(x, lab_quantiles_train), axis=1)
+        # initialise
+        tokens = dict()
+        times = dict()
+        times_rel = dict()
+        values = dict()
+        quants = dict()
+        targets = dict()
 
-                tokens[i] = np.fromiter(
-                    map(map2token, temp['ITEMID']),
-                    dtype=np.int32
-                )
-                times[i] = np.fromiter(
-                    map(ts_to_posix, temp['CHARTTIME']),
-                    dtype=np.int64
-                )
-                times_rel[i] = times[i] - ts_to_posix(admittime)
-                values[i] = np.fromiter(
-                    temp['VALUENUM'],
-                    dtype=np.float64
-                )
-                quants[i] = np.fromiter(
-                    temp['QUANTILE'],
-                    dtype=np.int32
-                )
+        # populate with entries
+        for i in tqdm.tqdm(groups.groups):
+            admittime = get_from_adm(i, 'ADMITTIME')
+            temp = groups.get_group(i).sort_values(by="CHARTTIME")
+            temp = temp[temp.CHARTTIME <= admittime + pd.Timedelta(days=2)]
+            assert not temp.empty, f"Empty labs for hadm:{i}. There should be {get_from_adm(i, 'NUMLABS<2D')}"
+            temp['QUANT'] = temp.apply(lambda x: apply_quantile_fct(x, lab_quantiles_train, 'VALUE_SCALED'), axis=1)
 
-                # NOTE: can refactor target extraction easily to derive from augmented_admissions.csv
-                targets[i] = {
-                    'DEATH>2.5D': get_from_adm(i, 'DEATH>2.5D'),
-                    'DEATH<=3D': get_from_adm(i, 'DEATH<=3D'),
-                    'DEATH>3D': get_from_adm(i, 'DEATH>3D'),
-                    'DEATH>7D': get_from_adm(i, 'DEATH>7D'),
-                    'DEATH<=7D': get_from_adm(i, 'DEATH<=7D'),
-                    'LOS': get_from_adm(i, 'LOS')
-                }
+            tokens[i] = np.fromiter(
+                map(map2token, temp['ITEMID']),
+                dtype=np.int32
+            )
+            times[i] = np.fromiter(
+                map(ts_to_posix, temp['CHARTTIME']),
+                dtype=np.int64
+            )
+            times_rel[i] = times[i] - ts_to_posix(admittime)
 
-            # write out charts to pickle
-            save_path = os.path.join(args.save_root, f'{subset}_data.pkl')
+            values[i] = np.fromiter(
+                temp['VALUENUM'],
+                dtype=np.float64
+            )
+            quants[i] = np.fromiter(
+                temp['QUANTILE'],
+                dtype=np.int32
+            )
 
-            with open(save_path, 'wb') as f:
-                pickle.dump({f'{subset}_tokens': tokens,
-                             f'{subset}_values': values,
-                             f'{subset}_quantiles': quants,
-                             f'{subset}_times_rel': times_rel
-                             },
-                            f)
-            del tokens, times, times_rel, groups
+            # NOTE: can refactor target extraction easily to derive from augmented_admissions.csv
+            targets[i] = {
+                'DEATH>2.5D': get_from_adm(i, 'DEATH>2.5D'),
+                'DEATH<=3D': get_from_adm(i, 'DEATH<=3D'),
+                'DEATH>3D': get_from_adm(i, 'DEATH>3D'),
+                'DEATH>7D': get_from_adm(i, 'DEATH>7D'),
+                'DEATH<=7D': get_from_adm(i, 'DEATH<=7D'),
+                'LOS': get_from_adm(i, 'LOS')
+            }
 
-            # write out targets to pickle
-            save_path = os.path.join(args.save_root, f'{subset}_targets.pkl')
+        # write out charts to pickle
+        save_path = os.path.join(args.save_root, f'{subset}_data.pkl')
 
-            with open(save_path, 'wb') as f:
-                pickle.dump({f'{subset}_targets': targets}, f)
-            del targets
-
-            print(f'{subset} set data processed!')
-
-        with open(os.path.join(args.save_root, 'mappings.pkl'), 'wb') as f:
-            pickle.dump({'itemid2token': itemid2token,
-                         'token2itemid': token2itemid,
-                         'token2trcount': token2trcount},
+        with open(save_path, 'wb') as f:
+            pickle.dump({f'{subset}_tokens': tokens,
+                         f'{subset}_values': values,
+                         f'{subset}_quantiles': quants,
+                         f'{subset}_times_rel': times_rel
+                         },
                         f)
+        del tokens, times, times_rel, groups
+
+        # write out targets to pickle
+        save_path = os.path.join(args.save_root, f'{subset}_targets.pkl')
+
+        with open(save_path, 'wb') as f:
+            pickle.dump({f'{subset}_targets': targets}, f)
+        del targets
+
+        print(f'{subset} set data processed!')
+
+    with open(os.path.join(args.save_root, 'mappings.pkl'), 'wb') as f:
+        pickle.dump({'itemid2token': itemid2token,
+                     'token2itemid': token2itemid,
+                     'token2trcount': token2trcount},
+                    f)
 
 
 def preprocess_labs_for_1D(args):
@@ -355,82 +389,59 @@ def preprocess_labs_for_1D(args):
             lab_quantiles_train.to_csv(lab_quantiles_path)
             print(f"train lab quantiles info written to {lab_quantiles_path}\n")
         elif not bool(args.write_quantiles_summary):
-            lab_quantiles_train = pd.read_csv(lab_quantiles_path)
+            lab_quantiles_train = pd.read_csv(lab_quantiles_path, index_col=[0, 1], squeeze=True)
+
+        num_tokens = len(itemid2token)
 
         # initialise
         values_mean = dict()
         values_latest = dict()
         values_count = dict()
-        quants = dict()
-
-        print(labevents_2d)
 
         # populate with entries
         for i in tqdm.tqdm(groups.groups):
             temp = groups.get_group(i).sort_values(by="CHARTTIME")
+            temp['TOKEN'] = temp['ITEMID'].apply(map2token)
 
-            print(temp.groupby('ITEMID')['VALUE_SCALED'].count())
-            print(temp.groupby('ITEMID')['VALUE_SCALED'].tail(1))
-            print(temp.groupby('ITEMID')['VALUE_SCALED'].mean())
-            print(temp[temp.ITEMID == '51519'])
+            temp_mean = (temp.groupby('TOKEN')['VALUE_SCALED'].mean())
+            temp_mean = temp_mean.fillna(args.sentinel_cat) if args.sentinel_cat is not None else temp_mean
+            temp_latest = (temp.groupby('TOKEN').tail(1)[['TOKEN', 'VALUE_SCALED']]
+                           .set_index('TOKEN').sort_index()['VALUE_SCALED'])
+            temp_latest = temp_latest.fillna(args.sentinel_cat) if args.sentinel_cat is not None else temp_latest
+            temp_count = (temp.groupby('TOKEN').count()['ITEMID'])
+            temp_count = temp_count.fillna(args.sentinel_cat) if args.sentinel_cat is not None else temp_count
 
-            assert 0 == 1
+            def make_bov_from_(df_col, sentinel_value):
+                z = np.full(num_tokens, sentinel_value)
+                idx = df_col.index.to_numpy()
+                val = df_col.to_numpy()
+                z[idx] = val
+                return z
 
-            #assert not temp.empty, f"Empty labs for hadm:{i}. There should be {get_from_adm(i, 'NUMLABS<2D')}"
-            #temp['QUANT'] = temp.apply(lambda x: apply_quantile_fct(x, lab_quantiles_train), axis=1)
-            """
-            tokens[i] = np.fromiter(
-                map(map2token, temp['ITEMID']),
-                dtype=np.int32
-            )
-            times[i] = np.fromiter(
-                map(ts_to_posix, temp['CHARTTIME']),
-                dtype=np.int64
-            )
-            times_rel[i] = times[i] - ts_to_posix(admittime)
-            values[i] = np.fromiter(
-                temp['VALUENUM'],
-                dtype=np.float64
-            )
-            quants[i] = np.fromiter(
-                temp['QUANTILE'],
-                dtype=np.int32
-            )
-            """
-            # NOTE: can refactor target extraction easily to derive from augmented_admissions.csv
-            targets[i] = {
-                'DEATH>2.5D': get_from_adm(i, 'DEATH>2.5D'),
-                'DEATH<=3D': get_from_adm(i, 'DEATH<=3D'),
-                'DEATH>3D': get_from_adm(i, 'DEATH>3D'),
-                'DEATH>7D': get_from_adm(i, 'DEATH>7D'),
-                'DEATH<=7D': get_from_adm(i, 'DEATH<=7D'),
-                'LOS': get_from_adm(i, 'LOS')
-            }
+            values_mean[i] = make_bov_from_(temp_mean, args.sentinel_mean)
+            values_latest[i] = make_bov_from_(temp_latest, args.sentinel_latest)
+            values_count[i] = make_bov_from_(temp_count, args.sentinel_count)
+
+        data_out = Data1D(
+            values_mean=values_mean,
+            values_latest=values_latest,
+            values_count=values_count
+        )
 
         # write out charts to pickle
-        save_path = os.path.join(args.save_root, f'{subset}_data.pkl')
+        save_path = os.path.join(args.save_root, f'{subset}_data1D.pkl')
 
-
-class Data1p5D:  # dev
-    def __init__(self, tokens, values=None, quants=None, times=None):
-        self.tokens = tokens  # dict with k:v as hadm: np.array
-        self.values = values
-        self.quants = quants
-        self.times = times
-
-
-class Targets:  # dev
-    def __init__(self, target, **kwargs):
-        self.target = target
-
-
-class Data1D:  # dev
-    def __init__(self, values, quants=None, **kwargs):
-        self.values = values  # dict with k:v as hadm: np.array
-        self.quants = quants
+        with open(save_path, 'wb') as f:
+            pickle.dump(data_out, f)
 
 
 if __name__ == "__main__":
     arguments = PreprocessingArguments().parse()
-    #preprocess_labs(arguments)
-    preprocess_labs_for_1D(arguments)
+
+    if arguments.preprocess_for == '1D':
+        preprocess_labs_for_1D(arguments)
+    elif arguments.preprocess_for == '1.5D':
+        preprocess_labs_for_1p5D(arguments)
+    else:
+        preprocess_labs_for_1p5D(arguments)
+        preprocess_labs_for_1D(arguments)
