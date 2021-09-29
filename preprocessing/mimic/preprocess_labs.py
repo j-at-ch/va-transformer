@@ -147,13 +147,13 @@ def preprocess_labs_for_1p5D(args):
         # add in calculations relying on a join between ADMISSIONS summaries and LABEVENTS:
 
         labevents = labevents.join(adm[['ADMITTIME']], on='HADM_ID')
-        labevents_2d = labevents[labevents.CHARTTIME <= labevents.ADMITTIME + pd.Timedelta(days=2)]
+        labevents2 = labevents[labevents.CHARTTIME <= labevents.ADMITTIME + pd.Timedelta(days=2)]
 
         adm = pd.concat([adm,
                          pd.DataFrame({
-                             'NUMLABS<2D': labevents_2d.groupby('HADM_ID').ITEMID.count(),
-                             'NUMLABVALS<2D': labevents_2d.groupby('HADM_ID').VALUENUM.count(),
-                             'NUMLABSUNQ<2D': labevents_2d.groupby('HADM_ID').ITEMID.nunique()
+                             'NUMLABS<2D': labevents2.groupby('HADM_ID').ITEMID.count(),
+                             'NUMLABVALS<2D': labevents2.groupby('HADM_ID').VALUENUM.count(),
+                             'NUMLABSUNQ<2D': labevents2.groupby('HADM_ID').ITEMID.nunique()
                          })
                          ], axis=1
                         )
@@ -193,7 +193,7 @@ def preprocess_labs_for_1p5D(args):
         adm.to_csv(targets_path)
         print("written!\n")
 
-    else:  # dev: what do I need if relying on aug_adm?
+    else:
         admissions_path = os.path.join(args.data_root, "augmented_admissions.csv")
         adm = pd.read_csv(admissions_path,
                           index_col='HADM_ID',
@@ -222,6 +222,8 @@ def preprocess_labs_for_1p5D(args):
 
     # minor u.o.m. processing if needed for particular labs
 
+    labevents2 = labevents[labevents.CHARTTIME <= labevents.ADMITTIME + pd.Timedelta(days=2)]
+
     if not bool(args.labs_preliminaries_done):
         print("unit-scaling lab values...")
         labevents['SCALE'] = labevents.apply(lambda x: unitscale(x['ITEMID'], x['VALUEUOM']), axis=1)
@@ -235,14 +237,12 @@ def preprocess_labs_for_1p5D(args):
     else:
         print("lab values are not being rescaled!")
 
-    labevents_2d = labevents[labevents.CHARTTIME <= labevents.ADMITTIME + pd.Timedelta(days=2)]  # todo: propagate
-
     # loop through index sets and generate output files
     for subset in ['train', 'val', 'test']:
         print(f'Processing {subset} set data...')
 
         # grouper for labs
-        groups = (labevents.query(f'HADM_ID.isin(@{subset}_indices)')
+        groups = (labevents2.query(f'HADM_ID.isin(@{subset}_indices)')
                   .groupby(by='HADM_ID')
                   )
 
@@ -270,9 +270,8 @@ def preprocess_labs_for_1p5D(args):
 
         # populate with entries
         for i in tqdm.tqdm(groups.groups):
-            admittime = get_from_adm(i, 'ADMITTIME')
             temp = groups.get_group(i).sort_values(by="CHARTTIME")
-            temp = temp[temp.CHARTTIME <= admittime + pd.Timedelta(days=2)]
+            # temp = temp[temp.CHARTTIME <= admittime + pd.Timedelta(days=2)]
             assert not temp.empty, f"Empty labs for hadm:{i}. There should be {get_from_adm(i, 'NUMLABS<2D')}"
             temp['QUANT'] = temp.apply(lambda x: apply_quantile_fct(x, lab_quantiles_train, 'VALUE_SCALED'), axis=1)
 
@@ -284,14 +283,16 @@ def preprocess_labs_for_1p5D(args):
                 map(ts_to_posix, temp['CHARTTIME']),
                 dtype=np.int64
             )
+
+            admittime = get_from_adm(i, 'ADMITTIME')
             times_rel[i] = times[i] - ts_to_posix(admittime)
 
             values[i] = np.fromiter(
-                temp['VALUENUM'],
+                temp['VALUE_SCALED'],
                 dtype=np.float64
             )
             quants[i] = np.fromiter(
-                temp['QUANTILE'],
+                temp['QUANT'],
                 dtype=np.int32
             )
 
@@ -311,7 +312,7 @@ def preprocess_labs_for_1p5D(args):
         with open(save_path, 'wb') as f:
             pickle.dump({f'{subset}_tokens': tokens,
                          f'{subset}_values': values,
-                         f'{subset}_quantiles': quants,
+                         f'{subset}_quants': quants,
                          f'{subset}_times_rel': times_rel
                          },
                         f)
@@ -422,17 +423,17 @@ def preprocess_labs_for_1D(args):
             values_latest[i] = make_bov_from_(temp_latest, args.sentinel_latest)
             values_count[i] = make_bov_from_(temp_count, args.sentinel_count)
 
-        data_out = Data1D(
-            values_mean=values_mean,
-            values_latest=values_latest,
-            values_count=values_count
-        )
-
-        # write out charts to pickle
+        # write out labs to pickle
         save_path = os.path.join(args.save_root, f'{subset}_data1D.pkl')
 
         with open(save_path, 'wb') as f:
-            pickle.dump(data_out, f)
+            pickle.dump({f'{subset}_values_mean': values_mean,
+                         f'{subset}_values_latest': values_latest,
+                         f'{subset}_values_count': values_count},
+                        f)
+
+        # write out charts to pickle
+        save_path = os.path.join(args.save_root, f'{subset}_data1D.pkl')
 
 
 if __name__ == "__main__":
