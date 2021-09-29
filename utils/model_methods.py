@@ -254,7 +254,6 @@ class BaselineMethods:
         cum_loss = 0
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
                               mininterval=0.5, desc=f'epoch {epoch} training'):
-            print(X[0][:, :10])
             loss = self.model(X)
 
             if grad_accum_every > 1:
@@ -277,7 +276,6 @@ class BaselineMethods:
         epoch_loss = cum_loss / len(train_loader)
         self.writer.add_scalar('epoch_loss/train', epoch_loss, epoch)
         print(f'epoch avg train loss: {epoch_loss}')
-        print(len(train_loader))
         return epoch_loss
 
     @torch.no_grad()
@@ -335,42 +333,3 @@ class BaselineMethods:
             print(f'epoch {prefix}/mse = {mse}, {prefix}/r2 = {r2}, {prefix}/exp_var = {exp_var}')
 
         return y_score, y_true, metrics
-
-
-"""
-    @torch.no_grad()
-    def predict(self, data_loader, epoch, device, prefix="val"):
-        self.model.eval()
-        y_score = torch.tensor([]).to(device)
-        y_true = torch.tensor([]).to(device)
-        for i, X in tqdm.tqdm(enumerate(data_loader), total=len(data_loader),
-                              mininterval=0.5, desc=f'epoch {epoch} prediction'
-                              ):
-            labels = X[-1]
-            y_true = torch.cat((y_true, labels))
-            logits = self.model(X, predict=True)
-            y_score = torch.cat((y_score, F.softmax(logits, dim=1)))
-            
-            
-            if clf_or_reg == 'clf':
-                logits = self.model(X, predict=True)
-                y_score = torch.cat((y_score, F.softmax(logits, dim=1)))
-            elif clf_or_reg == 'reg':
-                preds = self.model(X, predict=True)
-                y_score = torch.cat((y_score, preds))
-                
-        y_true = y_true.cpu()
-        y_score = y_score.cpu()
-
-        acc = accuracy_score(y_true, torch.argmax(y_score, dim=1), normalize=True)
-        bal_acc = balanced_accuracy_score(y_true, torch.argmax(y_score, dim=1))
-        roc_auc = roc_auc_score(y_true, y_score[:, 1])
-
-        if self.writer is not None:
-            self.writer.add_scalar(prefix + '/acc', acc, epoch)
-            self.writer.add_scalar(prefix + '/bal_acc', bal_acc, epoch)
-            self.writer.add_scalar(prefix + '/roc_auc', roc_auc, epoch)
-            self.writer.add_pr_curve(prefix + '/pr_curve', y_true, y_score[:, 1], epoch)
-        print(f'epoch {prefix}/roc_auc = {roc_auc}, {prefix}/bal_acc = {bal_acc}, {prefix}/acc = {acc}')
-        return y_score[:, 1], y_true, acc, bal_acc, roc_auc
-"""
