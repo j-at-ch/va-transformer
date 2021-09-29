@@ -104,7 +104,7 @@ class FinetuningWrapper(nn.Module):
             x, quants, targets = x
             out, quants_out = self.net(x, quants=quants, return_embeddings=True, **kwargs)
             if self.conditional_logit == "separate":
-                clf_in = torch.cat([out, quants_out])
+                clf_in = torch.cat([out, quants_out], dim=2)
             else:
                 clf_in = quants_out
         else:
