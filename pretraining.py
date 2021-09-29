@@ -11,7 +11,7 @@ from utils import model_methods
 from utils.data_utils import *
 from utils.arguments import Arguments
 from utils.mappings import Mappings, Labellers
-from utils.samplers import VgSamplerDataset, cycler
+from utils.samplers import SeqSamplerDataset, cycler
 from va_transformers.va_transformers import Decoder, TransformerWrapper
 from va_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
@@ -92,14 +92,14 @@ def main(args):
 
     # load data for pretraining based on arguments
 
-    train_dataset = VgSamplerDataset(data_train, args.seq_len, mappings, device,
-                                     quants=quants_train,
-                                     specials=args.specials,
-                                     align_sample_at=args.align_sample_at)
-    val_dataset = VgSamplerDataset(data_val, args.seq_len, mappings, device,
-                                   quants=quants_val,
-                                   specials=args.specials,
-                                   align_sample_at=args.align_sample_at)
+    train_dataset = SeqSamplerDataset(data_train, args.seq_len, mappings, device,
+                                      quants=quants_train,
+                                      specials=args.specials,
+                                      align_sample_at=args.align_sample_at)
+    val_dataset = SeqSamplerDataset(data_val, args.seq_len, mappings, device,
+                                    quants=quants_val,
+                                    specials=args.specials,
+                                    align_sample_at=args.align_sample_at)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
@@ -222,10 +222,10 @@ def main(args):
         else:
             quants_test = None
 
-        test_dataset = VgSamplerDataset(data_test, args.seq_len, mappings, device,
-                                        quants=quants_test,
-                                        specials=args.specials,
-                                        align_sample_at=args.align_sample_at)
+        test_dataset = SeqSamplerDataset(data_test, args.seq_len, mappings, device,
+                                         quants=quants_test,
+                                         specials=args.specials,
+                                         align_sample_at=args.align_sample_at)
         test_loader = DataLoader(test_dataset, batch_size=args.batch_size_tr, shuffle=True)
 
         if bool(args.test_run):

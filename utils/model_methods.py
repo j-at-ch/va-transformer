@@ -254,6 +254,7 @@ class BaselineMethods:
         cum_loss = 0
         for i, X in tqdm.tqdm(enumerate(train_loader), total=len(train_loader),
                               mininterval=0.5, desc=f'epoch {epoch} training'):
+            print(X[0][:, :10])
             loss = self.model(X)
 
             if grad_accum_every > 1:
@@ -276,6 +277,7 @@ class BaselineMethods:
         epoch_loss = cum_loss / len(train_loader)
         self.writer.add_scalar('epoch_loss/train', epoch_loss, epoch)
         print(f'epoch avg train loss: {epoch_loss}')
+        print(len(train_loader))
         return epoch_loss
 
     @torch.no_grad()

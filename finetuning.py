@@ -11,7 +11,7 @@ from utils import model_methods
 from utils.data_utils import *
 from utils.arguments import Arguments
 from utils.mappings import Mappings, Labellers
-from utils.samplers import VgSamplerDataset
+from utils.samplers import SeqSamplerDataset
 from va_transformers.va_transformers import TransformerWrapper, Decoder
 from va_transformers.finetuning_wrapper import FinetuningWrapper
 
@@ -101,16 +101,16 @@ def main(args):
         quants_train = None
         quants_val = None
 
-    train_dataset = VgSamplerDataset(data_train, args.seq_len, mappings, device,
-                                     quants=quants_train, targets=train_targets,
-                                     specials=args.specials,
-                                     align_sample_at=args.align_sample_at
-                                     )
-    val_dataset = VgSamplerDataset(data_val, args.seq_len, mappings, device,
-                                   quants=quants_val, targets=val_targets,
-                                   specials=args.specials,
-                                   align_sample_at=args.align_sample_at
-                                   )
+    train_dataset = SeqSamplerDataset(data_train, args.seq_len, mappings, device,
+                                      quants=quants_train, targets=train_targets,
+                                      specials=args.specials,
+                                      align_sample_at=args.align_sample_at
+                                      )
+    val_dataset = SeqSamplerDataset(data_val, args.seq_len, mappings, device,
+                                    quants=quants_val, targets=val_targets,
+                                    specials=args.specials,
+                                    align_sample_at=args.align_sample_at
+                                    )
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
@@ -290,11 +290,11 @@ def main(args):
             test_targets = {k: v[args.targets] for k, v in x['test_targets'].items()}
             del x
 
-        test_dataset = VgSamplerDataset(data_test, args.seq_len, mappings, device,
-                                        targets=test_targets,
-                                        quants=quants_test,
-                                        specials=args.specials,
-                                        align_sample_at=args.align_sample_at)
+        test_dataset = SeqSamplerDataset(data_test, args.seq_len, mappings, device,
+                                         targets=test_targets,
+                                         quants=quants_test,
+                                         specials=args.specials,
+                                         align_sample_at=args.align_sample_at)
         test_loader = DataLoader(test_dataset, batch_size=args.batch_size_tr, shuffle=True)
 
         if bool(args.test_run):
