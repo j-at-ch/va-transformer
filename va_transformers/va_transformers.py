@@ -828,13 +828,4 @@ class TransformerWrapper(nn.Module):
             attn_maps = list(map(lambda t: t.post_softmax_attn, intermediates.attn_intermediates))
             return out, attn_maps
 
-        #if self.va_transformer:
-        #    if self.conditional_logit == "weak":
-        #        quants_out = self.to_quant_logits(x) if not return_embeddings else x
-        #    elif self.conditional_logit == "strict":
-        #        quants_out = self.to_quant_logits(x) if not return_embeddings else quants
-        #    else:
-        #        quants_out = self.to_quant_logits(quants) if not return_embeddings else quants
-        #    return out, quants_out
-
         return out
