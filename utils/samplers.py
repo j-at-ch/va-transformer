@@ -3,7 +3,7 @@ import numpy as np
 from torch.utils.data import Dataset
 
 
-class VgSamplerDataset(Dataset):
+class SeqSamplerDataset(Dataset):
     def __init__(self,
                  tokens,
                  seq_len,
@@ -112,3 +112,28 @@ def cycler(loader):
     while True:
         for data in loader:
             yield data
+
+
+class V1dDataset(Dataset):
+    def __init__(self, data, mappings, device, targets=None):
+        super().__init__()
+        self.data = data
+        self.mappings = mappings
+        self.device = device
+        self.targets = targets
+        self.lookup = dict(zip(np.arange(len(self.data)), self.data.keys()))
+
+    def __getitem__(self, key):
+        index = self.lookup[key]
+        bov = self.data[index]
+        bov = bov.to(self.device)
+
+        if self.targets is not None:
+            targets = torch.tensor(self.targets[index])
+            targets = targets.to(self.device)
+            return bov, targets
+        return bov
+
+    def __len__(self):
+        return len(self.data)
+
