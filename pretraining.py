@@ -17,7 +17,7 @@ from va_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
 
 def main(args):
-    print('*' * 17, f'vg-transformer summoned for {args.mode} with the following settings:', sep='\n')
+    print('*' * 17, f'va-transformer summoned for {args.mode} with the following settings:', sep='\n')
     pprint(vars(args), indent=2)
     print('*' * 17)
 
@@ -104,7 +104,7 @@ def main(args):
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size_tr, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size_val, shuffle=True)
 
-    if bool(args.test_run):
+    if bool(args.toy_run):
         train_loader = make_toy_loader(train_loader)
         val_loader = make_toy_loader(val_loader)
 
@@ -133,7 +133,6 @@ def main(args):
     # wrap model for pretraining
 
     pre_model = AutoregressiveWrapper(model,
-                                      quant_guides=args.quant_guides,
                                       ignore_index=args.ignore_index,
                                       ignore_quant_index=args.ignore_quant_index)
 
@@ -211,7 +210,8 @@ def main(args):
         writer.close()
         print("training finished and writer closed!")
 
-    elif args.mode == 'evaluation':
+    if bool(args.WARNING_TESTING):
+        print("\nWARNING TEST set in use!\n")
 
         # load test set data
 
@@ -228,47 +228,26 @@ def main(args):
                                          align_sample_at=args.align_sample_at)
         test_loader = DataLoader(test_dataset, batch_size=args.batch_size_tr, shuffle=True)
 
-        if bool(args.test_run):
+        if bool(args.toy_run):
             test_loader = make_toy_loader(test_loader)
 
+        # test the model at the checkpoint
+        params_path = os.path.join(args.model_root, args.model_name + '.pt')
+        print(f"loading state dict from checkpoint at {params_path}...")
+        checkpoint = torch.load(params_path, map_location=device)
+        states = checkpoint['model_state_dict']
+        pre_model.load_state_dict(states)
+        print(f"checkpoint loaded!")
+
+        writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
+
         # test the model
+        testing = model_methods.PretrainingMethods(pre_model, writer=writer)
 
-        testing = model_methods.PretrainingMethods(pre_model, writer=None)
-
-        val_losses = testing.evaluate(val_loader, 0, gamma=args.gamma, prefix='val')
+        val_losses = testing.evaluate(val_loader, 0, gamma=args.gamma, prefix='re-val')
         test_losses = testing.evaluate(test_loader, 0, gamma=args.gamma, prefix='test')
 
         print("testing finished!")
-
-        """
-        X = next(cycler(val_loader))
-        if pre_model.quant_guides is None:
-            xi = X[:, :-1]
-            xo = X[:, 1:]
-            out = pre_model.predict(X)
-            loss = pre_model(X)
-            print(loss,
-                  "target_tokens:",
-                  xo[1, :],
-                  "predicted_tokens:",
-                  out[1, :],
-                  sep='\n')
-        else:
-            xo = X[0][:, 1:]
-            qo = X[1][:, 1:]
-            out, quantiles_out = pre_model.predict(X)
-            loss = pre_model(X)
-            print(loss,
-                  "target_tokens:",
-                  xo[1, :],
-                  "predicted_tokens:",
-                  out[1, :],
-                  "target_quantiles:",
-                  qo[1, :],
-                  "predicted_quantiles:",
-                  quantiles_out[1, :],
-                  sep='\n')
-        """
 
 
 if __name__ == "__main__":

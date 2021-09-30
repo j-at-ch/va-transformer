@@ -17,7 +17,7 @@ from va_transformers.finetuning_wrapper import FinetuningWrapper
 
 
 def main(args):
-    print('*' * 17, f'vg-transformer summoned for {args.mode} with the following settings:', sep='\n')
+    print('*' * 17, f'va-transformer summoned for {args.mode} with the following settings:', sep='\n')
     pprint(vars(args), indent=2)
     print('*' * 17)
 
@@ -117,7 +117,7 @@ def main(args):
 
     #  for quick test run
 
-    if bool(args.test_run):
+    if bool(args.toy_run):
         train_loader = make_toy_loader(train_loader)
         val_loader = make_toy_loader(val_loader)
 
@@ -138,7 +138,7 @@ def main(args):
     # fetch model params
 
     pretrained_ckpt = torch.load(params_path, map_location=device)
-    states = pretrained_ckpt['model_state_dict']
+    state_dict = pretrained_ckpt['model_state_dict']
 
     # initialisation of model
 
@@ -164,11 +164,16 @@ def main(args):
 
     # wrap model for finetuning
 
-    fit_model = FinetuningWrapper(model, seq_len=args.seq_len,
-                                  load_from=args.load_from, state_dict=states, quant_guides=args.quant_guides,
-                                  clf_or_reg=args.clf_or_reg, num_classes=args.num_classes,
-                                  weight=weights, clf_style=args.clf_style,
-                                  clf_dropout=args.clf_dropout, clf_depth=args.clf_depth)
+    fit_model = FinetuningWrapper(model,
+                                  seq_len=args.seq_len,
+                                  load_from=args.load_from,
+                                  state_dict=state_dict,
+                                  clf_or_reg=args.clf_or_reg,
+                                  num_classes=args.num_classes,
+                                  clf_style=args.clf_style,
+                                  clf_dropout=args.clf_dropout,
+                                  clf_depth=args.clf_depth,
+                                  weight=weights)
     fit_model.to(device)
 
     # for name, param in states.named_parameters():
@@ -188,14 +193,14 @@ def main(args):
     else:
         print("Base transformer parameters remaining unfrozen...")
 
-    if args.mode == 'finetuning':
+    if args.mode == "finetuning":
 
         # initialise optimiser
 
         optimizer = torch.optim.Adam(fit_model.parameters(), lr=args.learning_rate)
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.scheduler_decay)
         writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
-        training = model_methods.FinetuningMethods(fit_model, writer)
+        training = model_methods.FinetuningMethods(fit_model, writer, clf_or_reg=args.clf_or_reg)
 
         # write initial embeddings
 
@@ -267,24 +272,18 @@ def main(args):
         writer.close()
         print("training finished and writer closed!")
 
-    elif args.mode == 'evaluation':
+    if bool(args.WARNING_TESTING):
+        print("\nWARNING TEST set in use!\n")
 
-        testing = model_methods.FinetuningMethods(fit_model, None)
-
-        fit_model.eval()
-
-        # load test set data  # dev need labels
-
+        # load test set data
         test_path = os.path.join(args.data_root, "test_data.pkl")
-        data_test = fetch_data_as_torch(test_path, 'test_tokens')
+        test_tgt_path = os.path.join(args.data_root, "test_targets.pkl")
 
+        data_test = fetch_data_as_torch(test_path, 'test_tokens')
         if bool(args.with_values):
             quants_test = fetch_data_as_torch(test_path, 'test_quantiles')
         else:
             quants_test = None
-
-        test_tgt_path = os.path.join(args.data_root, "test_targets.pkl")
-
         with open(test_tgt_path, 'rb') as f:
             x = pickle.load(f)
             test_targets = {k: v[args.targets] for k, v in x['test_targets'].items()}
@@ -297,16 +296,26 @@ def main(args):
                                          align_sample_at=args.align_sample_at)
         test_loader = DataLoader(test_dataset, batch_size=args.batch_size_tr, shuffle=True)
 
-        if bool(args.test_run):
+        if bool(args.toy_run):
             test_loader = make_toy_loader(test_loader)
 
-        # test the model...!
+        # test the model at the checkpoint
+        params_path = os.path.join(args.model_root, args.model_name + '.pt')
+        print(f"loading state dict from checkpoint at {params_path}...")
+        checkpoint = torch.load(params_path, map_location=device)
+        states = checkpoint['model_state_dict']
+        fit_model.load_state_dict(states)
+        print(f"checkpoint loaded!")
 
-        #val_losses = testing.evaluate(val_loader, 0, gamma=args.gamma, prefix='val')
-        #test_losses = testing.evaluate(test_loader, 0, gamma=args.gamma, prefix='test')
+        writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
+        testing = model_methods.FinetuningMethods(fit_model, writer=writer, clf_or_reg=args.clf_or_reg)
 
-        #val_out = testing.predict(val_loader, 'eval', device, prefix="val")
-        #test_out = testing.predict(test_loader, 'eval', device, prefix="test")
+        # test the model...
+
+        val_losses = testing.evaluate(val_loader, 0, prefix='re-val')
+        val_metrics = testing.predict(val_loader, 'eval', device, prefix="re-val")
+        test_losses = testing.evaluate(test_loader, 0, prefix='test')
+        test_metrics = testing.predict(test_loader, 'eval', device, prefix="test")
 
 
 if __name__ == "__main__":

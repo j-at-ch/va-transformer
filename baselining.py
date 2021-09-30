@@ -5,8 +5,6 @@ from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.datasets import make_classification
 
 from utils import model_methods
 from utils.data_utils import *
@@ -110,7 +108,7 @@ def baseline(args):
 
     #  for quick test run
 
-    if bool(args.test_run):
+    if bool(args.toy_run):
         train_loader = make_toy_loader(train_loader)
         val_loader = make_toy_loader(val_loader)
 
@@ -203,67 +201,107 @@ def baseline(args):
                               clf_dropout=args.clf_dropout,
                               clf_depth=args.clf_depth
                               )
-
     model.to(device)
 
     print("model specification:", model, sep="\n")
 
-    # initialise optimiser
+    if args.mode == "training":
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.scheduler_decay)
-    writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
-    training = model_methods.BaselineMethods(model, writer)
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.scheduler_decay)
+        writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
+        training = model_methods.BaselineMethods(model, writer, clf_or_reg=args.clf_or_reg)
 
-    # training loop
+        # training loop
 
-    best_val_loss = np.inf
-    early_stopping_counter = 0
-    for epoch in range(args.num_epochs):
+        best_val_loss = np.inf
+        early_stopping_counter = 0
+        for epoch in range(args.num_epochs):
 
-        # training and evaluation
+            # training and evaluation
 
-        training.train(train_loader, optimizer, epoch, grad_accum_every=args.grad_accum_every)
-        val_loss = training.evaluate(val_loader, epoch)
+            training.train(train_loader, optimizer, epoch, grad_accum_every=args.grad_accum_every)
+            val_loss = training.evaluate(val_loader, epoch)
+            _, _, metrics = training.predict(val_loader, epoch, device, prefix="val")
 
-        if args.clf_or_reg == 'clf':
-            _, _, metrics = training.predict(val_loader, epoch, device, prefix="val", clf_or_reg=args.clf_or_reg)
-        elif args.clf_or_reg == 'reg':
-            _, _, metrics = training.predict(val_loader, epoch, device, prefix="val", clf_or_reg=args.clf_or_reg)
+            # whether to checkpoint model
 
-        # whether to checkpoint model
+            if val_loss < best_val_loss:
+                print("Saving checkpoint because best val_loss attained...")
+                torch.save({
+                    'epoch': epoch,
+                    'val_loss': val_loss,
+                    'metrics': metrics,
+                    'args': vars(args),
+                    'model_state_dict': model.state_dict(),
+                    'optim_state_dict': optimizer.state_dict()
+                }, ckpt_path)
 
-        if val_loss < best_val_loss:
-            print("Saving checkpoint because best val_loss attained...")
-            torch.save({
-                'epoch': epoch,
-                'val_loss': val_loss,
-                'metrics': metrics,
-                'args': vars(args),
-                'model_state_dict': model.state_dict(),
-                'optim_state_dict': optimizer.state_dict()
-            }, ckpt_path)
+                print("Checkpoint saved!\n")
+                best_val_loss = min(val_loss, best_val_loss)
+                early_stopping_counter = 0
+            else:
+                early_stopping_counter += 1
 
-            print("Checkpoint saved!\n")
-            best_val_loss = min(val_loss, best_val_loss)
-            early_stopping_counter = 0
+            if early_stopping_counter == args.early_stopping_threshold:
+                print('early stopping threshold hit! ending training...')
+                break
+
+            scheduler.step()
+
+            # flushing writer
+
+            print(f'epoch {epoch} completed!', '\n')
+            print('flushing writer...')
+            writer.flush()
+
+        writer.close()
+        print("training finished and writer closed!")
+
+    if bool(args.WARNING_TESTING):
+        print("\nWARNING TEST set in use!\n")
+
+        # load test set data
+        test_path = os.path.join(args.data_root, "test_data.pkl")
+        data_test = fetch_data_as_torch(test_path, 'test_tokens')
+        if bool(args.with_values):
+            quants_test = fetch_data_as_torch(test_path, 'test_quantiles')
         else:
-            early_stopping_counter += 1
+            quants_test = None
+        test_tgt_path = os.path.join(args.data_root, "test_targets.pkl")
+        with open(test_tgt_path, 'rb') as f:
+            x = pickle.load(f)
+            test_targets = {k: v[args.targets] for k, v in x['test_targets'].items()}
+            del x
 
-        if early_stopping_counter == args.early_stopping_threshold:
-            print('early stopping threshold hit! ending training...')
-            break
+        test_dataset = SeqSamplerDataset(data_test, args.seq_len, mappings, device,
+                                         quants=quants_test,
+                                         targets=test_targets,
+                                         specials=args.specials,
+                                         align_sample_at=args.align_sample_at)
+        test_loader = DataLoader(test_dataset, batch_size=args.batch_size_tr, shuffle=True)
 
-        scheduler.step()
+        if bool(args.toy_run):
+            test_loader = make_toy_loader(test_loader)
 
-        # flushing writer
+        # test the model at the checkpoint
+        params_path = os.path.join(args.model_root, args.model_name + '.pt')
+        checkpoint = torch.load(params_path, map_location=device)
+        states = checkpoint['model_state_dict']
+        model.load_state_dict(states)
 
-        print(f'epoch {epoch} completed!', '\n')
-        print('flushing writer...')
+        model.to(device)
+        writer = SummaryWriter(log_dir=logs_path, flush_secs=args.writer_flush_secs)
+
+        testing = model_methods.BaselineMethods(model, writer=writer, clf_or_reg=args.clf_or_reg)
+        val_losses = testing.evaluate(val_loader, 0, prefix='re-val')
+        val_metrics = testing.predict(val_loader, 0, device, prefix='re-val')
+        test_losses = testing.evaluate(test_loader, 0, prefix='test')
+        test_metrics = testing.predict(test_loader, 0, device, prefix='test')
+
         writer.flush()
-
-    writer.close()
-    print("training finished and writer closed!")
+        writer.close()
+        print("testing finished and writer closed!")
 
 
 if __name__ == "__main__":

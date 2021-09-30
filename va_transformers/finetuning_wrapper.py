@@ -41,7 +41,7 @@ class Classifier(nn.Module):
 
 class FinetuningWrapper(nn.Module):
     def __init__(self, net, seq_len, num_classes, clf_or_reg='clf', hidden_dim=100, state_dict=None, weight=None,
-                 load_from='pretrained', quant_guides=None, clf_style='on_EOS', clf_dropout=0., clf_depth=2):
+                 load_from='pretrained', clf_style='on_EOS', clf_dropout=0., clf_depth=2):
         super().__init__()
         self.num_classes = num_classes
         self.clf_or_reg = clf_or_reg
@@ -52,7 +52,6 @@ class FinetuningWrapper(nn.Module):
         self.conditional_logit = net.conditional_logit
         self.seq_len = seq_len
         self.load_from = load_from
-        self.quant_guides = quant_guides
         self.with_values = net.with_values
         self.clf_style = clf_style
         self.clf_dropout = clf_dropout
@@ -79,27 +78,13 @@ class FinetuningWrapper(nn.Module):
         else:
             raise Exception(f"clf_style option {clf_style} is not implemented!")
 
-        if self.quant_guides is not None:
-            if clf_style == 'flatten':
-                num_guide_ft = net.attn_layers.dim_quants * self.seq_len
-                num_features += num_guide_ft
-            elif clf_style in ['on_sample_start', 'on_sample_end', 'sum', 'on_EOS']:
-                num_guide_ft = net.attn_layers.dim_quants
-                num_features += num_guide_ft
-            elif clf_style == 'on_EOS-2':
-                num_guide_ft = 2 * net.attn_layers.dim_quants
-                num_features += num_guide_ft
-            else:
-                raise Exception(f"clf_style option {clf_style} is not implemented!")
-
         self.clf = Classifier(num_features, hidden_dim, num_classes, clf_dropout) if clf_depth == 2 \
             else SimpleClassifier(num_features, num_classes, clf_dropout)
 
-        if self.load_from == 'finetuned' and state_dict is not None:  # dev check alignment between clf_styles
+        if self.load_from == 'finetuned' and state_dict is not None:
             self.load_state_dict(state_dict)
 
     def forward(self, x, predict=False, **kwargs):
-
         if self.with_values:
             x, quants, targets = x
             out, quants_out = self.net(x, quants=quants, return_embeddings=True, **kwargs)
@@ -131,27 +116,6 @@ class FinetuningWrapper(nn.Module):
             clf_in = torch.cat([clf_in[np.arange(b), eos_indices, :], clf_in[np.arange(b), eos_indices - 1, :]], dim=1)
         else:
             raise Exception(f"clf_style option {self.clf_style} is not implemented!")
-
-        """
-        if self.quant_guides is not None:
-            if self.clf_style == 'flatten':
-                quants_out = torch.flatten(quants_out, start_dim=1)  # first dim is batch
-            elif self.clf_style == 'sum':
-                quants_out = torch.sum(quants_out, dim=1)
-            elif self.clf_style == 'on_SOS':
-                quants_out = quants_out[:, 0, :]
-            elif self.clf_style == 'on_-1':
-                quants_out = quants_out[:, -1, :]
-            elif self.clf_style == 'on_EOS':
-                quants_out = quants_out[np.arange(b), eos_indices, :]
-            elif self.clf_style == 'on_EOS-2':
-                quants_out = torch.cat([
-                    quants_out[np.arange(b), eos_indices, :],
-                    quants_out[np.arange(b), eos_indices - 1, :]
-                ], dim=1
-                )
-            out = torch.cat([out, quants_out], dim=1)
-        """
 
         if self.clf_or_reg == 'reg':
             pre_act = torch.squeeze(self.clf(clf_in))
