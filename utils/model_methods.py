@@ -5,7 +5,7 @@ from sklearn.metrics import accuracy_score, balanced_accuracy_score, roc_auc_sco
      mean_squared_error, r2_score, explained_variance_score
 
 
-class VGLoss:
+class TQLoss:
     def __init__(self, loss, token_loss=None, quant_loss=None):
         self.loss = loss
         self.token_loss = token_loss
@@ -54,7 +54,7 @@ class PretrainingMethods:
         epoch_loss = cum_loss / len(train_loader)
         epoch_token_loss = cum_token_loss / len(train_loader)
         epoch_quant_loss = cum_quant_loss / len(train_loader)
-        epoch_losses = VGLoss(loss=epoch_loss,
+        epoch_losses = TQLoss(loss=epoch_loss,
                               token_loss=epoch_token_loss,
                               quant_loss=epoch_quant_loss)
         self.writer.add_scalar('epoch_loss/train', epoch_loss, epoch)
@@ -86,7 +86,7 @@ class PretrainingMethods:
         epoch_loss = cum_loss / len(val_loader)
         epoch_token_loss = cum_token_loss / len(val_loader)
         epoch_quant_loss = cum_quant_loss / len(val_loader)
-        epoch_losses = VGLoss(loss=epoch_loss,
+        epoch_losses = TQLoss(loss=epoch_loss,
                               token_loss=epoch_token_loss,
                               quant_loss=epoch_quant_loss)
         if self.writer is not None:
@@ -113,23 +113,11 @@ class PretrainingMethods:
                                   global_step=step,
                                   tag='token_embeddings')
 
-    @torch.no_grad()  # dev: should this be an at-the-end eval method?
-    def write_output_emb(self, step, tokens, labeller, seq_len, device):
-        self.model.eval()
-        if labeller.mappings.eos_token is not None:
-            pass
-
-    @torch.no_grad()
-    def write_g_histograms(self, step):
-        self.model.eval()
-        to_g_weights = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.weight.detach()
-                                  for i in range(self.depth)], dim=1)
-        self.writer.add_histogram('to_g_weights', to_g_weights, step)
-
 
 class FinetuningMethods:
-    def __init__(self, model, writer):
+    def __init__(self, model, writer, clf_or_reg='clf'):
         self.model = model
+        self.clf_or_reg = clf_or_reg
         clip_value = 0.5
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip_value)
         self.writer = writer
@@ -165,21 +153,22 @@ class FinetuningMethods:
         return epoch_loss
 
     @torch.no_grad()
-    def evaluate(self, val_loader, epoch):
+    def evaluate(self, val_loader, epoch, prefix='val'):
         self.model.eval()
         cum_loss = 0
         for i, X in tqdm.tqdm(enumerate(val_loader), total=len(val_loader),
                               mininterval=0.5, desc=f'epoch {epoch} evaluation'):
             loss = self.model(X)
             cum_loss += loss.item()
-
         epoch_loss = cum_loss / len(val_loader)
-        self.writer.add_scalar('epoch_loss/val', epoch_loss, epoch)
-        print(f'epoch avg val loss: {epoch_loss}')
+
+        if self.writer is not None:
+            self.writer.add_scalar(f'epoch_loss/{prefix}', epoch_loss, epoch)
+        print(f'epoch avg {prefix} loss: {epoch_loss:.3f}')
         return epoch_loss
 
     @torch.no_grad()
-    def predict(self, data_loader, epoch, device, prefix="val", clf_or_reg='clf'):
+    def predict(self, data_loader, epoch, device, prefix="val"):
         self.model.eval()
         y_score = torch.tensor([]).to(device)
         y_true = torch.tensor([]).to(device)
@@ -187,10 +176,10 @@ class FinetuningMethods:
                               mininterval=0.5, desc=f'epoch {epoch} prediction'):
             targets = X[-1]
             y_true = torch.cat((y_true, targets))
-            if clf_or_reg == 'clf':
+            if self.clf_or_reg == 'clf':
                 logits = self.model(X, predict=True)
                 y_score = torch.cat((y_score, F.softmax(logits, dim=1)))
-            elif clf_or_reg == 'reg':
+            elif self.clf_or_reg == 'reg':
                 preds = self.model(X, predict=True)
                 y_score = torch.cat((y_score, preds))
 
@@ -198,24 +187,26 @@ class FinetuningMethods:
         y_score = y_score.cpu()
 
         metrics = {}
-        if clf_or_reg == 'clf':
+        if self.clf_or_reg == 'clf':
             acc = accuracy_score(y_true, torch.argmax(y_score, dim=1), normalize=True)
             bal_acc = balanced_accuracy_score(y_true, torch.argmax(y_score, dim=1))
             roc_auc = roc_auc_score(y_true, y_score[:, 1])
             metrics = {'acc': acc, 'bal_acc': bal_acc, 'roc_auc': roc_auc}
-            self.writer.add_scalar(prefix + '/acc', acc, epoch)
-            self.writer.add_scalar(prefix + '/bal_acc', bal_acc, epoch)
-            self.writer.add_scalar(prefix + '/roc_auc', roc_auc, epoch)
-            self.writer.add_pr_curve(prefix + '/pr_curve', y_true, y_score[:, 1], epoch)
+            if self.writer is not None:
+                self.writer.add_scalar(prefix + '/acc', acc, epoch)
+                self.writer.add_scalar(prefix + '/bal_acc', bal_acc, epoch)
+                self.writer.add_scalar(prefix + '/roc_auc', roc_auc, epoch)
             print(f'epoch {prefix}/roc_auc = {roc_auc}, {prefix}/bal_acc = {bal_acc}, {prefix}/acc = {acc}')
-        elif clf_or_reg == 'reg':
+
+        elif self.clf_or_reg == 'reg':
             mse = mean_squared_error(y_true, y_score)
             r2 = r2_score(y_true, y_score)
             exp_var = explained_variance_score(y_true, y_score)
             metrics = {"mse": mse, "r2": r2, "exp_var": exp_var}
-            self.writer.add_scalar(prefix + '/mse', mse, epoch)
-            self.writer.add_scalar(prefix + '/r2', r2, epoch)
-            self.writer.add_scalar(prefix + '/exp_var', exp_var, epoch)
+            if self.writer is not None:
+                self.writer.add_scalar(prefix + '/mse', mse, epoch)
+                self.writer.add_scalar(prefix + '/r2', r2, epoch)
+                self.writer.add_scalar(prefix + '/exp_var', exp_var, epoch)
             print(f'epoch {prefix}/mse = {mse}, {prefix}/r2 = {r2}, {prefix}/exp_var = {exp_var}')
 
         return y_score, y_true, metrics
@@ -236,18 +227,12 @@ class FinetuningMethods:
                                   global_step=step,
                                   tag='token_embeddings')
 
-    @torch.no_grad()
-    def write_g_histograms(self, step):
-        self.model.eval()
-        to_g_weights = torch.cat([self.model.net.attn_layers.layers[2 * i][1].to_g.weight.detach()
-                                  for i in range(self.depth)], dim=1)
-        self.writer.add_histogram('to_g_weights', to_g_weights, step)
-
 
 class BaselineMethods:
-    def __init__(self, model, writer):
+    def __init__(self, model, writer, clf_or_reg='clf'):
         self.model = model
         self.writer = writer
+        self.clf_or_reg = clf_or_reg
 
     def train(self, train_loader, optimizer, epoch, grad_accum_every=1):
         self.model.train()
@@ -279,7 +264,7 @@ class BaselineMethods:
         return epoch_loss
 
     @torch.no_grad()
-    def evaluate(self, val_loader, epoch):
+    def evaluate(self, val_loader, epoch, prefix="val"):
         self.model.eval()
         cum_loss = 0
         for i, X in tqdm.tqdm(enumerate(val_loader), total=len(val_loader),
@@ -288,12 +273,12 @@ class BaselineMethods:
             cum_loss += loss.item()
 
         epoch_loss = cum_loss / len(val_loader)
-        self.writer.add_scalar('epoch_loss/val', epoch_loss, epoch)
-        print(f'epoch avg val loss: {epoch_loss}')
+        self.writer.add_scalar(f'epoch_loss/{prefix}', epoch_loss, epoch)
+        print(f'epoch avg {prefix} loss: {epoch_loss}')
         return epoch_loss
 
     @torch.no_grad()
-    def predict(self, data_loader, epoch, device, prefix="val", clf_or_reg='clf'):
+    def predict(self, data_loader, epoch, device, prefix="val"):
         self.model.eval()
         y_score = torch.tensor([]).to(device)
         y_true = torch.tensor([]).to(device)
@@ -301,10 +286,10 @@ class BaselineMethods:
                               mininterval=0.5, desc=f'epoch {epoch} prediction'):
             targets = X[-1]
             y_true = torch.cat((y_true, targets))
-            if clf_or_reg == 'clf':
+            if self.clf_or_reg == 'clf':
                 logits = self.model(X, predict=True)
                 y_score = torch.cat((y_score, F.softmax(logits, dim=1)))
-            elif clf_or_reg == 'reg':
+            elif self.clf_or_reg == 'reg':
                 preds = self.model(X, predict=True)
                 y_score = torch.cat((y_score, preds))
 
@@ -312,7 +297,7 @@ class BaselineMethods:
         y_score = y_score.cpu()
 
         metrics = {}
-        if clf_or_reg == 'clf':
+        if self.clf_or_reg == 'clf':
             acc = accuracy_score(y_true, torch.argmax(y_score, dim=1), normalize=True)
             bal_acc = balanced_accuracy_score(y_true, torch.argmax(y_score, dim=1))
             roc_auc = roc_auc_score(y_true, y_score[:, 1])
@@ -322,7 +307,7 @@ class BaselineMethods:
             self.writer.add_scalar(prefix + '/roc_auc', roc_auc, epoch)
             self.writer.add_pr_curve(prefix + '/pr_curve', y_true, y_score[:, 1], epoch)
             print(f'epoch {prefix}/roc_auc = {roc_auc}, {prefix}/bal_acc = {bal_acc}, {prefix}/acc = {acc}')
-        elif clf_or_reg == 'reg':
+        elif self.clf_or_reg == 'reg':
             mse = mean_squared_error(y_true, y_score)
             r2 = r2_score(y_true, y_score)
             exp_var = explained_variance_score(y_true, y_score)
