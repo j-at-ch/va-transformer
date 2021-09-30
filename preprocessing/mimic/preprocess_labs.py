@@ -26,7 +26,7 @@ uom_scales = {
 }
 
 
-def unitscale(itemid, valueuom):  # TODO: implement more efficient solution.
+def unitscale(itemid, valueuom):
     if (itemid in uom_scales) & (valueuom != 'nan'):
         scale_val_by = uom_scales[itemid][valueuom]
     else:
@@ -238,7 +238,7 @@ def preprocess_labs_for_1p5D(args):
         print("lab values are not being rescaled!")
 
     # loop through index sets and generate output files
-    for subset in ['train', 'val', 'test']:
+    for subset in ['val', 'test']:
         print(f'Processing {subset} set data...')
 
         # grouper for labs
