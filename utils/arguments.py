@@ -46,7 +46,8 @@ class Arguments:
         # general arguments
 
         self.parser.add_argument('--device', type=str, default="cuda:0")
-        self.parser.add_argument('--test_run', type=int, default=0)
+        self.parser.add_argument('--toy_run', type=int, default=0)
+        self.parser.add_argument('--WARNING_TESTING', type=int, default=0, choices=[0, 1])
         self.parser.add_argument('--model_name', type=str, default=f'{self.mode}_test')
         self.parser.add_argument('--num_epochs', type=int, default=50)
         self.parser.add_argument('--early_stopping_threshold', type=int, default=5)
@@ -67,7 +68,7 @@ class Arguments:
         self.parser.add_argument('--with_values', type=int, default=0)
         self.parser.add_argument('--va_transformer', type=int, default=0)
         self.parser.add_argument('--conditional_logit', type=none_or_str, default=None,
-                                 choices=[None, 'weak', 'separate', 'hierarchical'])
+                                 choices=[None, 'weak', 'separate'])
         self.parser.add_argument('--writer_flush_secs', type=int, default=120)
 
         # pretraining arguments
@@ -110,6 +111,8 @@ class Arguments:
             self.parser.add_argument('--clf_hidden_dim', type=int, default=100)
             self.parser.add_argument('--clf_or_reg', type=str, default='clf', choices=['reg', 'clf'])
             self.parser.add_argument('--clf_depth', type=int, default=2)
+            self.parser.add_argument('--mode', type=str, default='training', choices=['training'])
+
 
     def parse(self):
         self.initialise()
