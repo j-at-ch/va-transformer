@@ -35,30 +35,26 @@ def unitscale(itemid, valueuom):
 
 
 def get_numeric_quantile_from_(quantiles_df, itemid, value):
-    # maps unknown indices to 0
-    # otherwise maps to 1..(num_quantiles+1)
+    # maps unknown indices or cats to 1
+    # otherwise maps to 2..(num_quantiles+2)
     if itemid not in quantiles_df.index:
         index = -1
     else:
-        q = quantiles_df.loc[itemid]  # q is a quants series
+        q = quantiles_df.loc[itemid]  # q is a quants series that may contain nans
         array = (value <= q)
         if value > q.iloc[-1]:
             index = len(q)
+        elif not any(array):  # needed for NaN - corresponding to cat variables!
+            index = -1
         else:
             a, = np.where(array)
             index = a[0]
-    return index + 1
+    return index + 2
 
-
-# def apply_quantile_fct(labs_df, quantiles_df):
-#    if pd.isna(labs_df.VALUENUM):
-#        return 0
-#    else:
-#        return get_numeric_quantile_from_(quantiles_df, labs_df.ITEMID, labs_df.VALUENUM)
 
 def apply_quantile_fct(labs_df, quantiles_df, col):
     if pd.isna(labs_df[col]):
-        return 0
+        return 1
     else:
         return get_numeric_quantile_from_(quantiles_df, labs_df.ITEMID, labs_df[col])
 
@@ -94,7 +90,7 @@ def preprocess_labs_for_1p5D(args):
 
     if bool(args.labs_preliminaries_done):
         scaled_labevents_path = os.path.join(args.data_root, "scaled_LABEVENTS.csv")
-        lab_quantiles_path = os.path.join(args.save_root, "lab_quantiles.csv")
+        lab_quantiles_path = os.path.join(args.data_root, "lab_quantiles.csv")
         labevents = (pd.read_csv(scaled_labevents_path,
                                  index_col='ROW_ID',
                                  parse_dates=['CHARTTIME', 'ADMITTIME'])
@@ -109,6 +105,7 @@ def preprocess_labs_for_1p5D(args):
                      .dropna(subset=['HADM_ID'])
                      .astype({'HADM_ID': 'int', 'VALUEUOM': 'str'})
                      )
+        lab_quantiles_path = os.path.join(args.save_root, "lab_quantiles.csv")
 
     if args.augmented_admissions == 'w':
         admissions_path = os.path.join(args.mimic_root, "ADMISSIONS.csv")
@@ -211,8 +208,13 @@ def preprocess_labs_for_1p5D(args):
     token_shift = len(special_tokens)
     itemid2token = dict(zip(d_labitems['ITEMID'], range(token_shift, token_shift + len(d_labitems))))
     itemid2token.update(special_tokens)
-
     token2itemid = {v: k for k, v in itemid2token.items()}
+
+    qname2qtoken = {'CAT': 1, 'XLOW': 2, 'LOW': 3, 'MID': 4, 'HIGH': 5, 'XHIGH': 6}
+    qname2qtoken.update(special_tokens)
+    qtoken2qname = {v: k for k, v in qname2qtoken.items()}
+
+    assert len(qname2qtoken) == len(args.quantiles) + 3, "num quantile ranges specified + CAT + [PAD] must correspond."
 
     def map2token(itemid):
         return itemid2token[int(itemid)]
@@ -238,7 +240,7 @@ def preprocess_labs_for_1p5D(args):
         print("lab values are not being rescaled!")
 
     # loop through index sets and generate output files
-    for subset in ['val', 'test']:
+    for subset in ['train', 'val', 'test']:
         print(f'Processing {subset} set data...')
 
         # grouper for labs
@@ -257,8 +259,10 @@ def preprocess_labs_for_1p5D(args):
             print("train token frequencies counted!\n")
 
             print("calculating train lab value quants...")
-            lab_quantiles_train = groups.obj.groupby('ITEMID').VALUE_SCALED.quantile([0.1, 0.25, 0.75, 0.9])
+            lab_quantiles_train = groups.obj.groupby('ITEMID').VALUE_SCALED.quantile(args.quantiles)
             print("train lab value quants calculated!\n")
+            lab_quantiles_train.to_csv(lab_quantiles_path)
+            print(f"train lab quantiles info written to {lab_quantiles_path}\n")
 
         # initialise
         tokens = dict()
@@ -271,7 +275,6 @@ def preprocess_labs_for_1p5D(args):
         # populate with entries
         for i in tqdm.tqdm(groups.groups):
             temp = groups.get_group(i).sort_values(by="CHARTTIME")
-            # temp = temp[temp.CHARTTIME <= admittime + pd.Timedelta(days=2)]
             assert not temp.empty, f"Empty labs for hadm:{i}. There should be {get_from_adm(i, 'NUMLABS<2D')}"
             temp['QUANT'] = temp.apply(lambda x: apply_quantile_fct(x, lab_quantiles_train, 'VALUE_SCALED'), axis=1)
 
@@ -330,7 +333,9 @@ def preprocess_labs_for_1p5D(args):
     with open(os.path.join(args.save_root, 'mappings.pkl'), 'wb') as f:
         pickle.dump({'itemid2token': itemid2token,
                      'token2itemid': token2itemid,
-                     'token2trcount': token2trcount},
+                     'token2trcount': token2trcount,
+                     'qname2qtoken': qname2qtoken,
+                     'qtoken2qname': qtoken2qname},
                     f)
 
 
@@ -372,13 +377,13 @@ def preprocess_labs_for_1D(args):
     def get_from_adm(hadm_id, target):
         return adm.loc[hadm_id, target]
 
-    labevents_2d = labevents[labevents.CHARTTIME <= labevents.ADMITTIME + pd.Timedelta(days=2)]
+    labevents2 = labevents[labevents.CHARTTIME <= labevents.ADMITTIME + pd.Timedelta(days=2)]
 
     for subset in ['train', 'val', 'test']:
         print(f'Processing {subset} set data...')
 
         # grouper for labs
-        groups = (labevents_2d.query(f'HADM_ID.isin(@{subset}_indices)')
+        groups = (labevents2.query(f'HADM_ID.isin(@{subset}_indices)')
                   .groupby(by='HADM_ID')
                   )
 
@@ -398,14 +403,18 @@ def preprocess_labs_for_1D(args):
         values_mean = dict()
         values_latest = dict()
         values_count = dict()
+        quants_mean = dict()
 
         # populate with entries
         for i in tqdm.tqdm(groups.groups):
             temp = groups.get_group(i).sort_values(by="CHARTTIME")
             temp['TOKEN'] = temp['ITEMID'].apply(map2token)
 
-            temp_mean = (temp.groupby('TOKEN')['VALUE_SCALED'].mean())
-            temp_mean = temp_mean.fillna(args.sentinel_cat) if args.sentinel_cat is not None else temp_mean
+            temp_mean = temp.groupby('TOKEN')[['VALUE_SCALED', 'ITEMID']].mean()
+            temp_mean['QUANT'] = temp_mean.apply(lambda x: apply_quantile_fct(x, lab_quantiles_train, 'VALUE_SCALED'),
+                                                 axis=1)
+            temp_mean['VALUE_SCALED'] = temp_mean['VALUE_SCALED'].fillna(args.sentinel_cat) \
+                if args.sentinel_cat is not None else temp_mean
             temp_latest = (temp.groupby('TOKEN').tail(1)[['TOKEN', 'VALUE_SCALED']]
                            .set_index('TOKEN').sort_index()['VALUE_SCALED'])
             temp_latest = temp_latest.fillna(args.sentinel_cat) if args.sentinel_cat is not None else temp_latest
@@ -419,9 +428,10 @@ def preprocess_labs_for_1D(args):
                 z[idx] = val
                 return z
 
-            values_mean[i] = make_bov_from_(temp_mean, args.sentinel_mean)
-            values_latest[i] = make_bov_from_(temp_latest, args.sentinel_latest)
-            values_count[i] = make_bov_from_(temp_count, args.sentinel_count)
+            values_mean[i] = make_bov_from_(temp_mean['VALUE_SCALED'], args.pad_mean)
+            values_latest[i] = make_bov_from_(temp_latest, args.pad_latest)
+            values_count[i] = make_bov_from_(temp_count, args.pad_count)
+            quants_mean[i] = make_bov_from_(temp_mean['QUANT'], args.pad_quant)
 
         # write out labs to pickle
         save_path = os.path.join(args.save_root, f'{subset}_data1D.pkl')
@@ -429,11 +439,9 @@ def preprocess_labs_for_1D(args):
         with open(save_path, 'wb') as f:
             pickle.dump({f'{subset}_values_mean': values_mean,
                          f'{subset}_values_latest': values_latest,
-                         f'{subset}_values_count': values_count},
+                         f'{subset}_values_count': values_count,
+                         f'{subset}_quants_mean': quants_mean},
                         f)
-
-        # write out charts to pickle
-        save_path = os.path.join(args.save_root, f'{subset}_data1D.pkl')
 
 
 if __name__ == "__main__":

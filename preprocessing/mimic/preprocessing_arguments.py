@@ -21,10 +21,11 @@ class PreprocessingArguments:
         self.parser.add_argument('--write_scaled_labs', type=int, default=0)
         self.parser.add_argument('--write_quantiles_summary', type=int, default=0)
         self.parser.add_argument('--preprocess_for', type=str, default='1D', choices=['1D', '1.5D'])
-        self.parser.add_argument('--sentinel_mean', type=float, default=0)
-        self.parser.add_argument('--sentinel_count', type=float, default=0)
-        self.parser.add_argument('--sentinel_latest', type=float, default=0)
+        self.parser.add_argument('--pad_mean', type=float, default=0)
+        self.parser.add_argument('--pad_count', type=float, default=0)
+        self.parser.add_argument('--pad_latest', type=float, default=0)
         self.parser.add_argument('--sentinel_cat', type=float, default=1)
+        self.parser.add_argument('--pad_quant', type=float, default=0)
 
     def parse(self):
         self.initialise()

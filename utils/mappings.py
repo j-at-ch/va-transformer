@@ -11,10 +11,9 @@ class Mappings:
         self.itemid2token = mappings['itemid2token']
         self.token2itemid = mappings['token2itemid']
         self.token2trcount = mappings['token2trcount']
-        self.gn2gt = {  # todo incorporate into preprocessing pipeline
-            'XLOW': 0, 'LOW': 1, 'MID': 2, 'HIGH': 3, 'XHIGH': 4, 'CAT': 5
-        }
-        self.gt2gn = {v: k for k, v in self.gn2gt.items()}
+        self.qname2qtoken = mappings['qname2qtoken']
+        self.qtoken2qname = mappings['qtoken2qname']
+
         self.pad_token = pad_token
         self.sos_token = sos_token
         self.eos_token = eos_token
@@ -22,7 +21,7 @@ class Mappings:
         self.sos_quant_token = sos_quant_token
         self.eos_quant_token = eos_quant_token
 
-        if pad_token is not None:
+        if pad_token is not None:  # dev: include check that pad_token isn't already in dicts.
             self.append_special_(self.itemid2token, self.token2itemid, '[PAD]', pad_token)
         if sos_token is not None:
             self.append_special_(self.itemid2token, self.token2itemid, '[SOS]', sos_token)
@@ -30,14 +29,14 @@ class Mappings:
             self.append_special_(self.itemid2token, self.token2itemid, '[EOS]', eos_token)
 
         if pad_quant_token is not None:
-            self.append_special_(self.gn2gt, self.gt2gn, '[PAD]', pad_quant_token)
+            self.append_special_(self.qname2qtoken, self.qtoken2qname, '[PAD]', pad_quant_token)
         if sos_quant_token is not None:
-            self.append_special_(self.gn2gt, self.gt2gn, '[SOS]', sos_quant_token)
+            self.append_special_(self.qname2qtoken, self.qtoken2qname, '[SOS]', sos_quant_token)
         if eos_quant_token is not None:
-            self.append_special_(self.gn2gt, self.gt2gn, '[EOS]', eos_quant_token)
+            self.append_special_(self.qname2qtoken, self.qtoken2qname, '[EOS]', eos_quant_token)
 
         self.num_tokens = len(self.itemid2token)
-        self.num_quant_tokens = len(self.gn2gt)
+        self.num_quant_tokens = len(self.qname2qtoken)
 
     @staticmethod
     def append_special_(n2t, t2n, name, token):
