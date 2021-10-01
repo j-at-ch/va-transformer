@@ -300,13 +300,16 @@ def preprocess_labs_for_1p5D(args):
             )
 
             # NOTE: can refactor target extraction easily to derive from augmented_admissions.csv
+            los = pd.Timedelta(get_from_adm(i, 'LOS'))
+            los = np.round(los.total_seconds()/(24*60*60) - 2, decimals=5)
+
             targets[i] = {
                 'DEATH>2.5D': get_from_adm(i, 'DEATH>2.5D'),
                 'DEATH<=3D': get_from_adm(i, 'DEATH<=3D'),
                 'DEATH>3D': get_from_adm(i, 'DEATH>3D'),
                 'DEATH>7D': get_from_adm(i, 'DEATH>7D'),
                 'DEATH<=7D': get_from_adm(i, 'DEATH<=7D'),
-                'LOS': get_from_adm(i, 'LOS')
+                'LOS': los
             }
 
         # write out charts to pickle
