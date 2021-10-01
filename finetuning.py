@@ -330,6 +330,9 @@ if __name__ == "__main__":
 
     # check that arguments are well-specified
 
+    if arguments.clf_or_reg == 'reg':
+        assert arguments.num_classes == 1, "if doing regression, num_classes for the clf_head must be 1!"
+
     # run finetuning
     print(f"mode is {arguments.mode}")
     main(arguments)
