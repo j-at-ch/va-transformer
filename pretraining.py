@@ -37,22 +37,24 @@ def main(args):
     # mappings
 
     mappings_dict = fetch_mappings(mapping_path)
+    len_t_dict = len(mappings_dict['itemid2token'])
+    len_q_dict = len(mappings_dict['qname2qtoken'])
 
     pad_token = args.pad_token
     pad_quant_token = args.pad_quant_token if args.with_values else None
-
     sos_token = sos_quant_token = eos_token = eos_quant_token = None
+
     if args.specials == 'SOS':
-        sos_token = len(mappings_dict['itemid2token'])
-        sos_quant_token = 7 if args.with_values else None
+        sos_token = len_t_dict
+        sos_quant_token = len_q_dict if args.with_values else None
     elif args.specials == 'EOS':
-        eos_token = len(mappings_dict['itemid2token'])
-        eos_quant_token = 7 if args.with_values else None
+        eos_token = len_t_dict
+        eos_quant_token = len_q_dict if args.with_values else None
     elif args.specials == 'both':
-        sos_token = len(mappings_dict['itemid2token'])
-        sos_quant_token = 7
-        eos_token = len(mappings_dict['itemid2token']) + 1
-        eos_quant_token = 8
+        sos_token = len_t_dict
+        sos_quant_token = len_q_dict if args.with_values else None
+        eos_token = len_t_dict + 1
+        eos_quant_token = (len_q_dict + 1) if args.with_values else None
 
     mappings = Mappings(mappings_dict,
                         pad_token=pad_token,
@@ -81,11 +83,11 @@ def main(args):
     data_train = fetch_data_as_torch(train_path, 'train_tokens')
     data_val = fetch_data_as_torch(val_path, 'val_tokens')
 
-    # get quantiles
+    # get quants
 
     if bool(args.with_values):
-        quants_train = fetch_data_as_torch(train_path, 'train_quantiles')
-        quants_val = fetch_data_as_torch(val_path, 'val_quantiles')
+        quants_train = fetch_data_as_torch(train_path, 'train_quants')
+        quants_val = fetch_data_as_torch(val_path, 'val_quants')
     else:
         quants_train = None
         quants_val = None
@@ -126,7 +128,7 @@ def main(args):
         ),
         token_emb_dim=100,
         quant_emb_dim=10,
-        conditional_logit=args.conditional_logit,
+        logit_head=args.logit_head,
         va_transformer=bool(args.va_transformer)
     )
 
@@ -218,7 +220,7 @@ def main(args):
         test_path = os.path.join(args.data_root, "test_data.pkl")
         data_test = fetch_data_as_torch(test_path, 'test_tokens')
         if bool(args.with_values):
-            quants_test = fetch_data_as_torch(test_path, 'test_quantiles')
+            quants_test = fetch_data_as_torch(test_path, 'test_quants')
         else:
             quants_test = None
 
@@ -244,8 +246,8 @@ def main(args):
         # test the model
         testing = model_methods.PretrainingMethods(pre_model, writer=writer)
 
-        val_losses = testing.evaluate(val_loader, 0, gamma=args.gamma, prefix='re-val')
-        test_losses = testing.evaluate(test_loader, 0, gamma=args.gamma, prefix='test')
+        val_losses = testing.evaluate(val_loader, epoch=0, gamma=args.gamma, prefix='re-val')
+        test_losses = testing.evaluate(test_loader, epoch=0, gamma=args.gamma, prefix='test')
 
         print("testing finished!")
 
@@ -265,7 +267,7 @@ if __name__ == "__main__":
     assert (arguments.gamma >= 0) and (arguments.gamma <= 1), "--gamma should satisfy 0 <= gamma <= 1."
     assert arguments.va_transformer == arguments.with_values, "with_values is only to be used with va_transformer"
     if arguments.with_values == 0:
-        assert arguments.conditional_logit is None, "cannot use conditional_logit without values!"
+        assert arguments.logit_head is None, "cannot use logit_head without values!"
 
     # run pretraining
 

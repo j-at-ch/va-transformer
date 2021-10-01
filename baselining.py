@@ -37,33 +37,40 @@ def baseline(args):
     # mappings
 
     mappings_dict = fetch_mappings(mapping_path)
+    len_t_dict = len(mappings_dict['itemid2token'])
+    len_q_dict = len(mappings_dict['qname2qtoken'])
 
     pad_token = args.pad_token
-    pad_guide_token = args.pad_quant_token
-    sos_token = sos_guide_token = eos_token = eos_guide_token = None
+    pad_quant_token = args.pad_quant_token if args.with_values else None
+    sos_token = sos_quant_token = eos_token = eos_quant_token = None
+
     if args.specials == 'SOS':
-        sos_token, sos_guide_token = len(mappings_dict['itemid2token']), 7
+        sos_token = len_t_dict
+        sos_quant_token = len_q_dict if args.with_values else None
     elif args.specials == 'EOS':
-        eos_token, eos_guide_token = len(mappings_dict['itemid2token']), 7
+        eos_token = len_t_dict
+        eos_quant_token = len_q_dict if args.with_values else None
     elif args.specials == 'both':
-        sos_token, sos_guide_token = len(mappings_dict['itemid2token']), 7
-        eos_token, eos_guide_token = len(mappings_dict['itemid2token']) + 1, 8
+        sos_token = len_t_dict
+        sos_quant_token = len_q_dict if args.with_values else None
+        eos_token = len_t_dict + 1
+        eos_quant_token = (len_q_dict + 1) if args.with_values else None
 
     mappings = Mappings(mappings_dict,
                         pad_token=pad_token,
                         sos_token=sos_token,
                         eos_token=eos_token,
-                        pad_quant_token=pad_guide_token,
-                        sos_quant_token=sos_guide_token,
-                        eos_quant_token=eos_guide_token
+                        pad_quant_token=pad_quant_token,
+                        sos_quant_token=sos_quant_token,
+                        eos_quant_token=eos_quant_token
                         )
 
     print(f"[PAD] token is {mappings.pad_token}",
           f"[SOS] token is {mappings.sos_token}",
           f"[EOS] token is {mappings.eos_token}",
-          f"[PAD] guide token is {mappings.pad_quant_token}",
-          f"[SOS] guide token is {mappings.sos_quant_token}",
-          f"[EOS] guide token is {mappings.eos_quant_token}",
+          f"[PAD] quant token is {mappings.pad_quant_token}",
+          f"[SOS] quant token is {mappings.sos_quant_token}",
+          f"[EOS] quant token is {mappings.eos_quant_token}",
           sep="\n")
 
     # fetch labels
@@ -83,22 +90,22 @@ def baseline(args):
     data_train = fetch_data_as_torch(train_path, 'train_tokens')
     data_val = fetch_data_as_torch(val_path, 'val_tokens')
 
-    # get quantiles
+    # get quants
 
     if not bool(args.with_values):
-        quantiles_train = None
-        quantiles_val = None
+        quants_train = None
+        quants_val = None
     else:
-        quantiles_train = fetch_data_as_torch(train_path, 'train_quantiles')
-        quantiles_val = fetch_data_as_torch(val_path, 'val_quantiles')
+        quants_train = fetch_data_as_torch(train_path, 'train_quants')
+        quants_val = fetch_data_as_torch(val_path, 'val_quants')
 
     train_dataset = SeqSamplerDataset(data_train, args.seq_len, mappings, device,
-                                      quants=quantiles_train,
+                                      quants=quants_train,
                                       targets=train_targets,
                                       specials=args.specials,
                                       align_sample_at=args.align_sample_at)
     val_dataset = SeqSamplerDataset(data_val, args.seq_len, mappings, device,
-                                    quants=quantiles_val,
+                                    quants=quants_val,
                                     targets=val_targets,
                                     specials=args.specials,
                                     align_sample_at=args.align_sample_at)
@@ -155,14 +162,14 @@ def baseline(args):
                 assert self.num_classes == 1, "if in regression mode, num_classes must be 1"
 
             if self.with_values:
-                x, quantiles, targets = x
+                x, quants, targets = x
                 targets = targets.long() if self.clf_or_reg == 'clf' else targets.float()
                 if args.values_as == 'one-hot':
                     x = F.one_hot(x, mappings.num_tokens)
                     x = torch.flatten(x, start_dim=1)
-                    quantiles = F.one_hot(quantiles, mappings.num_quant_tokens)
-                    quantiles = torch.flatten(quantiles, start_dim=1)
-                features = torch.cat([x, quantiles], dim=1).float()
+                    quants = F.one_hot(quants, mappings.num_quant_tokens)
+                    quants = torch.flatten(quants, start_dim=1)
+                features = torch.cat([x, quants], dim=1).float()
             else:
                 x, targets = x
                 if args.values_as == 'one-hot':
@@ -265,7 +272,7 @@ def baseline(args):
         test_path = os.path.join(args.data_root, "test_data.pkl")
         data_test = fetch_data_as_torch(test_path, 'test_tokens')
         if bool(args.with_values):
-            quants_test = fetch_data_as_torch(test_path, 'test_quantiles')
+            quants_test = fetch_data_as_torch(test_path, 'test_quants')
         else:
             quants_test = None
         test_tgt_path = os.path.join(args.data_root, "test_targets.pkl")

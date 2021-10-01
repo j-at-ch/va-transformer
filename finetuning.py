@@ -41,33 +41,40 @@ def main(args):
     # fetch mappings
 
     mappings_dict = fetch_mappings(mapping_path)
+    len_t_dict = len(mappings_dict['itemid2token'])
+    len_q_dict = len(mappings_dict['qname2qtoken'])
 
     pad_token = args.pad_token
-    pad_guide_token = args.pad_quant_token
-    sos_token = sos_guide_token = eos_token = eos_guide_token = None
+    pad_quant_token = args.pad_quant_token if args.with_values else None
+    sos_token = sos_quant_token = eos_token = eos_quant_token = None
+
     if args.specials == 'SOS':
-        sos_token, sos_guide_token = len(mappings_dict['itemid2token']), 7
+        sos_token = len_t_dict
+        sos_quant_token = len_q_dict if args.with_values else None
     elif args.specials == 'EOS':
-        eos_token, eos_guide_token = len(mappings_dict['itemid2token']), 7
+        eos_token = len_t_dict
+        eos_quant_token = len_q_dict if args.with_values else None
     elif args.specials == 'both':
-        sos_token, sos_guide_token = len(mappings_dict['itemid2token']), 7
-        eos_token, eos_guide_token = len(mappings_dict['itemid2token']) + 1, 8
+        sos_token = len_t_dict
+        sos_quant_token = len_q_dict if args.with_values else None
+        eos_token = len_t_dict + 1
+        eos_quant_token = (len_q_dict + 1) if args.with_values else None
 
     mappings = Mappings(mappings_dict,
                         pad_token=pad_token,
                         sos_token=sos_token,
                         eos_token=eos_token,
-                        pad_quant_token=pad_guide_token,
-                        sos_quant_token=sos_guide_token,
-                        eos_quant_token=eos_guide_token
+                        pad_quant_token=pad_quant_token,
+                        sos_quant_token=sos_quant_token,
+                        eos_quant_token=eos_quant_token
                         )
 
     print(f"[PAD] token is {mappings.pad_token}",
           f"[SOS] token is {mappings.sos_token}",
           f"[EOS] token is {mappings.eos_token}",
-          f"[PAD] guide token is {mappings.pad_quant_token}",
-          f"[SOS] guide token is {mappings.sos_quant_token}",
-          f"[EOS] guide token is {mappings.eos_quant_token}",
+          f"[PAD] quant token is {mappings.pad_quant_token}",
+          f"[SOS] quant token is {mappings.sos_quant_token}",
+          f"[EOS] quant token is {mappings.eos_quant_token}",
           sep="\n")
 
     # labellers
@@ -92,11 +99,11 @@ def main(args):
     data_train = fetch_data_as_torch(train_path, 'train_tokens')
     data_val = fetch_data_as_torch(val_path, 'val_tokens')
 
-    # get quantiles
+    # get quants
 
     if bool(args.with_values):
-        quants_train = fetch_data_as_torch(train_path, 'train_quantiles')
-        quants_val = fetch_data_as_torch(val_path, 'val_quantiles')
+        quants_train = fetch_data_as_torch(train_path, 'train_quants')
+        quants_val = fetch_data_as_torch(val_path, 'val_quants')
     else:
         quants_train = None
         quants_val = None
@@ -158,7 +165,7 @@ def main(args):
         ),
         token_emb_dim=args.token_emb_dim,
         quant_emb_dim=args.quant_emb_dim,
-        conditional_logit=args.conditional_logit,
+        logit_head=args.logit_head,
         va_transformer=bool(args.va_transformer)
     )
 
@@ -175,9 +182,6 @@ def main(args):
                                   clf_depth=args.clf_depth,
                                   weight=weights)
     fit_model.to(device)
-
-    # for name, param in states.named_parameters():
-    #    print(name, param.requires_grad)
 
     print("base transformer specification:", fit_model.net, sep="\n")
 
@@ -222,11 +226,7 @@ def main(args):
             if bool(args.predict_on_train):
                 training.predict(train_loader, epoch, device, prefix="train")
 
-            metrics = {}
-            if args.clf_or_reg == 'clf':
-                _, _, metrics = training.predict(val_loader, epoch, device, prefix="val", clf_or_reg=args.clf_or_reg)
-            elif args.clf_or_reg == 'reg':
-                _, _, metrics = training.predict(val_loader, epoch, device, prefix="val", clf_or_reg=args.clf_or_reg)
+            _, _, metrics = training.predict(val_loader, epoch, device, prefix="val")
 
             # whether to checkpoint model
 
@@ -281,7 +281,7 @@ def main(args):
 
         data_test = fetch_data_as_torch(test_path, 'test_tokens')
         if bool(args.with_values):
-            quants_test = fetch_data_as_torch(test_path, 'test_quantiles')
+            quants_test = fetch_data_as_torch(test_path, 'test_quants')
         else:
             quants_test = None
         with open(test_tgt_path, 'rb') as f:
@@ -312,10 +312,10 @@ def main(args):
 
         # test the model...
 
-        val_losses = testing.evaluate(val_loader, 0, prefix='re-val')
-        val_metrics = testing.predict(val_loader, 'eval', device, prefix="re-val")
-        test_losses = testing.evaluate(test_loader, 0, prefix='test')
-        test_metrics = testing.predict(test_loader, 'eval', device, prefix="test")
+        val_losses = testing.evaluate(val_loader, epoch=0, prefix='re-val')
+        val_metrics = testing.predict(val_loader, epoch=0, device=device, prefix="re-val")
+        test_losses = testing.evaluate(test_loader, epoch=0, prefix='test')
+        test_metrics = testing.predict(test_loader, epoch=0, device=device, prefix="test")
 
 
 if __name__ == "__main__":
