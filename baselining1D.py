@@ -17,7 +17,7 @@ from va_transformers.finetuning_wrapper import Classifier, SimpleClassifier
 
 
 def baseline_for_1D(args):
-    print('*' * 17, 'summoning baseline models for classification with the following settings:', sep='\n')
+    print('*' * 17, 'summoning baseline1D models for classification with the following settings:', sep='\n')
     pprint(vars(args), indent=2)
     print('*' * 17)
 
