@@ -22,13 +22,13 @@ class Arguments:
 
         # data roots
         self.parser.add_argument('--data_root', type=str)
-        self.parser.set_defaults(data_root=f'/home/james/Documents/Charters/labs_dataset5/data')
+        self.parser.set_defaults(data_root=f'/home/james/Documents/Charters/labs_dataset6/data')
         self.parser.add_argument('--model_root', type=str)
-        self.parser.set_defaults(model_root='/home/james/Documents/Charters/labs_dataset5/models')
+        self.parser.set_defaults(model_root='/home/james/Documents/Charters/labs_dataset6/models')
         self.parser.add_argument('--save_root', type=str)
-        self.parser.set_defaults(save_root='/home/james/Documents/Charters/labs_dataset5/models')
+        self.parser.set_defaults(save_root='/home/james/Documents/Charters/labs_dataset6/models')
         self.parser.add_argument('--logs_root', type=str)
-        self.parser.set_defaults(logs_root='/home/james/Documents/Charters/labs_dataset5/logs')
+        self.parser.set_defaults(logs_root='/home/james/Documents/Charters/labs_dataset6/logs')
 
         # transformer specifications
 
@@ -61,7 +61,7 @@ class Arguments:
         self.parser.add_argument('--learning_rate', type=float, default=1e-4)
         self.parser.add_argument('--scheduler_decay', type=float, default=1.)
         self.parser.add_argument('--pad_token', type=int, default=0)
-        self.parser.add_argument('--pad_quant_token', type=int, default=6)
+        self.parser.add_argument('--pad_quant_token', type=int, default=0)
         self.parser.add_argument('--specials', type=none_or_str, default='EOS')
         self.parser.add_argument('--align_sample_at', type=str, default='random/SOS',
                                  choices=['SOS', 'EOS', 'random/SOS', 'random/EOS'])
@@ -112,6 +112,8 @@ class Arguments:
             self.parser.add_argument('--clf_or_reg', type=str, default='clf', choices=['reg', 'clf'])
             self.parser.add_argument('--clf_depth', type=int, default=2)
             self.parser.add_argument('--mode', type=str, default='training', choices=['training'])
+            self.parser.add_argument('--collapse_type', type=str, default='values_mean',
+                                     choices=['values_mean', 'quants_mean'])
 
 
     def parse(self):
