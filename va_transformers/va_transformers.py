@@ -716,7 +716,7 @@ class CrossAttender(AttentionLayers):
 class TransformerWrapper(nn.Module):
     def __init__(self, *, num_tokens, max_seq_len, attn_layers, emb_dim=None, token_emb_dim=None, quant_emb_dim=None,
                  max_mem_len=0., emb_dropout=0., num_quant_tokens=None, use_pos_emb=True, va_transformer=False,
-                 with_values=False, conditional_logit=None):
+                 with_values=False, logit_head=None):
         super().__init__()
         assert isinstance(attn_layers, AttentionLayers), 'attention layers must be one of Encoder or Decoder'
 
@@ -730,7 +730,7 @@ class TransformerWrapper(nn.Module):
         self.with_values = with_values
         self.va_transformer = va_transformer
         self.num_quant_tokens = num_quant_tokens
-        self.conditional_logit = conditional_logit
+        self.logit_head = logit_head
 
         self.max_seq_len = max_seq_len
         self.max_mem_len = max_mem_len
@@ -759,19 +759,19 @@ class TransformerWrapper(nn.Module):
         if self.va_transformer:
             self.init_(self.quant_emb.weight)
 
-        if self.conditional_logit == "weak":
+        if self.logit_head == "weak":
             assert dim > quant_emb_dim
             self.to_logits = nn.Linear(dim - quant_emb_dim, num_tokens)
-        elif self.conditional_logit == "separate":
+        elif self.logit_head == "separate":
             assert dim > quant_emb_dim
             self.to_logits = nn.Linear(dim - quant_emb_dim, num_tokens)
         else:
             self.to_logits = nn.Linear(dim, num_tokens)
 
         if self.with_values:
-            if self.conditional_logit == "weak":
+            if self.logit_head == "weak":
                 self.to_quant_logits = nn.Linear(dim, num_quant_tokens)
-            elif self.conditional_logit == "separate":
+            elif self.logit_head == "separate":
                 self.to_quant_logits = nn.Linear(quant_emb_dim, num_quant_tokens)
             else:
                 self.to_quant_logits = nn.Linear(dim, num_quant_tokens)
@@ -810,10 +810,10 @@ class TransformerWrapper(nn.Module):
         x = self.norm(x)
 
         if self.with_values and self.va_transformer:
-            if self.conditional_logit == "weak":
+            if self.logit_head == "weak":
                 x_token = x[:, :, :-self.quant_emb_dim]
                 x_quant = x
-            elif self.conditional_logit == "separate":
+            elif self.logit_head == "separate":
                 x_token = x[:, :, :-self.quant_emb_dim]
                 x_quant = x[:, :, -self.quant_emb_dim:]
             else:

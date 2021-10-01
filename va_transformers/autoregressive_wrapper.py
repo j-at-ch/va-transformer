@@ -1,6 +1,6 @@
 # The code below relies heavily on the fantastic work from lucidrains in the x_transformers repo:
 #       https://github.com/lucidrains/x-transformers/blob/main/x_transformers
-import sys
+
 from functools import partial
 import torch
 from torch import nn

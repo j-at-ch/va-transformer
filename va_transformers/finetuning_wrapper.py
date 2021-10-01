@@ -49,7 +49,7 @@ class FinetuningWrapper(nn.Module):
         self.net = copy.deepcopy(net)
         self.max_seq_len = net.max_seq_len
         self.va_transformer = net.va_transformer
-        self.conditional_logit = net.conditional_logit
+        self.logit_head = net.logit_head
         self.seq_len = seq_len
         self.load_from = load_from
         self.with_values = net.with_values
@@ -88,7 +88,7 @@ class FinetuningWrapper(nn.Module):
         if self.with_values:
             x, quants, targets = x
             out, quants_out = self.net(x, quants=quants, return_embeddings=True, **kwargs)
-            if self.conditional_logit == "separate":
+            if self.logit_head == "separate":
                 clf_in = torch.cat([out, quants_out], dim=2)
             else:
                 clf_in = quants_out
