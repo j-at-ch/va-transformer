@@ -67,8 +67,9 @@ class Arguments:
                                  choices=['SOS', 'EOS', 'random/SOS', 'random/EOS'])
         self.parser.add_argument('--with_values', type=int, default=0)
         self.parser.add_argument('--va_transformer', type=int, default=0)
-        self.parser.add_argument('--conditional_logit', type=none_or_str, default=None,
+        self.parser.add_argument('--logit_head', type=none_or_str, default=None,
                                  choices=[None, 'weak', 'separate'])
+
         self.parser.add_argument('--writer_flush_secs', type=int, default=120)
 
         # pretraining arguments
@@ -114,7 +115,6 @@ class Arguments:
             self.parser.add_argument('--mode', type=str, default='training', choices=['training'])
             self.parser.add_argument('--collapse_type', type=str, default='values_mean',
                                      choices=['values_mean', 'quants_mean'])
-
 
     def parse(self):
         self.initialise()
