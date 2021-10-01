@@ -12,7 +12,7 @@ from utils import model_methods
 from utils.data_utils import *
 from utils.arguments import Arguments
 from utils.mappings import Mappings
-from utils.samplers import SeqSamplerDataset, V1dDataset
+from utils.samplers import V1dDataset
 from va_transformers.finetuning_wrapper import Classifier, SimpleClassifier
 
 
@@ -54,8 +54,8 @@ def baseline_for_1D(args):
 
     # get data
 
-    train_data = fetch_data_as_torch(train_path, 'train_values_mean')
-    val_data = fetch_data_as_torch(val_path, 'val_values_mean')
+    train_data = fetch_data_as_torch(train_path, f'train_{args.collapse_type}')
+    val_data = fetch_data_as_torch(val_path, f'val_{args.collapse_type}')
 
     # get quantiles
 
@@ -112,6 +112,9 @@ def baseline_for_1D(args):
                 assert self.num_classes == 1, "if in regression mode, num_classes must be 1"
 
             x, targets = x
+            if (args.collapse_type == "quants_mean") & (args.values_as == 'one-hot'):
+                x = F.one_hot(x, mappings.num_quant_tokens)
+                x = torch.flatten(x, start_dim=1)
             targets = targets.long() if self.clf_or_reg == 'clf' else targets.float()
             features = x.float()
 
@@ -125,8 +128,13 @@ def baseline_for_1D(args):
             loss = F.cross_entropy(logits, targets, weight=self.weight)
             return logits if predict else loss
 
+    if (args.collapse_type == "quants_mean") & (args.values_as == 'one-hot'):
+        num_features = mappings.num_quant_tokens * mappings.num_tokens
+    else:
+        num_features = mappings.num_tokens
+
     model = Baseline1dWrapper(num_classes=args.num_classes,
-                              num_features=mappings.num_tokens,
+                              num_features=num_features,
                               clf_or_reg=args.clf_or_reg,
                               hidden_dim=args.clf_hidden_dim,
                               weight=weights,
@@ -195,7 +203,7 @@ def baseline_for_1D(args):
 
         # load test set data
         test_path = os.path.join(args.data_root, "test_data1D.pkl")
-        data_test = fetch_data_as_torch(test_path, 'test_values_mean')
+        data_test = fetch_data_as_torch(test_path, f'test_{args.collapse_type}')
         test_tgt_path = os.path.join(args.data_root, "test_targets.pkl")
         with open(test_tgt_path, 'rb') as f:
             x = pickle.load(f)
