@@ -627,7 +627,6 @@ class AttentionLayers(nn.Module):
     def forward(
             self,
             x,
-            quants=None,
             context=None,
             mask=None,
             context_mask=None,
@@ -740,7 +739,6 @@ class TransformerWrapper(nn.Module):
         if self.va_transformer:
             self.quant_emb = nn.Embedding(num_quant_tokens, quant_emb_dim)
             emb_dim = quant_emb_dim + token_emb_dim
-
             self.pos_emb = AbsolutePositionalEmbedding(emb_dim, max_seq_len) \
                 if (use_pos_emb and not attn_layers.has_pos_emb) else always(0)
         else:
@@ -759,22 +757,26 @@ class TransformerWrapper(nn.Module):
         if self.va_transformer:
             self.init_(self.quant_emb.weight)
 
-        if self.logit_head == "weak":
-            assert dim > quant_emb_dim
-            self.to_logits = nn.Linear(dim - quant_emb_dim, num_tokens)
-        elif self.logit_head == "separate":
-            assert dim > quant_emb_dim
-            self.to_logits = nn.Linear(dim - quant_emb_dim, num_tokens)
-        else:
-            self.to_logits = nn.Linear(dim, num_tokens)
-
-        if self.with_values:
+        if self.va_transformer:
             if self.logit_head == "weak":
+                assert dim > quant_emb_dim
+                self.to_logits = nn.Linear(dim - quant_emb_dim, num_tokens)
                 self.to_quant_logits = nn.Linear(dim, num_quant_tokens)
             elif self.logit_head == "separate":
+                assert dim > quant_emb_dim
+                self.to_logits = nn.Linear(dim - quant_emb_dim, num_tokens)
                 self.to_quant_logits = nn.Linear(quant_emb_dim, num_quant_tokens)
-            else:
+            elif self.logit_head == "shared":
+                self.to_logits = nn.Linear(dim, num_tokens)
                 self.to_quant_logits = nn.Linear(dim, num_quant_tokens)
+            elif self.logit_head == "hierarchical":  # dev
+                self.project_out = nn.Linear(dim, emb_dim) if emb_dim != dim else nn.Identity()
+                self.to_logits = nn.Linear(token_emb_dim, num_tokens)
+                self.to_quant_logits = nn.Linear(quant_emb_dim + 1, num_quant_tokens)
+            else:
+                raise Exception("Unknown or missing logit_head specified for va-transformer!")
+        else:
+            self.to_logits = nn.Linear(dim, num_tokens)
 
     @staticmethod
     def init_(weights):
@@ -809,16 +811,30 @@ class TransformerWrapper(nn.Module):
 
         x = self.norm(x)
 
-        if self.with_values and self.va_transformer:
+        if self.va_transformer:
             if self.logit_head == "weak":
                 x_token = x[:, :, :-self.quant_emb_dim]
                 x_quant = x
             elif self.logit_head == "separate":
                 x_token = x[:, :, :-self.quant_emb_dim]
                 x_quant = x[:, :, -self.quant_emb_dim:]
-            else:
+            elif self.logit_head == "shared":
                 x_token = x_quant = x
+            elif self.logit_head == "hierarchical":  # dev
+                x = self.project_out(x)
+                x_token = x[:, :, :-self.quant_emb_dim]
+                x_quant = x[:, :, -self.quant_emb_dim:]
+            else:
+                raise Exception("Unknown or missing logit_head specified for va-transformer!")
+
             out = self.to_logits(x_token) if not return_embeddings else x_token
+
+            if self.logit_head == "hierarchical":
+                pred = torch.argmax(out, dim=2)
+                pred = torch.unsqueeze(pred, dim=-1)
+                x_quant = torch.cat((x_quant, pred), dim=2)
+                print(x_quant.shape)
+
             quants_out = self.to_quant_logits(x_quant) if not return_embeddings else x_quant
             return out, quants_out
         else:

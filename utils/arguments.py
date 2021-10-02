@@ -33,7 +33,7 @@ class Arguments:
         # transformer specifications
 
         self.parser.add_argument('--token_emb_dim', type=int, default=100)
-        self.parser.add_argument('--quant_emb_dim', type=int, default=10)
+        self.parser.add_argument('--quant_emb_dim', type=int, default=5)
         self.parser.add_argument('--attn_dim', type=int, default=100)
         self.parser.add_argument('--attn_depth', type=int, default=4)
         self.parser.add_argument('--attn_heads', type=int, default=8)
@@ -68,7 +68,7 @@ class Arguments:
         self.parser.add_argument('--with_values', type=int, default=0)
         self.parser.add_argument('--va_transformer', type=int, default=0)
         self.parser.add_argument('--logit_head', type=none_or_str, default=None,
-                                 choices=[None, 'weak', 'separate'])
+                                 choices=[None, 'shared', 'weak', 'separate', 'hierarchical'])
 
         self.parser.add_argument('--writer_flush_secs', type=int, default=120)
 

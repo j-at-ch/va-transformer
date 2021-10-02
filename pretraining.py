@@ -126,8 +126,8 @@ def main(args):
             use_rezero=bool(args.use_rezero),
             rotary_pos_emb=bool(args.rotary_pos_emb)
         ),
-        token_emb_dim=100,
-        quant_emb_dim=10,
+        token_emb_dim=args.token_emb_dim,
+        quant_emb_dim=args.quant_emb_dim,
         logit_head=args.logit_head,
         va_transformer=bool(args.va_transformer)
     )
