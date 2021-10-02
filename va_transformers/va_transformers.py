@@ -833,7 +833,6 @@ class TransformerWrapper(nn.Module):
                 pred = torch.argmax(out, dim=2)
                 pred = torch.unsqueeze(pred, dim=-1)
                 x_quant = torch.cat((x_quant, pred), dim=2)
-                print(x_quant.shape)
 
             quants_out = self.to_quant_logits(x_quant) if not return_embeddings else x_quant
             return out, quants_out
