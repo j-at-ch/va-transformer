@@ -58,7 +58,7 @@ class Arguments:
         self.parser.add_argument('--write_best_val_embeddings', type=int, default=0)
         self.parser.add_argument('--write_initial_embeddings', type=int, default=0)
         self.parser.add_argument('--write_final_embeddings', type=int, default=0)
-        self.parser.add_argument('--learning_rate', type=float, default=1e-4)
+        self.parser.add_argument('--learning_rate', type=float, default=5e-5)
         self.parser.add_argument('--scheduler_decay', type=float, default=1.)
         self.parser.add_argument('--pad_token', type=int, default=0)
         self.parser.add_argument('--pad_quant_token', type=int, default=0)
@@ -95,7 +95,7 @@ class Arguments:
             self.parser.add_argument('--clf_style', type=str, default='on_EOS',
                                      choices=['flatten', 'on_sample_start', 'on_sample_end', 'on_EOS', 'on_EOS-2'])
             self.parser.add_argument('--clf_hidden_dim', type=int, default=100)
-            self.parser.add_argument('--clf_dropout', type=float, default=0.)
+            self.parser.add_argument('--clf_dropout', type=float, default=0.5)
             self.parser.add_argument('--clf_or_reg', type=str, default='clf', choices=['reg', 'clf'])
             self.parser.add_argument('--predict_on_train', type=int, default=0)
             self.parser.add_argument('--num_classes', type=int, default=2)

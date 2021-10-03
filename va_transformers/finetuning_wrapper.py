@@ -69,12 +69,17 @@ class FinetuningWrapper(nn.Module):
 
         # define classifier head layers
 
+        if self.logit_head == "hierarchical":
+            feature_emb_dim = net.project_out.out_features
+        else:
+            feature_emb_dim = net.attn_layers.dim
+
         if clf_style == 'flatten':
-            num_features = net.attn_layers.dim * self.seq_len
+            num_features = feature_emb_dim * self.seq_len
         elif clf_style in ['on_sample_start', 'on_sample_end', 'sum', 'on_EOS']:
-            num_features = net.attn_layers.dim
+            num_features = feature_emb_dim
         elif clf_style == 'on_EOS-2':
-            num_features = 2 * net.attn_layers.dim
+            num_features = 2 * feature_emb_dim
         else:
             raise Exception(f"clf_style option {clf_style} is not implemented!")
 
@@ -90,6 +95,8 @@ class FinetuningWrapper(nn.Module):
             out, quants_out = self.net(x, quants=quants, return_embeddings=True, **kwargs)
             if self.logit_head == "separate":
                 clf_in = torch.cat([out, quants_out], dim=2)
+            elif self.logit_head == "hierarchical":
+                clf_in = torch.cat([out, quants_out[:, :, :-1]], dim=2)
             else:
                 clf_in = quants_out
         else:
