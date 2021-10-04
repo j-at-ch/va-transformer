@@ -227,13 +227,39 @@ def baseline_for_1D(args):
 
         testing = model_methods.BaselineMethods(model, writer=writer, clf_or_reg=args.clf_or_reg)
         val_losses = testing.evaluate(val_loader, 0, prefix='re-val')
-        val_metrics = testing.predict(val_loader, 0, device, prefix='re-val')
+        _, _, val_metrics = testing.predict(val_loader, 0, device, prefix='re-val')
         test_losses = testing.evaluate(test_loader, 0, prefix='test')
-        test_metrics = testing.predict(test_loader, 0, device, prefix='test')
+        _, _, test_metrics = testing.predict(test_loader, 0, device, prefix='test')
 
         writer.flush()
         writer.close()
         print("testing finished and writer closed!")
+
+        # write results to auxiliary logs file for convenience
+
+        print("writing baselining logs to central csv for convenience!")
+        central_logs_name = f'baselining1D_{args.targets}_logs.csv'
+        central_logs_path = os.path.join(args.logs_root, central_logs_name)
+        if not os.path.isfile(central_logs_path):
+            with open(central_logs_path, 'w') as f:
+                if args.clf_or_reg == "clf":
+                    f.write(f"model_name,collapse_type,values_as,"
+                            f"val_loss,test_loss,bal_acc_val,bal_acc_tst,roc_val,roc_tst\n")
+                else:
+                    f.write(f"model_name,collapse_type,values_as,"
+                            f"val_loss,test_loss,mse_val,mse_tst,r2_val,r2_tst\n")
+        with open(central_logs_path, 'a') as f:
+            if args.clf_or_reg == "clf":
+                f.write(f"{args.model_name},{args.collapse_type},{args.values_as},"
+                        f"{val_losses:.4f},{test_losses:.4f}"
+                        f",{val_metrics['bal_acc']:.4f},{test_metrics['bal_acc']:.4f}"
+                        f",{val_metrics['roc_auc']:.4f},{test_metrics['roc_auc']:.4f}\n")
+            else:
+                f.write(f"{args.model_name},{args.collapse_type},{args.values_as},"
+                        f"{val_losses:.4f},{test_losses:.4f},"
+                        f"{val_metrics['mse']:.4f},{test_metrics['mse']:.4f},"
+                        f"{val_metrics['r2']:.4f},{test_metrics['r2']:.4f}\n")
+        print(f"metrics written to {central_logs_path}")
 
 
 if __name__ == "__main__":
