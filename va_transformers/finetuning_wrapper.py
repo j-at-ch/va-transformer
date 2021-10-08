@@ -2,7 +2,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import copy
-import sys
 import torch.nn.functional as F
 
 
@@ -108,7 +107,7 @@ class FinetuningWrapper(nn.Module):
         targets = targets.long() if self.clf_or_reg == 'clf' else targets.float()
 
         if self.clf_style == 'on_EOS':
-            eos_indices = torch.sum(x != 0, dim=1) - 1  # dev: relies on pad_token being 0
+            eos_indices = torch.sum(x != 0, dim=1) - 1  # relies on pad_token being 0
             clf_in = clf_in[np.arange(b), eos_indices, :]
         elif self.clf_style == 'flatten':
             clf_in = torch.flatten(clf_in, start_dim=1)  # first dim is batch
@@ -119,7 +118,7 @@ class FinetuningWrapper(nn.Module):
         elif self.clf_style == 'on_sample_end':
             clf_in = clf_in[:, -1, :]
         elif self.clf_style == 'on_EOS-2':
-            eos_indices = torch.sum(x != 0, dim=1) - 1  # dev: relies on pad_token being 0
+            eos_indices = torch.sum(x != 0, dim=1) - 1  # relies on pad_token being 0
             clf_in = torch.cat([clf_in[np.arange(b), eos_indices, :], clf_in[np.arange(b), eos_indices - 1, :]], dim=1)
         else:
             raise Exception(f"clf_style option {self.clf_style} is not implemented!")
@@ -131,5 +130,5 @@ class FinetuningWrapper(nn.Module):
             return preds if predict else loss
 
         logits = self.clf(clf_in)
-        loss = F.cross_entropy(logits, targets, weight=self.weight)  # note: weighted mean, normalised by tot weight.
+        loss = F.cross_entropy(logits, targets, weight=self.weight)
         return logits if predict else loss

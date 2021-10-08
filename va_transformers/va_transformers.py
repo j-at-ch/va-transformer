@@ -1,4 +1,4 @@
-# The code below relies heavily on the great work from lucidrains in the x_transformers repo:
+# The code below is built on top of the great work going on in the x_transformers repo:
 # https://github.com/lucidrains/x-transformers/blob/main/x_transformers
 
 import sys
@@ -447,7 +447,7 @@ class Attention(nn.Module):
             k = k.expand(-1, h, -1, -1)
 
         dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale  # inner product between q and k
-        mask_value = max_neg_value(dots)  # gets max neg value for given torch dtype. NB: to be pushed through softmax.
+        mask_value = max_neg_value(dots)  # gets max neg value for given torch dtype, to be pushed through softmax.
 
         if exists(prev_attn):
             dots = dots + prev_attn
@@ -769,12 +769,12 @@ class TransformerWrapper(nn.Module):
             elif self.logit_head == "shared":
                 self.to_logits = nn.Linear(dim, num_tokens)
                 self.to_quant_logits = nn.Linear(dim, num_quant_tokens)
-            elif self.logit_head == "hierarchical":  # dev
+            elif self.logit_head == "hierarchical":
                 self.project_out = nn.Linear(dim, emb_dim) if emb_dim != dim else nn.Identity()
                 self.to_logits = nn.Linear(token_emb_dim, num_tokens)
                 self.to_quant_logits = nn.Linear(quant_emb_dim + 1, num_quant_tokens)
             else:
-                raise Exception("Unknown or missing logit_head specified for va-transformer!")
+                raise Exception("Unknown or missing logit_head specified for chart-transformers!")
         else:
             self.to_logits = nn.Linear(dim, num_tokens)
 
@@ -820,12 +820,12 @@ class TransformerWrapper(nn.Module):
                 x_quant = x[:, :, -self.quant_emb_dim:]
             elif self.logit_head == "shared":
                 x_token = x_quant = x
-            elif self.logit_head == "hierarchical":  # dev
+            elif self.logit_head == "hierarchical":
                 x = self.project_out(x)
                 x_token = x[:, :, :-self.quant_emb_dim]
                 x_quant = x[:, :, -self.quant_emb_dim:]
             else:
-                raise Exception("Unknown or missing logit_head specified for va-transformer!")
+                raise Exception("Unknown or missing logit_head specified for chart-transformers!")
 
             out = self.to_logits(x_token) if not return_embeddings else x_token
 

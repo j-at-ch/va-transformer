@@ -21,7 +21,7 @@ class Mappings:
         self.sos_quant_token = sos_quant_token
         self.eos_quant_token = eos_quant_token
 
-        if pad_token is not None:  # dev: include check that pad_token isn't already in dicts.
+        if pad_token is not None:
             self.append_special_(self.itemid2token, self.token2itemid, '[PAD]', pad_token)
         if sos_token is not None:
             self.append_special_(self.itemid2token, self.token2itemid, '[SOS]', sos_token)

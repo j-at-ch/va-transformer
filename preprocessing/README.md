@@ -1,6 +1,23 @@
 # Preprocessing
 
-## Contract with training scripts
+## Required files:
+
++ Preprocessing mimic-iii-clinical-database-1.4 requires access to the MIMIC-III database. We will only need the following files
+  + D_LABITEMS.csv
+  + LABEVENTS.csv
+  + ADMISSIONS.csv
+
+To run preprocessing with the default arguments you will need to specify --mimic_root (which contains the files above) 
+and --save_root (which is where the preprocessing output will be saved to). 
+
+```
+python preprocessing/mimic/preprocess_labs.py \
+    --mimic_root <your/mimic/dir>\
+    --save_root <your/desired/saved/root>\
+```
+
+## Some further details:
+###Contract with training scripts
 
 + the 'main' scripts: pretraining.py, finetuning.py and baselining.py expect to find the following files in the directory\
 specified by their `--data_root` argument. 
@@ -10,7 +27,7 @@ specified by their `--data_root` argument.
   + mappings.pkl
     + dict with keys 'itemid2token', 'token2itemid' 'token2trcount', each a dict mapping associated with tokens. 
   + train_data.pkl
-    + dict with keys 'train_tokens', 'train_values', 'train_quantiles', 'train_times_rel' and each associated values is\
+    + dict with keys 'train_tokens', 'train_values', 'train_quants', 'train_times_rel' and each associated values is\
     a dict with keys given by (patient) index and values a numpy array. For each index, the arrays are temporally\
     aligned. 
   + train_targets.pkl
@@ -20,9 +37,3 @@ specified by their `--data_root` argument.
   + val_targets.pkl
   + test_data.pkl
   + test_targets.pkl
-
-### TODOs
-+ The items above would be better as classes. Then the contract between the output of the preprocessing would be\ 
-cleaner: we would just need to check that the preprocess_* scripts end by pickling instances of the classes, and that
-the model expects the classes. rf. current method is to pickle into dicts and then read the dicts into classes.\ 
-cf. `data_utils.Mappings`

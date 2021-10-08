@@ -1,5 +1,4 @@
 import os
-import sys
 
 import numpy as np
 import pandas as pd
@@ -57,27 +56,6 @@ def apply_quantile_fct(labs_df, quantiles_df, col):
         return 1
     else:
         return get_numeric_quantile_from_(quantiles_df, labs_df.ITEMID, labs_df[col])
-
-
-class Data1p5D:  # dev
-    def __init__(self, tokens, values=None, quants=None, times=None):
-        self.tokens = tokens  # dict with k:v as hadm: np.array
-        self.values = values
-        self.quants = quants
-        self.times = times
-
-
-class Targets:  # dev
-    def __init__(self, target, **kwargs):
-        self.target = target
-
-
-class Data1D:
-    def __init__(self, values_mean, values_latest=None, values_count=None, quants=None, **kwargs):
-        self.values_mean = values_mean  # dict with k:v as hadm: np.array
-        self.values_latest = values_latest
-        self.values_count = values_count
-        self.quants = quants
 
 
 def preprocess_labs_for_1p5D(args):
@@ -350,7 +328,7 @@ def preprocess_labs_for_1D(args):
     # paths
 
     admissions_path = os.path.join(args.data_root, "augmented_admissions.csv")
-    scaled_labevents_path = os.path.join(args.data_root, "scaled_LABEVENTS.csv")
+    scaled_labevents_path = os.path.join(args.data_root, "scaled_labevents.csv")
     lab_quantiles_path = os.path.join(args.save_root, "lab_quantiles.csv")
     d_labitems_path = os.path.join(args.mimic_root, "D_LABITEMS.csv")
 
@@ -451,9 +429,9 @@ if __name__ == "__main__":
     arguments = PreprocessingArguments().parse()
 
     if arguments.preprocess_for == '1D':
+        assert arguments.data_root is not None, "To preprocess for 1D we need to have done 1.5D preprocessing!"
         preprocess_labs_for_1D(arguments)
     elif arguments.preprocess_for == '1.5D':
         preprocess_labs_for_1p5D(arguments)
     else:
-        preprocess_labs_for_1p5D(arguments)
-        preprocess_labs_for_1D(arguments)
+        raise Exception("Must specify which data format we are preprocessing for!")

@@ -1,53 +1,55 @@
-# chart-transformers
+# va-transformers
 
-Motivation is patient chart event-based data.
+This repo contains the code for the paper *Value-aware transformers for 1.5d data*!
+Thanks for checking out this codebase!
 
-Reproducibility guarantee: the authors are confident that the results of this code are reproducible.
+## Requirements
 
-## Features
-Using this repo you can:
-+ pretrain a cutting edge decoder-style transformer-based model
-+ finetune the pretrained model for a specific classification task
+We have provided a requirements.txt file specifying the basic packages needed to use this repo. We use a conda env.
+Note that Anaconda does not provide a distribution for the entmax package. 
+This is accessible on pypi. To bring it into a conda-managed venv
+you can add pip to your conda venv. Then install entmax into venv directly via pip. E.g.
 
-and be able to interactively visualise:
-+ the development of token embeddings and training logs with tensorboard
+`conda create --name <vat-env>`
 
-## How to use this repo
+`conda activate <vat-env>`
 
-### Set-up
+`conda install --file requirements.txt`
 
-Users might wish to set some of the command-line options as defaults in arguments.py.
-Having set up your venv from the requirements file, 
+`anaconda3/envs/<vat-env>/bin/pip install entmax`
 
-### Preprocessing
-
+For visualisation and logging you will need Tensorboard. Make sure that you do not have tensorflow in your venv. This will confuse tensorboard.
+If you wish to see the embeddings, make sure to append model_name to logs, as below.
 ```
-python mimic/processing.py \
-    --mimic_root \
-    --save_root \
-    --nrows \
+tensorboard --logdir <path_to_desired_log_dir>/model_name
 ```
+
+## Preprocessing
+
+This relies on having access to (and permission for) the MIMIC-III database files which can be found at:
+https://physionet.org/content/mimiciii/1.4/
+
+Further details on preprocessing can be found in ```preprocessing/README.md```
+
+## Pretraining, Finetuning, Baselining
 
 ### Pretraining commands
 
-The core arguments for pretraining are:
+The defaults settings in arguments.py specify the pretraining of a value-aware transformer of depth 4 the same as we
+trained in the paper. You will need to specify the following required arguments so that the script knows: where to find
+your preprocessed data; where to save checkpointed models; where to write logs to; and what your cuda device is called. 
 ```
 python mimic/pretraining.py \
     --data_root <path_to_preprocessed_data_dir>\
     --save_root <path_to_desired_save_dir>\
     --logs_root <path_to_desired_log_dir>\
-    --attn_depth 6\
-    --attn_dim 100\
-    --attn_heads 8\
-    --seq_len 200\
-    --model_name 'pretraining_test'\
-    --num_epochs 50
+    --device <your_cuda_device>
 ```
 
-Provided you specify the correct `--data_root` and give a valid `--save_root` and `--logs_root`, the model should run
-straight out of the box.
+Provided you specify the correct `--data_root` (which includes correctly formatted data)
+and give a valid `--save_root` and `--logs_root`, the model should run straight out of the box.
 
-*HINT*: to do a test run, append the option `--test_run True` to the command above.
+*HINT*: to do a test run, append the option `--toy_run 1` to the command above.
 
 To see all specifiable options, type:
 ```
@@ -57,52 +59,49 @@ and for further details consult `mimic/arguments.py` which shows the default set
 
 ### Finetuning
 
-The core arguments for finetuning are:
+To run finetuning you should have a pretrained model and specify the correct arguments so that the base (va-)transformer
+architecture matches the weights being loaded.
+
+You will need to specify these required arguments:
 ```
 python mimic/finetuning.py \
     --data_root <path_to_preprocessed_data_dir>\
     --save_root <path_to_desired_save_dir>\
     --logs_root <path_to_desired_log_dir>\
-    --attn_depth 6\
-    --attn_dim 100\
-    --attn_heads 8\
-    --seq_len 200\
-    --model_name 'finetuning_test'\
-    --num_epochs 50
-    --pretuned_model <path_to_ckpt_of_output_of_pretraining>
+    --pretrained_model <path_to_ckpt_of_output_of_pretraining>
 ```
 
-*HINT*: to do a test run, append the option `--test_run True` to the command above.
+The default prediction problem is ```--targets="DEATH<=3D"```. 
+Changing in any of the other mortality targets will work without changing any of the defaults.
+
+For the regression problem ```--targets="LOS"```, the following arguments need to be set:
+```--clf_or_reg="reg"```, ```--num_classes=1```.
 
 
-### Visualisation
+*HINT*: to do a test run, append the option `--toy_run True` to the command above.
 
-Tensorboard. Make sure that you do not have tensorflow in your venv. This will confuse tensorboard.
-If you wish to see the embeddings, make sure to append model_name to logs, as below.
+### Baselining1D
+
+To run the baseline1D models you will need 
+
+You will need to specify these required arguments.
 ```
-tensorboard --logdir <path_to_desired_log_dir>/model_name
+python mimic/baselining1D.py \
+    --data_root <path_to_preprocessed_data_dir>\
+    --save_root <path_to_desired_save_dir>\
+    --logs_root <path_to_desired_log_dir>
 ```
 
-## Requirements
+The default prediction problem is ```--targets="DEATH<=3D"```. 
+Changing in any of the other mortality targets will work without changing any of the default setting.
 
-We have provided a requirements.txt specifying the basic packages needed to use this repo. We use a conda env, 
-but have also tested with pip. Note that Anaconda does not provide a distribution for the entmax package. 
-This is accessible on pypi. To bring it into a conda-managed venv
-you can add pip to your conda venv. Then install entmax into venv directly via pip. E.g.
+For the regression problem ```--targets="LOS"```, the following arguments need to be set:
+```--clf_or_reg="reg"```, ```--num_classes=1```.
 
-`conda create --name <chart-env>`
+*HINT*: to do a test run, append the option `--toy_run True` to the command above.
 
-`conda activate <chart-env>`
+## Thanks...
 
-`conda install --file requirements.txt`
-
-`anaconda3/envs/<chart-env>/bin/pip install entmax`
-
-
-### Models
-
-vg1
-vg1.1
-vg1.2
-vg1.3
-vg1.4 only difference from vg1.3 is --quantile_pad_token set to 5 so that it is separate from others. 
+...for checking out this codebase! We will be refining it in the future to make easily accessible
+to data other than MIMIC-III. We're excited about the results that the va-transformer models have achieved on it, and
+we're keen to refine and put it to the test on tricky sequential data domains elsewhere!
