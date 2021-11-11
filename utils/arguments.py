@@ -21,14 +21,14 @@ class Arguments:
     def initialise(self):
 
         # data roots
-        self.parser.add_argument('--data_root', type=str, required=True)
-        self.parser.set_defaults(data_root=None)
+        self.parser.add_argument('--data_root', type=str)
+        self.parser.set_defaults(data_root="/home/james/Documents/Charters/labs_dataset6/data")
         self.parser.add_argument('--model_root', type=str)
-        self.parser.set_defaults(model_root=None)
-        self.parser.add_argument('--save_root', type=str, required=True)
-        self.parser.set_defaults(save_root=None)
-        self.parser.add_argument('--logs_root', type=str, required=True)
-        self.parser.set_defaults(logs_root=None)
+        self.parser.set_defaults(model_root="/home/james/Documents/Charters/labs_dataset6/models")
+        self.parser.add_argument('--save_root', type=str)
+        self.parser.set_defaults(save_root="/home/james/Documents/Charters/labs_dataset6/models")
+        self.parser.add_argument('--logs_root', type=str)
+        self.parser.set_defaults(logs_root="/home/james/Documents/Charters/labs_dataset6/logs")
 
         # transformer specifications
 
