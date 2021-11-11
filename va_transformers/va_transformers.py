@@ -182,7 +182,7 @@ class RelativePositionBias(nn.Module):
                                                    max_distance=self.max_distance)
         values = self.relative_attention_bias(rp_bucket)
         bias = rearrange(values, 'i j h -> () h i j')
-        return qk_dots + (bias * self.scale)
+        return qk_dots + (bias * self.scale)  # TODO:
 
 
 class RotaryEmbedding(nn.Module):

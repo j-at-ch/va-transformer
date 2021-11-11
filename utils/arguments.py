@@ -14,7 +14,7 @@ def none_or_str(value):
 
 class Arguments:
     def __init__(self, mode):
-        self.parser = argparse.ArgumentParser(description='chart-transformers')
+        self.parser = argparse.ArgumentParser(description='va-transformers')
         self.mode = mode
         self.arguments = None
 
