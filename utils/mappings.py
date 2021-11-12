@@ -36,7 +36,7 @@ class Mappings:
             self.append_special_(self.qname2qtoken, self.qtoken2qname, '[EOS]', eos_quant_token)
 
         self.num_tokens = len(self.itemid2token)
-        self.num_quant_tokens = len(self.qname2qtoken)
+        self.num_quant_tokens = len(self.qname2qtoken) if self.qname2qtoken is not None else 0
 
     @staticmethod
     def append_special_(n2t, t2n, name, token):

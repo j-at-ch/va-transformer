@@ -57,7 +57,7 @@ class Arguments:
         self.parser.add_argument('--seq_len', type=int, default=250)
         self.parser.add_argument('--write_best_val_embeddings', type=int, default=0)
         self.parser.add_argument('--write_initial_embeddings', type=int, default=0)
-        self.parser.add_argument('--write_final_embeddings', type=int, default=1)
+        self.parser.add_argument('--write_final_embeddings', type=int, default=0)
         self.parser.add_argument('--learning_rate', type=float, default=5e-5)
         self.parser.add_argument('--scheduler_decay', type=float, default=1.)
         self.parser.add_argument('--pad_token', type=int, default=0)
