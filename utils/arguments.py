@@ -45,7 +45,7 @@ class Arguments:
 
         # general arguments
 
-        self.parser.add_argument('--device', type=str, required=True)
+        self.parser.add_argument('--device', type=str, default='cuda:0')
         self.parser.add_argument('--toy_run', type=int, default=0)
         self.parser.add_argument('--WARNING_TESTING', type=int, default=0, choices=[0, 1])
         self.parser.add_argument('--model_name', type=str, default=f'{self.mode}_test')
