@@ -320,7 +320,7 @@ def main(args):
         # write results to auxiliary logs file for convenience
 
         print("writing finetuning logs to central csv for convenience!")
-        central_logs_name = f'finetuning_{args.targets}_logs.csv'
+        central_logs_name = f'finetuningsc_{args.targets}_logs.csv'
         central_logs_path = os.path.join(args.logs_root, central_logs_name)
         if not os.path.isfile(central_logs_path):
             with open(central_logs_path, 'w') as f:
