@@ -276,7 +276,7 @@ def main(args):
         print("\nWARNING TEST set in use!\n")
 
         # load test set data
-        test_path = os.path.join(args.data_root, "test_data.pkl")
+        test_path = os.path.join(args.data_root, "test_data_sc.pkl")
         test_tgt_path = os.path.join(args.data_root, "test_targets.pkl")
 
         data_test = fetch_data_as_torch(test_path, 'test_tokens')
