@@ -218,7 +218,7 @@ def main(args):
 
         # load test set data
 
-        test_path = os.path.join(args.data_root, "test_data.pkl")
+        test_path = os.path.join(args.data_root, "test_data_sc.pkl")
         data_test = fetch_data_as_torch(test_path, 'test_tokens')
         if bool(args.with_values):
             quants_test = fetch_data_as_torch(test_path, 'test_quants')
