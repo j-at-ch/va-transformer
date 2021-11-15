@@ -67,7 +67,7 @@ def preprocess_labs_for_1p5D(args):
     d_labitems_path = os.path.join(args.mimic_root, "D_LABITEMS.csv")
 
     if bool(args.labs_preliminaries_done):
-        scaled_labevents_path = os.path.join(args.data_root, "scaled_LABEVENTS.csv")
+        scaled_labevents_path = os.path.join(args.data_root, "labevents_scaled.csv")
         lab_quantiles_path = os.path.join(args.data_root, "lab_quantiles.csv")
         labevents = (pd.read_csv(scaled_labevents_path,
                                  index_col='ROW_ID',
@@ -188,7 +188,11 @@ def preprocess_labs_for_1p5D(args):
     itemid2token.update(special_tokens)
     token2itemid = {v: k for k, v in itemid2token.items()}
 
-    qname2qtoken = {'CAT': 1, 'XLOW': 2, 'LOW': 3, 'MID': 4, 'HIGH': 5, 'XHIGH': 6}
+    qname2qtoken = dict(
+        zip([f'Q{i}' for i in range(1, len(args.quantiles) + 2)],
+            range(token_shift + 1, token_shift + 2 + len(args.quantiles)))
+    )
+    qname2qtoken.update({'UNK': 1})
     qname2qtoken.update(special_tokens)
     qtoken2qname = {v: k for k, v in qname2qtoken.items()}
 
@@ -200,29 +204,27 @@ def preprocess_labs_for_1p5D(args):
     def get_from_adm(hadm_id, target):
         return adm.loc[hadm_id, target]
 
-    # minor u.o.m. processing if needed for particular labs
-
-    labevents2 = labevents[labevents.CHARTTIME <= labevents.ADMITTIME + pd.Timedelta(days=2)]
+    labevents = labevents[labevents.CHARTTIME <= labevents.ADMITTIME + pd.Timedelta(days=2)]
 
     if not bool(args.labs_preliminaries_done):
         print("unit-scaling lab values...")
         labevents['SCALE'] = labevents.apply(lambda x: unitscale(x['ITEMID'], x['VALUEUOM']), axis=1)
         labevents['VALUE_SCALED'] = labevents['SCALE'] * labevents['VALUENUM']
-        labevents = labevents.join(adm[['ADMITTIME']], on='HADM_ID')
+        #labevents = labevents.join(adm[['ADMITTIME']], on='HADM_ID')
         print("lab values unit-scaled!\n")
         labs_out_path = os.path.join(args.save_root, "labevents_scaled.csv")
         print(f"writing scaled labs df to {labs_out_path} for posterity...")
         labevents.to_csv(labs_out_path)
         print("written!\n")
     else:
-        print("lab values are not being rescaled!")
+        print("lab values are not being rescaled - presumed already rescaled!")
 
     # loop through index sets and generate output files
     for subset in ['train', 'val', 'test']:
         print(f'Processing {subset} set data...')
 
         # grouper for labs
-        groups = (labevents2.query(f'HADM_ID.isin(@{subset}_indices)')
+        groups = (labevents.query(f'HADM_ID.isin(@{subset}_indices)')
                   .groupby(by='HADM_ID')
                   )
 
@@ -328,7 +330,7 @@ def preprocess_labs_for_1D(args):
     # paths
 
     admissions_path = os.path.join(args.data_root, "augmented_admissions.csv")
-    scaled_labevents_path = os.path.join(args.data_root, "scaled_labevents.csv")
+    scaled_labevents_path = os.path.join(args.data_root, "labevents_scaled.csv")
     lab_quantiles_path = os.path.join(args.save_root, "lab_quantiles.csv")
     d_labitems_path = os.path.join(args.mimic_root, "D_LABITEMS.csv")
 
