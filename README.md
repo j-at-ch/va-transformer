@@ -102,6 +102,5 @@ For the regression problem ```--targets="LOS"```, the following arguments need t
 
 ## Thanks...
 
-...for checking out this codebase! We will be refining it in the future to make easily accessible
-to data other than MIMIC-III. We're excited about the results that the va-transformer models have achieved on it, and
+...for checking out this codebase! It is currently designed for use with MIMIC-III, but if you're interested in using this repo with your data do reach out. We're excited about the initial results that the va-transformer models have achieved, and
 we're keen to refine and put it to the test on tricky sequential data domains elsewhere!
