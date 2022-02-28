@@ -1,11 +1,11 @@
 # va-transformers
 
-This repo contains the code for the paper *Value-aware transformers for 1.5d data*!
-Thanks for checking out this codebase!
+This repo contains the code for the paper *Value-aware transformers for 1.5d data* - 
+thanks for checking out this codebase!
 
 ## Requirements
 
-We have provided a requirements.txt file specifying the basic packages needed to use this repo. We use a conda env.
+I've provided a requirements.txt file specifying the basic packages needed to use this repo. We use a conda env.
 Note that Anaconda does not provide a distribution for the entmax package. 
 This is accessible on pypi. To bring it into a conda-managed venv
 you can add pip to your conda venv. Then install entmax into venv directly via pip. E.g.
@@ -102,5 +102,5 @@ For the regression problem ```--targets="LOS"```, the following arguments need t
 
 ## Thanks...
 
-...for checking out this codebase! It is currently designed for use with MIMIC-III, but if you're interested in using this repo with your data do reach out. We're excited about the initial results that the va-transformer models have achieved, and
-we're keen to refine and put it to the test on tricky sequential data domains elsewhere!
+for checking out this codebase! It is currently designed for use with MIMIC-III, but if you're interested in using this repo with your data do reach out. I'm excited about the initial results that the va-transformer models have achieved, and
+am keen to refine and put it to the test on tricky sequential data domains elsewhere!
