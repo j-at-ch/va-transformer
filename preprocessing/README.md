@@ -17,7 +17,7 @@ python preprocessing/mimic/preprocess_labs.py \
 ```
 
 ## Some further details:
-###Contract with training scripts
+### Contract with training scripts
 
 + the 'main' scripts: pretraining.py, finetuning.py and baselining.py expect to find the following files in the directory\
 specified by their `--data_root` argument. 
