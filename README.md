@@ -100,7 +100,6 @@ For the regression problem ```--targets="LOS"```, the following arguments need t
 
 *HINT*: to do a test run, append the option `--toy_run True` to the command above.
 
-## Thanks...
+## Final Note
 
-for checking out this codebase! It is currently designed for use with MIMIC-III, but if you're interested in using this repo with your data do reach out. We're excited about the initial results that the va-transformer models have achieved, and
-am keen to refine and put it to the test on tricky sequential data domains elsewhere!
+While this codebase was designed to model MIMIC-III, there's no reason why this approach shouldn't work on your data if it has similar properties. We're excited about the initial results that the va-transformer models have achieved, and are keen to hear how it performs on tricky sequential data domains elsewhere!
