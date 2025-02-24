@@ -1,7 +1,6 @@
-# va-transformers
+# value-aware-transformers
 
-This repo contains the code for the paper [Value-aware transformers for 1.5d data](https://openreview.net/pdf?id=S3qhbZwzq3H) - 
-thanks for checking out this codebase!
+This repo contains the code for the paper [Value-aware Transformers for 1.5D Data](value_aware_transformers_for_1.5d_data.pdf).
 
 ## Requirements
 
@@ -72,7 +71,7 @@ python mimic/finetuning.py \
 ```
 
 The default prediction problem is ```--targets="DEATH<=3D"```. 
-Changing in any of the other mortality targets will work without changing any of the defaults.
+Switching in any of the other mortality targets will work without changing any of the defaults.
 
 For the regression problem ```--targets="LOS"```, the following arguments need to be set:
 ```--clf_or_reg="reg"```, ```--num_classes=1```.
@@ -100,6 +99,5 @@ For the regression problem ```--targets="LOS"```, the following arguments need t
 
 *HINT*: to do a test run, append the option `--toy_run True` to the command above.
 
-## Final Note
-
-While this codebase was designed to model MIMIC-III, there's no reason why this approach shouldn't work on your data if it has similar properties. We're excited about the initial results that the va-transformer models have achieved, and are keen to hear how it performs on tricky sequential data domains elsewhere!
+### Final Note
+Any questions, reach out. I'd be happy to help!
