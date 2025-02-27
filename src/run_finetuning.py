@@ -1,17 +1,15 @@
 import os
-import sys
 
 import numpy as np
-import pandas as pd
 from pprint import pprint
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from utils import model_methods
-from utils.data_utils import *
-from utils.arguments import Arguments
-from utils.mappings import Mappings, Labellers
-from utils.samplers import SeqSamplerDataset
+from va_transformers.utils import model_methods
+from va_transformers.utils.data_utils import *
+from va_transformers.utils.arguments import Arguments
+from va_transformers.utils.mappings import Mappings, Labellers
+from va_transformers.utils.samplers import SeqSamplerDataset
 from va_transformers.va_transformers import TransformerWrapper, Decoder
 from va_transformers.finetuning_wrapper import FinetuningWrapper
 

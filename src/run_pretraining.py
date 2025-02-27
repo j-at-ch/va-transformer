@@ -1,6 +1,5 @@
 import os
 
-import tqdm
 import numpy as np
 import pandas as pd
 from pprint import pprint
@@ -8,12 +7,12 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from utils.utils import read_yaml
-from utils import model_methods
-from utils.data_utils import fetch_mappings, fetch_data_as_torch, make_toy_loader
-from utils.arguments import Arguments
-from utils.mappings import Mappings, Labellers
-from utils.samplers import SeqSamplerDataset
+from va_transformers.utils.utils import read_yaml
+from va_transformers.utils import model_methods
+from va_transformers.utils.data_utils import fetch_mappings, fetch_data_as_torch, make_toy_loader
+from va_transformers.utils.arguments import Arguments
+from va_transformers.utils.mappings import Mappings, Labellers
+from va_transformers.utils.samplers import SeqSamplerDataset
 from va_transformers.va_transformers import Decoder, TransformerWrapper
 from va_transformers.autoregressive_wrapper import AutoregressiveWrapper
 
