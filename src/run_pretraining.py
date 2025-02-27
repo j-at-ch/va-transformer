@@ -23,10 +23,9 @@ def main(args):
     print('*' * 17)
 
     # paths
-
-    d_items_path = os.path.join(args.data_root, "d_labitems.csv")
     train_path = os.path.join(args.data_root, "train_data.pkl")
     val_path = os.path.join(args.data_root, "val_data.pkl")
+    d_items_path = os.path.join(args.data_root, "d_labitems.csv")
     mapping_path = os.path.join(args.data_root, "mappings.pkl")
     ckpt_path = os.path.join(args.save_root, args.model_name + ".pt")
     logs_path = os.path.join(args.logs_root, args.model_name)
@@ -55,22 +54,25 @@ def main(args):
         eos_token = len_t_dict + 1
         eos_quant_token = (len_q_dict + 1) if args.with_values else None
 
-    mappings = Mappings(mappings_dict,
-                        pad_token=pad_token,
-                        sos_token=sos_token,
-                        eos_token=eos_token,
-                        pad_quant_token=pad_quant_token,
-                        sos_quant_token=sos_quant_token,
-                        eos_quant_token=eos_quant_token
-                        )
+    mappings = Mappings(
+        mappings_dict,
+        pad_token=pad_token,
+        sos_token=sos_token,
+        eos_token=eos_token,
+        pad_quant_token=pad_quant_token,
+        sos_quant_token=sos_quant_token,
+        eos_quant_token=eos_quant_token
+    )
 
-    print(f"[PAD] token is {mappings.pad_token}",
-          f"[SOS] token is {mappings.sos_token}",
-          f"[EOS] token is {mappings.eos_token}",
-          f"[PAD] quant token is {mappings.pad_quant_token}",
-          f"[SOS] quant token is {mappings.sos_quant_token}",
-          f"[EOS] quant token is {mappings.eos_quant_token}",
-          sep="\n")
+    print(
+        f"[PAD] token is {mappings.pad_token}",
+        f"[SOS] token is {mappings.sos_token}",
+        f"[EOS] token is {mappings.eos_token}",
+        f"[PAD] quant token is {mappings.pad_quant_token}",
+        f"[SOS] quant token is {mappings.sos_quant_token}",
+        f"[EOS] quant token is {mappings.eos_quant_token}",
+        sep="\n"
+    )
 
     # labellers
     d_items_df = pd.read_csv(d_items_path, index_col='ITEMID', dtype={'ITEMID': str})
@@ -164,9 +166,9 @@ def main(args):
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.scheduler_decay)
         training = model_methods.PretrainingMethods(pre_model, writer)
 
-        # write initial embeddings
         tokens_to_write = list(mappings.token2itemid)
 
+        # write initial embeddings
         if bool(args.write_initial_embeddings):
             training.write_token_emb(-1, tokens_to_write, labeller, args.seq_len, device)
 
@@ -204,7 +206,6 @@ def main(args):
                 )
 
                 # track checkpoint's embeddings
-
                 if bool(args.write_best_val_embeddings):
                     training.write_token_emb(epoch, tokens_to_write, labeller, args.seq_len, device)
 
@@ -225,7 +226,6 @@ def main(args):
             scheduler.step()
 
         # write final embeddings
-
         if bool(args.write_final_embeddings):
             training.write_token_emb(epoch, tokens_to_write, labeller, args.seq_len, device)
 
@@ -268,9 +268,8 @@ def main(args):
 
         # test the model
         testing = model_methods.PretrainingMethods(pre_model, writer=writer)
-
-        val_losses = testing.evaluate(val_loader, epoch=0, gamma=args.gamma, prefix='re-val')
-        test_losses = testing.evaluate(test_loader, epoch=0, gamma=args.gamma, prefix='test')
+        testing.evaluate(val_loader, epoch=0, gamma=args.gamma, prefix='re-val')
+        testing.evaluate(test_loader, epoch=0, gamma=args.gamma, prefix='test')
 
         print("testing finished!")
 
